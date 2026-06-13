@@ -171,7 +171,7 @@ export function DebtForm({ onDone, initial, defaults, lockContact }: { onDone: (
 
   return (
     <form onSubmit={(e) => { e.preventDefault(); mutation.mutate(); }} className="space-y-4">
-      <DialogHeader><DialogTitle>{isEdit ? "تعديل دين" : "دين جديد"}</DialogTitle></DialogHeader>
+      <DialogHeader><DialogTitle>{isEdit ? "تعديل دين" : (defaults?.contact_name ? `معاملة جديدة مع ${defaults.contact_name}` : "دين جديد")}</DialogTitle></DialogHeader>
 
       <Tabs value={direction} onValueChange={setDirection}>
         <TabsList className="grid grid-cols-2 w-full">
