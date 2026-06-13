@@ -54,6 +54,8 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       { name: "twitter:title", content: "تتبع — متابعة الديون والمصاريف" },
       { name: "twitter:description", content: "تطبيق احترافي لمتابعة الديون المستحقة لك أو عليك وإدارة المصاريف العامة  مع تقارير وتصدير PDF و Excel." },
       { name: "twitter:card", content: "summary" },
+      { property: "og:image", content: "https://pub-bb2e103a32db4e198524a2e9ed8f35b4.r2.dev/a9cbbedc-de0a-41a0-9543-2d66f396e297/id-preview-5fcd8d16--a152564d-27eb-4c34-88c3-bd4d16c0e912.lovable.app-1781342312610.png" },
+      { name: "twitter:image", content: "https://pub-bb2e103a32db4e198524a2e9ed8f35b4.r2.dev/a9cbbedc-de0a-41a0-9543-2d66f396e297/id-preview-5fcd8d16--a152564d-27eb-4c34-88c3-bd4d16c0e912.lovable.app-1781342312610.png" },
     ],
     links: [
       { rel: "stylesheet", href: appCss },
