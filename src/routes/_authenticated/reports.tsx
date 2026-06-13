@@ -56,7 +56,7 @@ function ReportsPage() {
   function exportExcel() {
     const sheetData = type === "expenses"
       ? rows.map((e: any) => ({ "التاريخ": e.spent_at, "الفئة": e.categories?.name ?? "", "المشروع": e.projects?.name ?? "", "المبلغ": Number(e.amount), "العملة": e.currency, "ملاحظة": e.note ?? "" }))
-      : rows.map((d: any) => ({ "التاريخ": d.created_at?.slice(0, 10), "الشخص": d.contact_name, "النوع": d.direction === "owed_to_me" ? "لي" : "عليّ", "المبلغ": Number(d.amount), "مدفوع": Number(d.paid), "متبقي": Number(d.remaining), "العملة": d.currency, "تاريخ الاستحقاق": d.due_date ?? "", "ملاحظات": d.notes ?? "" });
+      : rows.map((d: any) => ({ "التاريخ": d.created_at?.slice(0, 10), "الشخص": d.contact_name, "النوع": d.direction === "owed_to_me" ? "لي" : "عليّ", "المبلغ": Number(d.amount), "مدفوع": Number(d.paid), "متبقي": Number(d.remaining), "العملة": d.currency, "تاريخ الاستحقاق": d.due_date ?? "", "ملاحظات": d.notes ?? "" }));
     const ws = XLSX.utils.json_to_sheet(sheetData);
     ws["!cols"] = Object.keys(sheetData[0] ?? {}).map(() => ({ wch: 18 }));
     const wb = XLSX.utils.book_new();
