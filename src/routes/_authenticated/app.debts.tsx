@@ -182,7 +182,7 @@ export function DebtForm({ onDone, initial, defaults, lockContact }: { onDone: (
 
       <div>
         <Label>اسم الشخص</Label>
-        <Input value={contactName} onChange={(e) => setContactName(e.target.value)} required maxLength={100} placeholder="مثلاً: أحمد محمد" />
+        <Input value={contactName} onChange={(e) => setContactName(e.target.value)} required maxLength={100} placeholder="مثلاً: أحمد محمد" disabled={lockContact} />
       </div>
 
       <div className="grid grid-cols-2 gap-3">
