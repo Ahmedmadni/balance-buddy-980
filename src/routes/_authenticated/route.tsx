@@ -20,9 +20,10 @@ export const Route = createFileRoute("/_authenticated")({
 const NAV = [
   { to: "/app", icon: LayoutDashboard, label: "الرئيسية", exact: true },
   { to: "/app/debts", icon: HandCoins, label: "الديون" },
+  { to: "/app/people", icon: Users, label: "الأشخاص" },
   { to: "/app/expenses", icon: Wallet, label: "المصاريف" },
-  { to: "/app/projects", icon: FolderKanban, label: "المشاريع" },
   { to: "/app/reports", icon: FileBarChart, label: "التقارير" },
+  { to: "/app/projects", icon: FolderKanban, label: "المشاريع" },
   { to: "/app/settings", icon: Settings, label: "الإعدادات" },
 ];
 
