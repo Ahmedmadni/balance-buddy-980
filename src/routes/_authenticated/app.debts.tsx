@@ -135,10 +135,10 @@ function EmptyState() {
   );
 }
 
-export function DebtForm({ onDone, initial }: { onDone: () => void; initial?: any }) {
+export function DebtForm({ onDone, initial, defaults, lockContact }: { onDone: () => void; initial?: any; defaults?: { contact_name?: string; direction?: string }; lockContact?: boolean }) {
   const isEdit = !!initial;
-  const [direction, setDirection] = useState<string>(initial?.direction ?? "owed_to_me");
-  const [contactName, setContactName] = useState(initial?.contact_name ?? "");
+  const [direction, setDirection] = useState<string>(initial?.direction ?? defaults?.direction ?? "owed_to_me");
+  const [contactName, setContactName] = useState(initial?.contact_name ?? defaults?.contact_name ?? "");
   const [amount, setAmount] = useState(initial?.amount?.toString() ?? "");
   const [currency, setCurrency] = useState(initial?.currency ?? "SAR");
   const [dueDate, setDueDate] = useState(initial?.due_date ?? "");
