@@ -11,7 +11,7 @@ import { Download, Printer, FileSpreadsheet } from "lucide-react";
 import { formatMoney, formatDate, todayISO } from "@/lib/format";
 import * as XLSX from "xlsx";
 
-export const Route = createFileRoute("/_authenticated/reports")({
+export const Route = createFileRoute("/_authenticated/app/reports")({
   head: () => ({ meta: [{ title: "التقارير — حسابي" }] }),
   component: ReportsPage,
 });

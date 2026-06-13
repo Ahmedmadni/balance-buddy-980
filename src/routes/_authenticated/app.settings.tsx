@@ -11,7 +11,7 @@ import { CURRENCIES } from "@/lib/format";
 import { Plus, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 
-export const Route = createFileRoute("/_authenticated/settings")({
+export const Route = createFileRoute("/_authenticated/app/settings")({
   head: () => ({ meta: [{ title: "الإعدادات — حسابي" }] }),
   component: SettingsPage,
 });

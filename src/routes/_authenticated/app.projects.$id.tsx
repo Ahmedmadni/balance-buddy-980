@@ -7,7 +7,7 @@ import { ArrowRight, FolderKanban, Trash2 } from "lucide-react";
 import { formatMoney, formatDate } from "@/lib/format";
 import { toast } from "sonner";
 
-export const Route = createFileRoute("/_authenticated/projects/$id")({
+export const Route = createFileRoute("/_authenticated/app/projects/$id")({
   head: () => ({ meta: [{ title: "تفاصيل المشروع — حسابي" }] }),
   component: ProjectDetail,
 });

@@ -11,9 +11,9 @@ import { ArrowRight, Plus, Pencil, Trash2 } from "lucide-react";
 import { formatMoney, formatDate, todayISO } from "@/lib/format";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
-import { DebtForm } from "./debts";
+import { DebtForm } from "./app.debts";
 
-export const Route = createFileRoute("/_authenticated/debts/$id")({
+export const Route = createFileRoute("/_authenticated/app/debts/$id")({
   head: () => ({ meta: [{ title: "تفاصيل الدين — حسابي" }] }),
   component: DebtDetail,
 });

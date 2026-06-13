@@ -11,7 +11,7 @@ import { Plus, Trash2, Wallet } from "lucide-react";
 import { CURRENCIES, formatMoney, formatDate, todayISO } from "@/lib/format";
 import { toast } from "sonner";
 
-export const Route = createFileRoute("/_authenticated/expenses")({
+export const Route = createFileRoute("/_authenticated/app/expenses")({
   head: () => ({ meta: [{ title: "المصاريف — حسابي" }] }),
   component: ExpensesPage,
 });

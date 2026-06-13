@@ -14,7 +14,7 @@ import { CURRENCIES, formatMoney, formatDate, todayISO } from "@/lib/format";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 
-export const Route = createFileRoute("/_authenticated/debts")({
+export const Route = createFileRoute("/_authenticated/app/debts")({
   head: () => ({ meta: [{ title: "الديون — حسابي" }] }),
   component: DebtsPage,
 });
