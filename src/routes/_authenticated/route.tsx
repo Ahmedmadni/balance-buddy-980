@@ -1,7 +1,7 @@
 import { createFileRoute, Outlet, redirect, Link, useRouterState, useNavigate } from "@tanstack/react-router";
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { LayoutDashboard, HandCoins, Wallet, FolderKanban, FileBarChart, Settings, LogOut, Menu } from "lucide-react";
+import { LayoutDashboard, HandCoins, Wallet, FolderKanban, FileBarChart, Settings, LogOut, Menu, Users } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import { cn } from "@/lib/utils";
@@ -20,9 +20,10 @@ export const Route = createFileRoute("/_authenticated")({
 const NAV = [
   { to: "/app", icon: LayoutDashboard, label: "الرئيسية", exact: true },
   { to: "/app/debts", icon: HandCoins, label: "الديون" },
+  { to: "/app/people", icon: Users, label: "الأشخاص" },
   { to: "/app/expenses", icon: Wallet, label: "المصاريف" },
-  { to: "/app/projects", icon: FolderKanban, label: "المشاريع" },
   { to: "/app/reports", icon: FileBarChart, label: "التقارير" },
+  { to: "/app/projects", icon: FolderKanban, label: "المشاريع" },
   { to: "/app/settings", icon: Settings, label: "الإعدادات" },
 ];
 

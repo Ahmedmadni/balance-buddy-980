@@ -135,10 +135,10 @@ function EmptyState() {
   );
 }
 
-export function DebtForm({ onDone, initial }: { onDone: () => void; initial?: any }) {
+export function DebtForm({ onDone, initial, defaults, lockContact }: { onDone: () => void; initial?: any; defaults?: { contact_name?: string; direction?: string }; lockContact?: boolean }) {
   const isEdit = !!initial;
-  const [direction, setDirection] = useState<string>(initial?.direction ?? "owed_to_me");
-  const [contactName, setContactName] = useState(initial?.contact_name ?? "");
+  const [direction, setDirection] = useState<string>(initial?.direction ?? defaults?.direction ?? "owed_to_me");
+  const [contactName, setContactName] = useState(initial?.contact_name ?? defaults?.contact_name ?? "");
   const [amount, setAmount] = useState(initial?.amount?.toString() ?? "");
   const [currency, setCurrency] = useState(initial?.currency ?? "SAR");
   const [dueDate, setDueDate] = useState(initial?.due_date ?? "");
@@ -171,7 +171,7 @@ export function DebtForm({ onDone, initial }: { onDone: () => void; initial?: an
 
   return (
     <form onSubmit={(e) => { e.preventDefault(); mutation.mutate(); }} className="space-y-4">
-      <DialogHeader><DialogTitle>{isEdit ? "تعديل دين" : "دين جديد"}</DialogTitle></DialogHeader>
+      <DialogHeader><DialogTitle>{isEdit ? "تعديل دين" : (defaults?.contact_name ? `معاملة جديدة مع ${defaults.contact_name}` : "دين جديد")}</DialogTitle></DialogHeader>
 
       <Tabs value={direction} onValueChange={setDirection}>
         <TabsList className="grid grid-cols-2 w-full">
@@ -182,7 +182,7 @@ export function DebtForm({ onDone, initial }: { onDone: () => void; initial?: an
 
       <div>
         <Label>اسم الشخص</Label>
-        <Input value={contactName} onChange={(e) => setContactName(e.target.value)} required maxLength={100} placeholder="مثلاً: أحمد محمد" />
+        <Input value={contactName} onChange={(e) => setContactName(e.target.value)} required maxLength={100} placeholder="مثلاً: أحمد محمد" disabled={lockContact} />
       </div>
 
       <div className="grid grid-cols-2 gap-3">
