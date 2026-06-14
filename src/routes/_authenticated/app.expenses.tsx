@@ -1,4 +1,4 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useState } from "react";
@@ -23,12 +23,13 @@ function ExpensesPage() {
   const { data, isLoading } = useQuery({
     queryKey: ["expenses-list"],
     queryFn: async () => {
-      const [eRes, cRes, pRes] = await Promise.all([
-        supabase.from("expenses").select("*, categories(name,color), projects(name,color)").order("spent_at", { ascending: false }).limit(200),
+      const [eRes, cRes, pRes, wRes] = await Promise.all([
+        supabase.from("expenses").select("*, categories(name,color), projects(name,color), wallets(name,color)").order("spent_at", { ascending: false }).limit(200),
         supabase.from("categories").select("*").order("name"),
         supabase.from("projects").select("*").eq("status", "active").order("name"),
+        supabase.from("wallets").select("*").order("created_at"),
       ]);
-      return { expenses: eRes.data ?? [], categories: cRes.data ?? [], projects: pRes.data ?? [] };
+      return { expenses: eRes.data ?? [], categories: cRes.data ?? [], projects: pRes.data ?? [], wallets: wRes.data ?? [] };
     },
   });
 
@@ -37,7 +38,7 @@ function ExpensesPage() {
       const { error } = await supabase.from("expenses").delete().eq("id", id);
       if (error) throw error;
     },
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ["expenses-list"] }); toast.success("تم الحذف"); },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["expenses-list"] }); qc.invalidateQueries({ queryKey: ["wallets-list"] }); qc.invalidateQueries({ queryKey: ["dashboard"] }); toast.success("تم الحذف"); },
   });
 
   const totalsByCurrency: Record<string, number> = {};
@@ -45,6 +46,8 @@ function ExpensesPage() {
   for (const e of data?.expenses ?? []) {
     if (new Date(e.spent_at) >= monthStart) totalsByCurrency[e.currency] = (totalsByCurrency[e.currency] ?? 0) + Number(e.amount);
   }
+
+  const noWallets = (data?.wallets ?? []).length === 0;
 
   return (
     <div className="space-y-5">
@@ -54,12 +57,25 @@ function ExpensesPage() {
           <p className="text-sm text-muted-foreground mt-1">سجّل وتتبّع جميع مصاريفك</p>
         </div>
         <Dialog open={open} onOpenChange={setOpen}>
-          <DialogTrigger asChild><Button><Plus className="h-4 w-4" /> مصروف جديد</Button></DialogTrigger>
+          <DialogTrigger asChild><Button disabled={noWallets}><Plus className="h-4 w-4" /> مصروف جديد</Button></DialogTrigger>
           <DialogContent className="max-w-md">
-            <ExpenseForm categories={data?.categories ?? []} projects={data?.projects ?? []} onDone={() => { setOpen(false); qc.invalidateQueries({ queryKey: ["expenses-list"] }); }} />
+            <ExpenseForm
+              categories={data?.categories ?? []}
+              projects={data?.projects ?? []}
+              wallets={data?.wallets ?? []}
+              onDone={() => { setOpen(false); qc.invalidateQueries({ queryKey: ["expenses-list"] }); qc.invalidateQueries({ queryKey: ["wallets-list"] }); qc.invalidateQueries({ queryKey: ["dashboard"] }); }}
+            />
           </DialogContent>
         </Dialog>
       </div>
+
+      {noWallets && (
+        <div className="rounded-2xl border border-amber-500/30 bg-amber-500/10 p-4 text-sm">
+          <div className="font-semibold mb-1">أنشئ محفظة أولاً</div>
+          <div className="text-muted-foreground mb-3">يجب ربط كل مصروف بمحفظة (نقد/بنكية/أصل).</div>
+          <Button asChild size="sm"><Link to="/app/wallets"><Wallet className="h-4 w-4" /> إنشاء محفظة</Link></Button>
+        </div>
+      )}
 
       <div className="rounded-2xl border bg-card p-5 shadow-[var(--shadow-card)] relative overflow-hidden">
         <div className="absolute -top-8 -left-8 h-24 w-24 rounded-full bg-[image:var(--gradient-primary)] opacity-20" />
@@ -88,7 +104,11 @@ function ExpensesPage() {
             <div key={e.id} className="flex items-center gap-3 rounded-xl border bg-card p-3 shadow-[var(--shadow-card)]">
               <div className="h-10 w-10 rounded-xl shrink-0" style={{ backgroundColor: (e.categories?.color ?? "#64748b") + "33", border: `1px solid ${e.categories?.color ?? "#64748b"}` }} />
               <div className="flex-1 min-w-0">
-                <div className="font-medium">{e.categories?.name ?? "بدون فئة"}{e.projects && <span className="mr-2 text-xs rounded-full px-2 py-0.5" style={{ backgroundColor: (e.projects.color ?? "#0ea5e9") + "22", color: e.projects.color }}>{e.projects.name}</span>}</div>
+                <div className="font-medium flex items-center gap-2 flex-wrap">
+                  <span>{e.categories?.name ?? "بدون فئة"}</span>
+                  {e.wallets && <span className="text-[10px] rounded-full px-2 py-0.5" style={{ backgroundColor: (e.wallets.color ?? "#0ea5e9") + "22", color: e.wallets.color }}>{e.wallets.name}</span>}
+                  {e.projects && <span className="text-[10px] rounded-full px-2 py-0.5" style={{ backgroundColor: (e.projects.color ?? "#0ea5e9") + "22", color: e.projects.color }}>{e.projects.name}</span>}
+                </div>
                 <div className="text-xs text-muted-foreground truncate">{formatDate(e.spent_at)}{e.note ? ` · ${e.note}` : ""}</div>
               </div>
               <div className="font-bold tabular-nums shrink-0">{formatMoney(e.amount, e.currency)}</div>
@@ -101,22 +121,33 @@ function ExpensesPage() {
   );
 }
 
-function ExpenseForm({ categories, projects, onDone }: { categories: any[]; projects: any[]; onDone: () => void }) {
+function ExpenseForm({ categories, projects, wallets, onDone }: { categories: any[]; projects: any[]; wallets: any[]; onDone: () => void }) {
+  const [walletId, setWalletId] = useState<string>(wallets[0]?.id ?? "");
+  const initialWallet = wallets.find((w) => w.id === walletId);
   const [amount, setAmount] = useState("");
-  const [currency, setCurrency] = useState("SAR");
+  const [currency, setCurrency] = useState(initialWallet?.currency ?? "SAR");
   const [categoryId, setCategoryId] = useState<string>(categories[0]?.id ?? "");
   const [projectId, setProjectId] = useState<string>("none");
   const [spentAt, setSpentAt] = useState(todayISO());
   const [note, setNote] = useState("");
 
+  const onWalletChange = (v: string) => {
+    setWalletId(v);
+    const w = wallets.find((x) => x.id === v);
+    if (w?.currency) setCurrency(w.currency);
+  };
+
   const mut = useMutation({
     mutationFn: async () => {
       const { data: u } = await supabase.auth.getUser();
       if (!u.user) throw new Error("غير مسجل");
+      if (!walletId) throw new Error("اختر محفظة");
+      if (!categoryId) throw new Error("اختر فئة");
       const { error } = await supabase.from("expenses").insert({
         user_id: u.user.id,
         amount: parseFloat(amount), currency,
-        category_id: categoryId || null,
+        category_id: categoryId,
+        wallet_id: walletId,
         project_id: projectId === "none" ? null : projectId,
         spent_at: spentAt, note: note || null,
       });
@@ -129,6 +160,23 @@ function ExpenseForm({ categories, projects, onDone }: { categories: any[]; proj
   return (
     <form onSubmit={(e) => { e.preventDefault(); mut.mutate(); }} className="space-y-4">
       <DialogHeader><DialogTitle>مصروف جديد</DialogTitle></DialogHeader>
+
+      <div>
+        <Label>المحفظة <span className="text-destructive">*</span></Label>
+        <Select value={walletId} onValueChange={onWalletChange}>
+          <SelectTrigger><SelectValue placeholder="اختر محفظة" /></SelectTrigger>
+          <SelectContent>{wallets.map(w => <SelectItem key={w.id} value={w.id}>{w.name} · {w.currency}</SelectItem>)}</SelectContent>
+        </Select>
+      </div>
+
+      <div>
+        <Label>الفئة <span className="text-destructive">*</span></Label>
+        <Select value={categoryId} onValueChange={setCategoryId}>
+          <SelectTrigger><SelectValue placeholder="اختر فئة" /></SelectTrigger>
+          <SelectContent>{categories.map(c => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}</SelectContent>
+        </Select>
+      </div>
+
       <div className="grid grid-cols-2 gap-3">
         <div>
           <Label>المبلغ</Label>
@@ -142,13 +190,7 @@ function ExpenseForm({ categories, projects, onDone }: { categories: any[]; proj
           </Select>
         </div>
       </div>
-      <div>
-        <Label>الفئة</Label>
-        <Select value={categoryId} onValueChange={setCategoryId}>
-          <SelectTrigger><SelectValue placeholder="اختر فئة" /></SelectTrigger>
-          <SelectContent>{categories.map(c => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}</SelectContent>
-        </Select>
-      </div>
+
       <div>
         <Label>المشروع (اختياري)</Label>
         <Select value={projectId} onValueChange={setProjectId}>
@@ -159,14 +201,17 @@ function ExpenseForm({ categories, projects, onDone }: { categories: any[]; proj
           </SelectContent>
         </Select>
       </div>
+
       <div>
         <Label>التاريخ</Label>
         <Input type="date" value={spentAt} onChange={(e) => setSpentAt(e.target.value)} required dir="ltr" />
       </div>
+
       <div>
         <Label>ملاحظة</Label>
         <Input value={note} onChange={(e) => setNote(e.target.value)} maxLength={200} />
       </div>
+
       <DialogFooter><Button type="submit" className="w-full" disabled={mut.isPending}>حفظ</Button></DialogFooter>
     </form>
   );
