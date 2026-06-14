@@ -173,6 +173,7 @@ export type Database = {
           project_id: string | null
           spent_at: string
           user_id: string
+          wallet_id: string | null
         }
         Insert: {
           amount: number
@@ -184,6 +185,7 @@ export type Database = {
           project_id?: string | null
           spent_at?: string
           user_id: string
+          wallet_id?: string | null
         }
         Update: {
           amount?: number
@@ -195,6 +197,7 @@ export type Database = {
           project_id?: string | null
           spent_at?: string
           user_id?: string
+          wallet_id?: string | null
         }
         Relationships: [
           {
@@ -211,7 +214,50 @@ export type Database = {
             referencedRelation: "projects"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "expenses_wallet_id_fkey"
+            columns: ["wallet_id"]
+            isOneToOne: false
+            referencedRelation: "wallets"
+            referencedColumns: ["id"]
+          },
         ]
+      }
+      person_ledger: {
+        Row: {
+          amount: number
+          contact_name: string
+          created_at: string
+          currency: string
+          happened_at: string
+          id: string
+          kind: string
+          notes: string | null
+          user_id: string
+        }
+        Insert: {
+          amount: number
+          contact_name: string
+          created_at?: string
+          currency?: string
+          happened_at?: string
+          id?: string
+          kind: string
+          notes?: string | null
+          user_id: string
+        }
+        Update: {
+          amount?: number
+          contact_name?: string
+          created_at?: string
+          currency?: string
+          happened_at?: string
+          id?: string
+          kind?: string
+          notes?: string | null
+          user_id?: string
+        }
+        Relationships: []
       }
       profiles: {
         Row: {
@@ -275,6 +321,45 @@ export type Database = {
           id?: string
           name?: string
           status?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      wallets: {
+        Row: {
+          color: string | null
+          created_at: string
+          currency: string
+          icon: string | null
+          id: string
+          name: string
+          opening_balance: number
+          type: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          color?: string | null
+          created_at?: string
+          currency?: string
+          icon?: string | null
+          id?: string
+          name: string
+          opening_balance?: number
+          type?: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          color?: string | null
+          created_at?: string
+          currency?: string
+          icon?: string | null
+          id?: string
+          name?: string
+          opening_balance?: number
+          type?: string
+          updated_at?: string
           user_id?: string
         }
         Relationships: []
