@@ -70,6 +70,11 @@ function Dashboard() {
 
   const pieData = Object.values(byCat).slice(0, 6);
 
+  // Liquidity = sum(wallet opening balance) - sum(expenses) per currency
+  const liquidity: Record<string, number> = {};
+  for (const w of d.wallets) liquidity[w.currency] = (liquidity[w.currency] ?? 0) + Number(w.opening_balance);
+  for (const e of d.expenses) liquidity[e.currency] = (liquidity[e.currency] ?? 0) - Number(e.amount);
+
   return (
     <div className="space-y-6">
       <div>
@@ -77,10 +82,11 @@ function Dashboard() {
         <p className="text-sm text-muted-foreground mt-1">نظرة عامة على حالتك المالية</p>
       </div>
 
-      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+        <StatCard icon={Wallet} label="إجمالي السيولة" gradient="var(--gradient-primary)" amounts={liquidity} emptyText="أضف محفظة" />
         <StatCard icon={ArrowDownRight} label="مستحق لي" gradient="var(--gradient-success)" amounts={owedToMe} emptyText="لا يوجد" />
         <StatCard icon={ArrowUpRight} label="مستحق عليّ" gradient="var(--gradient-destructive)" amounts={owedByMe} emptyText="لا يوجد" />
-        <StatCard icon={Wallet} label="مصاريف الشهر" gradient="var(--gradient-primary)" amounts={monthlyExp} emptyText="0" />
+        <StatCard icon={TrendingUp} label="مصاريف الشهر" gradient="var(--gradient-primary)" amounts={monthlyExp} emptyText="0" />
       </div>
 
       <div className="grid gap-4 lg:grid-cols-2">
