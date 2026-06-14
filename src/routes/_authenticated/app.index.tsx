@@ -14,17 +14,19 @@ function Dashboard() {
   const { data, isLoading } = useQuery({
     queryKey: ["dashboard"],
     queryFn: async () => {
-      const [debtsRes, paymentsRes, expensesRes, projectsRes] = await Promise.all([
+      const [debtsRes, paymentsRes, expensesRes, projectsRes, walletsRes] = await Promise.all([
         supabase.from("debts").select("id,direction,amount,currency,status"),
         supabase.from("debt_payments").select("debt_id,amount"),
-        supabase.from("expenses").select("amount,currency,spent_at,category_id,categories(name,color)"),
+        supabase.from("expenses").select("amount,currency,spent_at,category_id,wallet_id,categories(name,color)"),
         supabase.from("projects").select("id,name,color"),
+        supabase.from("wallets").select("id,opening_balance,currency"),
       ]);
       return {
         debts: debtsRes.data ?? [],
         payments: paymentsRes.data ?? [],
         expenses: expensesRes.data ?? [],
         projects: projectsRes.data ?? [],
+        wallets: walletsRes.data ?? [],
       };
     },
   });
