@@ -5,7 +5,7 @@ import { useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogTrigger } from "@/components/ui/dialog";
-import { Plus, Users, Search, ChevronLeft } from "lucide-react";
+import { Plus, Users, Search, ChevronLeft, Phone } from "lucide-react";
 import { formatMoney } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { PersonTxForm, kindSign } from "@/components/PersonTxForm";
@@ -17,16 +17,19 @@ export const Route = createFileRoute("/_authenticated/app/people")({
 
 type LedgerRow = {
   id: string;
+  contact_id: string | null;
   contact_name: string;
   kind: string;
   amount: number;
   currency: string;
   happened_at: string;
 };
+type Contact = { id: string; name: string; phone: string | null };
 
 type PersonAgg = {
+  id: string;
   name: string;
-  key: string;
+  phone: string | null;
   txCount: number;
   lastDate: string;
   byCurrency: Record<string, number>;
@@ -42,28 +45,46 @@ function PeoplePage() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("person_ledger")
-        .select("id,contact_name,kind,amount,currency,happened_at")
+        .select("id,contact_id,contact_name,kind,amount,currency,happened_at")
         .order("happened_at", { ascending: false });
       if (error) throw error;
       return (data ?? []) as LedgerRow[];
     },
   });
 
+  const { data: contacts } = useQuery({
+    queryKey: ["contacts"],
+    queryFn: async () => {
+      const { data, error } = await supabase.from("contacts").select("id,name,phone").order("name");
+      if (error) throw error;
+      return (data ?? []) as Contact[];
+    },
+  });
+
   const people: PersonAgg[] = useMemo(() => {
     const map = new Map<string, PersonAgg>();
+    const cmap = new Map((contacts ?? []).map((c) => [c.id, c]));
     for (const r of rows ?? []) {
-      const key = r.contact_name.trim().toLowerCase();
-      if (!map.has(key)) {
-        map.set(key, { name: r.contact_name.trim(), key, txCount: 0, lastDate: r.happened_at, byCurrency: {} });
+      if (!r.contact_id) continue;
+      const c = cmap.get(r.contact_id);
+      if (!map.has(r.contact_id)) {
+        map.set(r.contact_id, {
+          id: r.contact_id,
+          name: c?.name ?? r.contact_name,
+          phone: c?.phone ?? null,
+          txCount: 0,
+          lastDate: r.happened_at,
+          byCurrency: {},
+        });
       }
-      const p = map.get(key)!;
+      const p = map.get(r.contact_id)!;
       p.txCount++;
       if (r.happened_at > p.lastDate) p.lastDate = r.happened_at;
       const signed = kindSign(r.kind) * Number(r.amount);
       p.byCurrency[r.currency] = (p.byCurrency[r.currency] ?? 0) + signed;
     }
     return Array.from(map.values()).sort((a, b) => b.lastDate.localeCompare(a.lastDate));
-  }, [rows]);
+  }, [rows, contacts]);
 
   const filtered = people.filter((p) => p.name.toLowerCase().includes(search.trim().toLowerCase()));
 
@@ -72,7 +93,7 @@ function PeoplePage() {
       <div className="flex items-center justify-between gap-3">
         <div>
           <h1 className="text-2xl font-bold">الأشخاص</h1>
-          <p className="text-sm text-muted-foreground mt-1">دفتر حساب موحّد لكل شخص</p>
+          <p className="text-sm text-muted-foreground mt-1">دفتر حساب موحّد لكل جهة اتصال</p>
         </div>
         <Dialog open={openNew} onOpenChange={setOpenNew}>
           <DialogTrigger asChild>
@@ -97,9 +118,9 @@ function PeoplePage() {
         <div className="space-y-2">
           {filtered.map((p) => (
             <Link
-              key={p.key}
-              to="/app/people/$name"
-              params={{ name: p.name }}
+              key={p.id}
+              to="/app/people/$id"
+              params={{ id: p.id }}
               className="flex items-center gap-3 rounded-2xl border bg-card p-4 shadow-[var(--shadow-card)] transition hover:-translate-y-0.5 hover:shadow-[var(--shadow-elegant)]"
             >
               <div className="grid h-11 w-11 place-items-center rounded-xl bg-[image:var(--gradient-primary)] text-white shrink-0 font-bold">
@@ -107,7 +128,10 @@ function PeoplePage() {
               </div>
               <div className="flex-1 min-w-0">
                 <div className="font-semibold truncate">{p.name}</div>
-                <div className="text-[11px] text-muted-foreground mt-0.5">{p.txCount} حركة</div>
+                <div className="text-[11px] text-muted-foreground mt-0.5 flex items-center gap-2">
+                  <span>{p.txCount} حركة</span>
+                  {p.phone && (<><span>·</span><span dir="ltr" className="inline-flex items-center gap-1"><Phone className="h-3 w-3" />{p.phone}</span></>)}
+                </div>
               </div>
               <div className="text-left shrink-0 space-y-0.5">
                 {Object.entries(p.byCurrency).map(([cur, net]) => {
