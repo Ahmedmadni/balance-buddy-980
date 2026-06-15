@@ -12,7 +12,7 @@ import { CURRENCIES, formatMoney, formatDate, todayISO } from "@/lib/format";
 import { toast } from "sonner";
 
 export const Route = createFileRoute("/_authenticated/app/expenses")({
-  head: () => ({ meta: [{ title: "المصاريف — حسابي" }] }),
+  head: () => ({ meta: [{ title: "المصاريف — رصد" }] }),
   component: ExpensesPage,
 });
 

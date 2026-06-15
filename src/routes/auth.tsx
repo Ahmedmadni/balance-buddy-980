@@ -9,8 +9,8 @@ import { Wallet } from "lucide-react";
 export const Route = createFileRoute("/auth")({
   head: () => ({
     meta: [
-      { title: "تسجيل الدخول — حسابي" },
-      { name: "description", content: "ادخل إلى حسابك في تطبيق حسابي عبر جوجل." },
+      { title: "تسجيل الدخول — رصد" },
+      { name: "description", content: "ادخل إلى حسابك في تطبيق رصد عبر جوجل." },
     ],
   }),
   component: AuthPage,
@@ -52,7 +52,7 @@ function AuthPage() {
           <div className="grid h-10 w-10 place-items-center rounded-xl bg-[image:var(--gradient-primary)] text-white shadow-[var(--shadow-elegant)]">
             <Wallet className="h-5 w-5" />
           </div>
-          <span className="text-xl font-bold">حسابي</span>
+          <span className="text-xl font-bold">رصد</span>
         </Link>
         <div className="rounded-2xl border bg-card p-8 shadow-[var(--shadow-card)]">
           <h1 className="text-2xl font-bold text-center">مرحباً بك</h1>

@@ -12,7 +12,7 @@ import { formatMoney, formatDate, todayISO } from "@/lib/format";
 import * as XLSX from "xlsx";
 
 export const Route = createFileRoute("/_authenticated/app/reports")({
-  head: () => ({ meta: [{ title: "التقارير — حسابي" }] }),
+  head: () => ({ meta: [{ title: "التقارير — رصد" }] }),
   component: ReportsPage,
 });
 

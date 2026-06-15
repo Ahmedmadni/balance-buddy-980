@@ -11,7 +11,7 @@ import { cn } from "@/lib/utils";
 import { PersonTxForm, kindSign } from "@/components/PersonTxForm";
 
 export const Route = createFileRoute("/_authenticated/app/people")({
-  head: () => ({ meta: [{ title: "الأشخاص — حسابي" }] }),
+  head: () => ({ meta: [{ title: "الأشخاص — رصد" }] }),
   component: PeoplePage,
 });
 

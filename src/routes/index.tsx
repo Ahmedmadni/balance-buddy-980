@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 export const Route = createFileRoute("/")({
   head: () => ({
     meta: [
-      { title: "حسابي — متابعة الديون والمصاريف باحترافية" },
+      { title: "رصد — متابعة الديون والمصاريف باحترافية" },
       { name: "description", content: "أدر ديونك ومصاريفك في مكان واحد، مع تقارير قابلة للتصدير ودعم تعدد العملات وتسجيل دخول بجوجل." },
     ],
   }),
@@ -28,7 +28,7 @@ function Landing() {
             <div className="grid h-9 w-9 place-items-center rounded-xl bg-[image:var(--gradient-primary)] text-white shadow-[var(--shadow-elegant)]">
               <Wallet className="h-5 w-5" />
             </div>
-            <span className="text-lg font-bold">حسابي</span>
+            <span className="text-lg font-bold">رصد</span>
           </div>
           {authed ? (
             <Button asChild><Link to="/app">فتح التطبيق</Link></Button>
@@ -76,7 +76,7 @@ function Landing() {
       </main>
 
       <footer className="border-t py-6 text-center text-xs text-muted-foreground">
-        © {new Date().getFullYear()} حسابي · كل الحقوق محفوظة
+        © {new Date().getFullYear()} رصد · كل الحقوق محفوظة
       </footer>
     </div>
   );

@@ -11,7 +11,7 @@ import { cn } from "@/lib/utils";
 import { PersonTxForm, kindMeta, kindSign } from "@/components/PersonTxForm";
 
 export const Route = createFileRoute("/_authenticated/app/people/$name")({
-  head: ({ params }) => ({ meta: [{ title: `${decodeURIComponent(params.name)} — حسابي` }] }),
+  head: ({ params }) => ({ meta: [{ title: `${decodeURIComponent(params.name)} — رصد` }] }),
   component: PersonDetail,
 });
 

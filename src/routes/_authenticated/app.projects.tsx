@@ -14,7 +14,7 @@ import { CURRENCIES, formatMoney } from "@/lib/format";
 import { toast } from "sonner";
 
 export const Route = createFileRoute("/_authenticated/app/projects")({
-  head: () => ({ meta: [{ title: "المشاريع — حسابي" }] }),
+  head: () => ({ meta: [{ title: "المشاريع — رصد" }] }),
   component: ProjectsPage,
 });
 
