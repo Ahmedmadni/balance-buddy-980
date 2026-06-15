@@ -13,7 +13,7 @@ import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/_authenticated/app/wallets")({
-  head: () => ({ meta: [{ title: "المحافظ — حسابي" }] }),
+  head: () => ({ meta: [{ title: "المحافظ — رصد" }] }),
   component: WalletsPage,
 });
 

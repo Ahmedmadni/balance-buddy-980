@@ -8,7 +8,7 @@ import { formatMoney, formatDate } from "@/lib/format";
 import { toast } from "sonner";
 
 export const Route = createFileRoute("/_authenticated/app/projects/$id")({
-  head: () => ({ meta: [{ title: "تفاصيل المشروع — حسابي" }] }),
+  head: () => ({ meta: [{ title: "تفاصيل المشروع — رصد" }] }),
   component: ProjectDetail,
 });
 

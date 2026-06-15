@@ -14,7 +14,7 @@ import { cn } from "@/lib/utils";
 import { DebtForm } from "./app.debts";
 
 export const Route = createFileRoute("/_authenticated/app/debts/$id")({
-  head: () => ({ meta: [{ title: "تفاصيل الدين — حسابي" }] }),
+  head: () => ({ meta: [{ title: "تفاصيل الدين — رصد" }] }),
   component: DebtDetail,
 });
 

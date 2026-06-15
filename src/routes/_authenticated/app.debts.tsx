@@ -15,7 +15,7 @@ import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/_authenticated/app/debts")({
-  head: () => ({ meta: [{ title: "الديون — حسابي" }] }),
+  head: () => ({ meta: [{ title: "الديون — رصد" }] }),
   component: DebtsPage,
 });
 

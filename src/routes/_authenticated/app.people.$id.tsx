@@ -4,30 +4,38 @@ import { supabase } from "@/integrations/supabase/client";
 import { useState, useMemo } from "react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogTrigger } from "@/components/ui/dialog";
-import { ArrowRight, Plus, Trash2 } from "lucide-react";
+import { ArrowRight, Plus, Trash2, Phone, MessageCircle } from "lucide-react";
 import { formatMoney, formatDate } from "@/lib/format";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { PersonTxForm, kindMeta, kindSign } from "@/components/PersonTxForm";
 
-export const Route = createFileRoute("/_authenticated/app/people/$name")({
-  head: ({ params }) => ({ meta: [{ title: `${decodeURIComponent(params.name)} — حسابي` }] }),
+export const Route = createFileRoute("/_authenticated/app/people/$id")({
+  head: () => ({ meta: [{ title: "كشف الحساب — رصد" }] }),
   component: PersonDetail,
 });
 
 function PersonDetail() {
-  const { name: rawName } = Route.useParams();
-  const name = decodeURIComponent(rawName);
+  const { id } = Route.useParams();
   const qc = useQueryClient();
   const [open, setOpen] = useState(false);
 
+  const { data: contact } = useQuery({
+    queryKey: ["contact", id],
+    queryFn: async () => {
+      const { data, error } = await supabase.from("contacts").select("*").eq("id", id).maybeSingle();
+      if (error) throw error;
+      return data;
+    },
+  });
+
   const { data: rows, isLoading } = useQuery({
-    queryKey: ["person_ledger", name],
+    queryKey: ["person_ledger", id],
     queryFn: async () => {
       const { data, error } = await supabase
         .from("person_ledger")
         .select("*")
-        .ilike("contact_name", name)
+        .eq("contact_id", id)
         .order("happened_at", { ascending: true })
         .order("created_at", { ascending: true });
       if (error) throw error;
@@ -36,8 +44,8 @@ function PersonDetail() {
   });
 
   const del = useMutation({
-    mutationFn: async (id: string) => {
-      const { error } = await supabase.from("person_ledger").delete().eq("id", id);
+    mutationFn: async (rid: string) => {
+      const { error } = await supabase.from("person_ledger").delete().eq("id", rid);
       if (error) throw error;
     },
     onSuccess: () => { toast.success("تم الحذف"); invalidate(); },
@@ -49,7 +57,6 @@ function PersonDetail() {
     qc.invalidateQueries({ queryKey: ["dashboard"] });
   };
 
-  // Running balance per currency (chronological)
   const enriched = useMemo(() => {
     const running: Record<string, number> = {};
     return (rows ?? []).map((r: any) => {
@@ -65,6 +72,19 @@ function PersonDetail() {
     return m;
   }, [rows]);
 
+  const name = contact?.name ?? "—";
+  const phone = contact?.phone ?? null;
+
+  const waMsg = useMemo(() => {
+    const parts: string[] = [`مرحباً ${name}،`];
+    const owing = Object.entries(finalBalances).filter(([, v]) => v > 0.001);
+    if (owing.length) parts.push("تذكير ودي بالرصيد المستحق: " + owing.map(([c, v]) => `${formatMoney(v, c)}`).join("، "));
+    parts.push("شكراً لك.");
+    return encodeURIComponent(parts.join("\n"));
+  }, [name, finalBalances]);
+
+  const phoneClean = phone?.replace(/[^\d+]/g, "");
+
   return (
     <div className="space-y-5">
       <Link to="/app/people" className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground">
@@ -74,6 +94,7 @@ function PersonDetail() {
       <div className="rounded-2xl bg-[image:var(--gradient-primary)] p-6 text-white shadow-[var(--shadow-elegant)]">
         <div className="text-xs opacity-80">دفتر حساب</div>
         <div className="text-2xl font-bold mt-1">{name}</div>
+        {phone && <div className="text-xs opacity-80 mt-0.5" dir="ltr">{phone}</div>}
         <div className="mt-4 space-y-1">
           {Object.keys(finalBalances).length === 0 ? (
             <div className="text-sm opacity-80">لا توجد حركات</div>
@@ -88,6 +109,16 @@ function PersonDetail() {
             );
           })}
         </div>
+        {phoneClean && (
+          <div className="mt-4 flex gap-2">
+            <a href={`tel:${phoneClean}`} className="flex-1 rounded-xl bg-white/15 hover:bg-white/25 px-3 py-2 text-sm font-medium inline-flex items-center justify-center gap-1.5">
+              <Phone className="h-4 w-4" /> اتصال
+            </a>
+            <a href={`https://wa.me/${phoneClean.replace(/^\+/, "")}?text=${waMsg}`} target="_blank" rel="noreferrer" className="flex-1 rounded-xl bg-white/15 hover:bg-white/25 px-3 py-2 text-sm font-medium inline-flex items-center justify-center gap-1.5">
+              <MessageCircle className="h-4 w-4" /> واتساب
+            </a>
+          </div>
+        )}
       </div>
 
       <Dialog open={open} onOpenChange={setOpen}>
@@ -95,7 +126,7 @@ function PersonDetail() {
           <Button className="w-full"><Plus className="h-4 w-4" /> إضافة حركة جديدة</Button>
         </DialogTrigger>
         <DialogContent className="max-w-md">
-          <PersonTxForm defaultName={name} lockName onDone={() => { setOpen(false); invalidate(); }} />
+          <PersonTxForm defaultContactId={id} defaultName={name} lockContact onDone={() => { setOpen(false); invalidate(); }} />
         </DialogContent>
       </Dialog>
 

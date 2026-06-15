@@ -21,8 +21,9 @@ import { Route as AuthenticatedAppProjectsRouteImport } from './routes/_authenti
 import { Route as AuthenticatedAppPeopleRouteImport } from './routes/_authenticated/app.people'
 import { Route as AuthenticatedAppExpensesRouteImport } from './routes/_authenticated/app.expenses'
 import { Route as AuthenticatedAppDebtsRouteImport } from './routes/_authenticated/app.debts'
+import { Route as AuthenticatedAppContactsRouteImport } from './routes/_authenticated/app.contacts'
 import { Route as AuthenticatedAppProjectsIdRouteImport } from './routes/_authenticated/app.projects.$id'
-import { Route as AuthenticatedAppPeopleNameRouteImport } from './routes/_authenticated/app.people.$name'
+import { Route as AuthenticatedAppPeopleIdRouteImport } from './routes/_authenticated/app.people.$id'
 import { Route as AuthenticatedAppDebtsIdRouteImport } from './routes/_authenticated/app.debts.$id'
 
 const AuthRoute = AuthRouteImport.update({
@@ -87,16 +88,22 @@ const AuthenticatedAppDebtsRoute = AuthenticatedAppDebtsRouteImport.update({
   path: '/debts',
   getParentRoute: () => AuthenticatedAppRoute,
 } as any)
+const AuthenticatedAppContactsRoute =
+  AuthenticatedAppContactsRouteImport.update({
+    id: '/contacts',
+    path: '/contacts',
+    getParentRoute: () => AuthenticatedAppRoute,
+  } as any)
 const AuthenticatedAppProjectsIdRoute =
   AuthenticatedAppProjectsIdRouteImport.update({
     id: '/$id',
     path: '/$id',
     getParentRoute: () => AuthenticatedAppProjectsRoute,
   } as any)
-const AuthenticatedAppPeopleNameRoute =
-  AuthenticatedAppPeopleNameRouteImport.update({
-    id: '/$name',
-    path: '/$name',
+const AuthenticatedAppPeopleIdRoute =
+  AuthenticatedAppPeopleIdRouteImport.update({
+    id: '/$id',
+    path: '/$id',
     getParentRoute: () => AuthenticatedAppPeopleRoute,
   } as any)
 const AuthenticatedAppDebtsIdRoute = AuthenticatedAppDebtsIdRouteImport.update({
@@ -109,6 +116,7 @@ export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/auth': typeof AuthRoute
   '/app': typeof AuthenticatedAppRouteWithChildren
+  '/app/contacts': typeof AuthenticatedAppContactsRoute
   '/app/debts': typeof AuthenticatedAppDebtsRouteWithChildren
   '/app/expenses': typeof AuthenticatedAppExpensesRoute
   '/app/people': typeof AuthenticatedAppPeopleRouteWithChildren
@@ -118,12 +126,13 @@ export interface FileRoutesByFullPath {
   '/app/wallets': typeof AuthenticatedAppWalletsRoute
   '/app/': typeof AuthenticatedAppIndexRoute
   '/app/debts/$id': typeof AuthenticatedAppDebtsIdRoute
-  '/app/people/$name': typeof AuthenticatedAppPeopleNameRoute
+  '/app/people/$id': typeof AuthenticatedAppPeopleIdRoute
   '/app/projects/$id': typeof AuthenticatedAppProjectsIdRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/auth': typeof AuthRoute
+  '/app/contacts': typeof AuthenticatedAppContactsRoute
   '/app/debts': typeof AuthenticatedAppDebtsRouteWithChildren
   '/app/expenses': typeof AuthenticatedAppExpensesRoute
   '/app/people': typeof AuthenticatedAppPeopleRouteWithChildren
@@ -133,7 +142,7 @@ export interface FileRoutesByTo {
   '/app/wallets': typeof AuthenticatedAppWalletsRoute
   '/app': typeof AuthenticatedAppIndexRoute
   '/app/debts/$id': typeof AuthenticatedAppDebtsIdRoute
-  '/app/people/$name': typeof AuthenticatedAppPeopleNameRoute
+  '/app/people/$id': typeof AuthenticatedAppPeopleIdRoute
   '/app/projects/$id': typeof AuthenticatedAppProjectsIdRoute
 }
 export interface FileRoutesById {
@@ -142,6 +151,7 @@ export interface FileRoutesById {
   '/_authenticated': typeof AuthenticatedRouteRouteWithChildren
   '/auth': typeof AuthRoute
   '/_authenticated/app': typeof AuthenticatedAppRouteWithChildren
+  '/_authenticated/app/contacts': typeof AuthenticatedAppContactsRoute
   '/_authenticated/app/debts': typeof AuthenticatedAppDebtsRouteWithChildren
   '/_authenticated/app/expenses': typeof AuthenticatedAppExpensesRoute
   '/_authenticated/app/people': typeof AuthenticatedAppPeopleRouteWithChildren
@@ -151,7 +161,7 @@ export interface FileRoutesById {
   '/_authenticated/app/wallets': typeof AuthenticatedAppWalletsRoute
   '/_authenticated/app/': typeof AuthenticatedAppIndexRoute
   '/_authenticated/app/debts/$id': typeof AuthenticatedAppDebtsIdRoute
-  '/_authenticated/app/people/$name': typeof AuthenticatedAppPeopleNameRoute
+  '/_authenticated/app/people/$id': typeof AuthenticatedAppPeopleIdRoute
   '/_authenticated/app/projects/$id': typeof AuthenticatedAppProjectsIdRoute
 }
 export interface FileRouteTypes {
@@ -160,6 +170,7 @@ export interface FileRouteTypes {
     | '/'
     | '/auth'
     | '/app'
+    | '/app/contacts'
     | '/app/debts'
     | '/app/expenses'
     | '/app/people'
@@ -169,12 +180,13 @@ export interface FileRouteTypes {
     | '/app/wallets'
     | '/app/'
     | '/app/debts/$id'
-    | '/app/people/$name'
+    | '/app/people/$id'
     | '/app/projects/$id'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
     | '/auth'
+    | '/app/contacts'
     | '/app/debts'
     | '/app/expenses'
     | '/app/people'
@@ -184,7 +196,7 @@ export interface FileRouteTypes {
     | '/app/wallets'
     | '/app'
     | '/app/debts/$id'
-    | '/app/people/$name'
+    | '/app/people/$id'
     | '/app/projects/$id'
   id:
     | '__root__'
@@ -192,6 +204,7 @@ export interface FileRouteTypes {
     | '/_authenticated'
     | '/auth'
     | '/_authenticated/app'
+    | '/_authenticated/app/contacts'
     | '/_authenticated/app/debts'
     | '/_authenticated/app/expenses'
     | '/_authenticated/app/people'
@@ -201,7 +214,7 @@ export interface FileRouteTypes {
     | '/_authenticated/app/wallets'
     | '/_authenticated/app/'
     | '/_authenticated/app/debts/$id'
-    | '/_authenticated/app/people/$name'
+    | '/_authenticated/app/people/$id'
     | '/_authenticated/app/projects/$id'
   fileRoutesById: FileRoutesById
 }
@@ -297,6 +310,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedAppDebtsRouteImport
       parentRoute: typeof AuthenticatedAppRoute
     }
+    '/_authenticated/app/contacts': {
+      id: '/_authenticated/app/contacts'
+      path: '/contacts'
+      fullPath: '/app/contacts'
+      preLoaderRoute: typeof AuthenticatedAppContactsRouteImport
+      parentRoute: typeof AuthenticatedAppRoute
+    }
     '/_authenticated/app/projects/$id': {
       id: '/_authenticated/app/projects/$id'
       path: '/$id'
@@ -304,11 +324,11 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedAppProjectsIdRouteImport
       parentRoute: typeof AuthenticatedAppProjectsRoute
     }
-    '/_authenticated/app/people/$name': {
-      id: '/_authenticated/app/people/$name'
-      path: '/$name'
-      fullPath: '/app/people/$name'
-      preLoaderRoute: typeof AuthenticatedAppPeopleNameRouteImport
+    '/_authenticated/app/people/$id': {
+      id: '/_authenticated/app/people/$id'
+      path: '/$id'
+      fullPath: '/app/people/$id'
+      preLoaderRoute: typeof AuthenticatedAppPeopleIdRouteImport
       parentRoute: typeof AuthenticatedAppPeopleRoute
     }
     '/_authenticated/app/debts/$id': {
@@ -335,12 +355,12 @@ const AuthenticatedAppDebtsRouteWithChildren =
   )
 
 interface AuthenticatedAppPeopleRouteChildren {
-  AuthenticatedAppPeopleNameRoute: typeof AuthenticatedAppPeopleNameRoute
+  AuthenticatedAppPeopleIdRoute: typeof AuthenticatedAppPeopleIdRoute
 }
 
 const AuthenticatedAppPeopleRouteChildren: AuthenticatedAppPeopleRouteChildren =
   {
-    AuthenticatedAppPeopleNameRoute: AuthenticatedAppPeopleNameRoute,
+    AuthenticatedAppPeopleIdRoute: AuthenticatedAppPeopleIdRoute,
   }
 
 const AuthenticatedAppPeopleRouteWithChildren =
@@ -363,6 +383,7 @@ const AuthenticatedAppProjectsRouteWithChildren =
   )
 
 interface AuthenticatedAppRouteChildren {
+  AuthenticatedAppContactsRoute: typeof AuthenticatedAppContactsRoute
   AuthenticatedAppDebtsRoute: typeof AuthenticatedAppDebtsRouteWithChildren
   AuthenticatedAppExpensesRoute: typeof AuthenticatedAppExpensesRoute
   AuthenticatedAppPeopleRoute: typeof AuthenticatedAppPeopleRouteWithChildren
@@ -374,6 +395,7 @@ interface AuthenticatedAppRouteChildren {
 }
 
 const AuthenticatedAppRouteChildren: AuthenticatedAppRouteChildren = {
+  AuthenticatedAppContactsRoute: AuthenticatedAppContactsRoute,
   AuthenticatedAppDebtsRoute: AuthenticatedAppDebtsRouteWithChildren,
   AuthenticatedAppExpensesRoute: AuthenticatedAppExpensesRoute,
   AuthenticatedAppPeopleRoute: AuthenticatedAppPeopleRouteWithChildren,
@@ -406,13 +428,3 @@ const rootRouteChildren: RootRouteChildren = {
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
-
-import type { getRouter } from './router.tsx'
-import type { startInstance } from './start.ts'
-declare module '@tanstack/react-start' {
-  interface Register {
-    ssr: true
-    router: Awaited<ReturnType<typeof getRouter>>
-    config: Awaited<ReturnType<typeof startInstance.getOptions>>
-  }
-}

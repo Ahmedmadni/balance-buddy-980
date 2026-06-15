@@ -6,7 +6,7 @@ import { ArrowDownRight, ArrowUpRight, Wallet, TrendingUp } from "lucide-react";
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, Legend } from "recharts";
 
 export const Route = createFileRoute("/_authenticated/app/")({
-  head: () => ({ meta: [{ title: "اللوحة الرئيسية — حسابي" }] }),
+  head: () => ({ meta: [{ title: "اللوحة الرئيسية — رصد" }] }),
   component: Dashboard,
 });
 

@@ -12,7 +12,7 @@ import { Plus, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 
 export const Route = createFileRoute("/_authenticated/app/settings")({
-  head: () => ({ meta: [{ title: "الإعدادات — حسابي" }] }),
+  head: () => ({ meta: [{ title: "الإعدادات — رصد" }] }),
   component: SettingsPage,
 });
 

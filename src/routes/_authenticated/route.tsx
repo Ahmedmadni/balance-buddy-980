@@ -1,7 +1,7 @@
 import { createFileRoute, Outlet, redirect, Link, useRouterState, useNavigate } from "@tanstack/react-router";
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { LayoutDashboard, HandCoins, Wallet, FolderKanban, FileBarChart, Settings, LogOut, Menu, Users, Landmark } from "lucide-react";
+import { LayoutDashboard, HandCoins, Wallet, FileBarChart, Settings, LogOut, Menu, Users, Landmark, Contact } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import { cn } from "@/lib/utils";
@@ -22,9 +22,9 @@ const NAV = [
   { to: "/app/people", icon: Users, label: "الأشخاص" },
   { to: "/app/wallets", icon: Landmark, label: "المحافظ" },
   { to: "/app/expenses", icon: Wallet, label: "المصاريف" },
+  { to: "/app/contacts", icon: Contact, label: "جهات الاتصال" },
   { to: "/app/debts", icon: HandCoins, label: "الديون" },
   { to: "/app/reports", icon: FileBarChart, label: "التقارير" },
-  { to: "/app/projects", icon: FolderKanban, label: "المشاريع" },
   { to: "/app/settings", icon: Settings, label: "الإعدادات" },
 ];
 
@@ -84,8 +84,8 @@ function AppLayout() {
             <Wallet className="h-5 w-5" />
           </div>
           <div>
-            <div className="text-base font-bold leading-tight">حسابي</div>
-            <div className="text-[11px] text-muted-foreground">إدارة ديون ومصاريف</div>
+            <div className="text-base font-bold leading-tight">رصد</div>
+            <div className="text-[11px] text-muted-foreground">إدارة مالية شخصية</div>
           </div>
         </div>
         <div className="flex-1 p-3"><NavLinks /></div>
@@ -116,7 +116,7 @@ function AppLayout() {
           <div className="grid h-9 w-9 place-items-center rounded-xl bg-[image:var(--gradient-primary)] text-white">
             <Wallet className="h-5 w-5" />
           </div>
-          <span className="font-bold">حسابي</span>
+          <span className="font-bold">رصد</span>
         </div>
         <Sheet open={open} onOpenChange={setOpen}>
           <SheetTrigger asChild>
