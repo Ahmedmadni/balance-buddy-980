@@ -11,6 +11,7 @@ import { CURRENCIES, todayISO } from "@/lib/format";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { ArrowDownRight, ArrowUpRight, HandCoins, CircleCheck } from "lucide-react";
+import { ContactPicker } from "@/components/ContactPicker";
 
 export const LEDGER_KINDS = [
   { value: "lend", label: "سلّفته", short: "تسليف", icon: ArrowUpRight, color: "text-success", bg: "bg-success/10 hover:bg-success/20 border-success/30", sign: "+" },
@@ -32,17 +33,21 @@ export function kindSign(k: string): 1 | -1 {
 
 export function PersonTxForm({
   onDone,
+  defaultContactId,
   defaultName,
-  lockName,
+  lockContact,
   defaultCurrency = "SAR",
 }: {
   onDone: () => void;
+  defaultContactId?: string | null;
   defaultName?: string;
-  lockName?: boolean;
+  lockContact?: boolean;
   defaultCurrency?: string;
 }) {
   const [kind, setKind] = useState<LedgerKind>("lend");
-  const [name, setName] = useState(defaultName ?? "");
+  const [contact, setContact] = useState<{ id: string | null; name: string }>(
+    { id: defaultContactId ?? null, name: defaultName ?? "" },
+  );
   const [amount, setAmount] = useState("");
   const [currency, setCurrency] = useState(defaultCurrency);
   const [happenedAt, setHappenedAt] = useState(todayISO());
@@ -52,9 +57,11 @@ export function PersonTxForm({
     mutationFn: async () => {
       const { data: u } = await supabase.auth.getUser();
       if (!u.user) throw new Error("غير مسجل");
+      if (!contact.id) throw new Error("اختر جهة اتصال");
       const { error } = await supabase.from("person_ledger").insert({
         user_id: u.user.id,
-        contact_name: name.trim(),
+        contact_id: contact.id,
+        contact_name: contact.name.trim(),
         kind,
         amount: parseFloat(amount),
         currency,
@@ -98,8 +105,12 @@ export function PersonTxForm({
       </div>
 
       <div>
-        <Label>اسم الشخص</Label>
-        <Input value={name} onChange={(e) => setName(e.target.value)} required maxLength={100} placeholder="مثلاً: أحمد محمد" disabled={lockName} />
+        <Label className="mb-2 block">جهة الاتصال</Label>
+        <ContactPicker
+          value={contact}
+          onChange={(v) => setContact({ id: v.id, name: v.name })}
+          disabled={lockContact}
+        />
       </div>
 
       <div className="grid grid-cols-2 gap-3">
@@ -127,7 +138,7 @@ export function PersonTxForm({
       </div>
 
       <DialogFooter>
-        <Button type="submit" className="w-full" disabled={mut.isPending}>{mut.isPending ? "جاري الحفظ..." : "حفظ"}</Button>
+        <Button type="submit" className="w-full" disabled={mut.isPending || !contact.id}>{mut.isPending ? "جاري الحفظ..." : "حفظ"}</Button>
       </DialogFooter>
     </form>
   );

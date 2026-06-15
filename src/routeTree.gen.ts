@@ -22,7 +22,6 @@ import { Route as AuthenticatedAppPeopleRouteImport } from './routes/_authentica
 import { Route as AuthenticatedAppExpensesRouteImport } from './routes/_authenticated/app.expenses'
 import { Route as AuthenticatedAppDebtsRouteImport } from './routes/_authenticated/app.debts'
 import { Route as AuthenticatedAppProjectsIdRouteImport } from './routes/_authenticated/app.projects.$id'
-import { Route as AuthenticatedAppPeopleNameRouteImport } from './routes/_authenticated/app.people.$name'
 import { Route as AuthenticatedAppDebtsIdRouteImport } from './routes/_authenticated/app.debts.$id'
 
 const AuthRoute = AuthRouteImport.update({
@@ -93,12 +92,6 @@ const AuthenticatedAppProjectsIdRoute =
     path: '/$id',
     getParentRoute: () => AuthenticatedAppProjectsRoute,
   } as any)
-const AuthenticatedAppPeopleNameRoute =
-  AuthenticatedAppPeopleNameRouteImport.update({
-    id: '/$name',
-    path: '/$name',
-    getParentRoute: () => AuthenticatedAppPeopleRoute,
-  } as any)
 const AuthenticatedAppDebtsIdRoute = AuthenticatedAppDebtsIdRouteImport.update({
   id: '/$id',
   path: '/$id',
@@ -111,14 +104,13 @@ export interface FileRoutesByFullPath {
   '/app': typeof AuthenticatedAppRouteWithChildren
   '/app/debts': typeof AuthenticatedAppDebtsRouteWithChildren
   '/app/expenses': typeof AuthenticatedAppExpensesRoute
-  '/app/people': typeof AuthenticatedAppPeopleRouteWithChildren
+  '/app/people': typeof AuthenticatedAppPeopleRoute
   '/app/projects': typeof AuthenticatedAppProjectsRouteWithChildren
   '/app/reports': typeof AuthenticatedAppReportsRoute
   '/app/settings': typeof AuthenticatedAppSettingsRoute
   '/app/wallets': typeof AuthenticatedAppWalletsRoute
   '/app/': typeof AuthenticatedAppIndexRoute
   '/app/debts/$id': typeof AuthenticatedAppDebtsIdRoute
-  '/app/people/$name': typeof AuthenticatedAppPeopleNameRoute
   '/app/projects/$id': typeof AuthenticatedAppProjectsIdRoute
 }
 export interface FileRoutesByTo {
@@ -126,14 +118,13 @@ export interface FileRoutesByTo {
   '/auth': typeof AuthRoute
   '/app/debts': typeof AuthenticatedAppDebtsRouteWithChildren
   '/app/expenses': typeof AuthenticatedAppExpensesRoute
-  '/app/people': typeof AuthenticatedAppPeopleRouteWithChildren
+  '/app/people': typeof AuthenticatedAppPeopleRoute
   '/app/projects': typeof AuthenticatedAppProjectsRouteWithChildren
   '/app/reports': typeof AuthenticatedAppReportsRoute
   '/app/settings': typeof AuthenticatedAppSettingsRoute
   '/app/wallets': typeof AuthenticatedAppWalletsRoute
   '/app': typeof AuthenticatedAppIndexRoute
   '/app/debts/$id': typeof AuthenticatedAppDebtsIdRoute
-  '/app/people/$name': typeof AuthenticatedAppPeopleNameRoute
   '/app/projects/$id': typeof AuthenticatedAppProjectsIdRoute
 }
 export interface FileRoutesById {
@@ -144,14 +135,13 @@ export interface FileRoutesById {
   '/_authenticated/app': typeof AuthenticatedAppRouteWithChildren
   '/_authenticated/app/debts': typeof AuthenticatedAppDebtsRouteWithChildren
   '/_authenticated/app/expenses': typeof AuthenticatedAppExpensesRoute
-  '/_authenticated/app/people': typeof AuthenticatedAppPeopleRouteWithChildren
+  '/_authenticated/app/people': typeof AuthenticatedAppPeopleRoute
   '/_authenticated/app/projects': typeof AuthenticatedAppProjectsRouteWithChildren
   '/_authenticated/app/reports': typeof AuthenticatedAppReportsRoute
   '/_authenticated/app/settings': typeof AuthenticatedAppSettingsRoute
   '/_authenticated/app/wallets': typeof AuthenticatedAppWalletsRoute
   '/_authenticated/app/': typeof AuthenticatedAppIndexRoute
   '/_authenticated/app/debts/$id': typeof AuthenticatedAppDebtsIdRoute
-  '/_authenticated/app/people/$name': typeof AuthenticatedAppPeopleNameRoute
   '/_authenticated/app/projects/$id': typeof AuthenticatedAppProjectsIdRoute
 }
 export interface FileRouteTypes {
@@ -169,7 +159,6 @@ export interface FileRouteTypes {
     | '/app/wallets'
     | '/app/'
     | '/app/debts/$id'
-    | '/app/people/$name'
     | '/app/projects/$id'
   fileRoutesByTo: FileRoutesByTo
   to:
@@ -184,7 +173,6 @@ export interface FileRouteTypes {
     | '/app/wallets'
     | '/app'
     | '/app/debts/$id'
-    | '/app/people/$name'
     | '/app/projects/$id'
   id:
     | '__root__'
@@ -201,7 +189,6 @@ export interface FileRouteTypes {
     | '/_authenticated/app/wallets'
     | '/_authenticated/app/'
     | '/_authenticated/app/debts/$id'
-    | '/_authenticated/app/people/$name'
     | '/_authenticated/app/projects/$id'
   fileRoutesById: FileRoutesById
 }
@@ -304,13 +291,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedAppProjectsIdRouteImport
       parentRoute: typeof AuthenticatedAppProjectsRoute
     }
-    '/_authenticated/app/people/$name': {
-      id: '/_authenticated/app/people/$name'
-      path: '/$name'
-      fullPath: '/app/people/$name'
-      preLoaderRoute: typeof AuthenticatedAppPeopleNameRouteImport
-      parentRoute: typeof AuthenticatedAppPeopleRoute
-    }
     '/_authenticated/app/debts/$id': {
       id: '/_authenticated/app/debts/$id'
       path: '/$id'
@@ -334,20 +314,6 @@ const AuthenticatedAppDebtsRouteWithChildren =
     AuthenticatedAppDebtsRouteChildren,
   )
 
-interface AuthenticatedAppPeopleRouteChildren {
-  AuthenticatedAppPeopleNameRoute: typeof AuthenticatedAppPeopleNameRoute
-}
-
-const AuthenticatedAppPeopleRouteChildren: AuthenticatedAppPeopleRouteChildren =
-  {
-    AuthenticatedAppPeopleNameRoute: AuthenticatedAppPeopleNameRoute,
-  }
-
-const AuthenticatedAppPeopleRouteWithChildren =
-  AuthenticatedAppPeopleRoute._addFileChildren(
-    AuthenticatedAppPeopleRouteChildren,
-  )
-
 interface AuthenticatedAppProjectsRouteChildren {
   AuthenticatedAppProjectsIdRoute: typeof AuthenticatedAppProjectsIdRoute
 }
@@ -365,7 +331,7 @@ const AuthenticatedAppProjectsRouteWithChildren =
 interface AuthenticatedAppRouteChildren {
   AuthenticatedAppDebtsRoute: typeof AuthenticatedAppDebtsRouteWithChildren
   AuthenticatedAppExpensesRoute: typeof AuthenticatedAppExpensesRoute
-  AuthenticatedAppPeopleRoute: typeof AuthenticatedAppPeopleRouteWithChildren
+  AuthenticatedAppPeopleRoute: typeof AuthenticatedAppPeopleRoute
   AuthenticatedAppProjectsRoute: typeof AuthenticatedAppProjectsRouteWithChildren
   AuthenticatedAppReportsRoute: typeof AuthenticatedAppReportsRoute
   AuthenticatedAppSettingsRoute: typeof AuthenticatedAppSettingsRoute
@@ -376,7 +342,7 @@ interface AuthenticatedAppRouteChildren {
 const AuthenticatedAppRouteChildren: AuthenticatedAppRouteChildren = {
   AuthenticatedAppDebtsRoute: AuthenticatedAppDebtsRouteWithChildren,
   AuthenticatedAppExpensesRoute: AuthenticatedAppExpensesRoute,
-  AuthenticatedAppPeopleRoute: AuthenticatedAppPeopleRouteWithChildren,
+  AuthenticatedAppPeopleRoute: AuthenticatedAppPeopleRoute,
   AuthenticatedAppProjectsRoute: AuthenticatedAppProjectsRouteWithChildren,
   AuthenticatedAppReportsRoute: AuthenticatedAppReportsRoute,
   AuthenticatedAppSettingsRoute: AuthenticatedAppSettingsRoute,
