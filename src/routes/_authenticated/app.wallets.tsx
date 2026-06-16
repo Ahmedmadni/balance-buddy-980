@@ -1,4 +1,4 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useState } from "react";
@@ -7,10 +7,12 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from "@/components/ui/dialog";
-import { Plus, Pencil, Trash2, Wallet, Banknote, Landmark, TrendingUp } from "lucide-react";
+import { Plus, Pencil, Trash2, Wallet, Banknote, Landmark, TrendingUp, ArrowLeftRight, ChevronLeft } from "lucide-react";
 import { CURRENCIES, formatMoney } from "@/lib/format";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
+import { computeWalletBalance } from "@/lib/wallet-balance";
+import { WalletTransferForm } from "@/components/WalletTxForm";
 
 export const Route = createFileRoute("/_authenticated/app/wallets")({
   head: () => ({ meta: [{ title: "المحافظ — رصد" }] }),
@@ -31,35 +33,35 @@ function WalletsPage() {
   const qc = useQueryClient();
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<any | null>(null);
+  const [openTransfer, setOpenTransfer] = useState(false);
 
   const { data, isLoading } = useQuery({
     queryKey: ["wallets-list"],
     queryFn: async () => {
-      const [wRes, eRes] = await Promise.all([
+      const [wRes, eRes, tRes] = await Promise.all([
         supabase.from("wallets").select("*").order("created_at", { ascending: true }),
         supabase.from("expenses").select("wallet_id,amount,currency,spent_at"),
+        supabase.from("wallet_transactions").select("wallet_id,kind,amount,happened_at"),
       ]);
-      return { wallets: wRes.data ?? [], expenses: eRes.data ?? [] };
+      return { wallets: wRes.data ?? [], expenses: eRes.data ?? [], txs: (tRes.data ?? []) as any[] };
     },
   });
 
   const del = useMutation({
-    mutationFn: async (id: string) => {
-      const { error } = await supabase.from("wallets").delete().eq("id", id);
-      if (error) throw error;
-    },
+    mutationFn: async (id: string) => { const { error } = await supabase.from("wallets").delete().eq("id", id); if (error) throw error; },
     onSuccess: () => { toast.success("تم الحذف"); qc.invalidateQueries({ queryKey: ["wallets-list"] }); qc.invalidateQueries({ queryKey: ["dashboard"] }); },
     onError: (e: any) => toast.error("خطأ", { description: e.message }),
   });
 
-  const spentByWallet = new Map<string, { all: number; month: number }>();
-  const monthStart = new Date(); monthStart.setDate(1);
+  const wallets = data?.wallets ?? [];
+  const expByWallet = new Map<string, any[]>();
   for (const e of data?.expenses ?? []) {
     if (!e.wallet_id) continue;
-    const cur = spentByWallet.get(e.wallet_id) ?? { all: 0, month: 0 };
-    cur.all += Number(e.amount);
-    if (new Date(e.spent_at) >= monthStart) cur.month += Number(e.amount);
-    spentByWallet.set(e.wallet_id, cur);
+    const a = expByWallet.get(e.wallet_id) ?? []; a.push(e); expByWallet.set(e.wallet_id, a);
+  }
+  const txByWallet = new Map<string, any[]>();
+  for (const t of data?.txs ?? []) {
+    const a = txByWallet.get(t.wallet_id) ?? []; a.push(t); txByWallet.set(t.wallet_id, a);
   }
 
   return (
@@ -69,32 +71,40 @@ function WalletsPage() {
           <h1 className="text-2xl font-bold">المحافظ</h1>
           <p className="text-sm text-muted-foreground mt-1">إدارة محافظك النقدية والبنكية والأصول</p>
         </div>
-        <Dialog open={open || !!editing} onOpenChange={(v) => { if (!v) { setOpen(false); setEditing(null); } }}>
-          <DialogTrigger asChild>
-            <Button onClick={() => { setEditing(null); setOpen(true); }}><Plus className="h-4 w-4" /> محفظة جديدة</Button>
-          </DialogTrigger>
-          <DialogContent className="max-w-md">
-            <WalletForm
-              initial={editing}
-              onDone={() => { setOpen(false); setEditing(null); qc.invalidateQueries({ queryKey: ["wallets-list"] }); qc.invalidateQueries({ queryKey: ["dashboard"] }); }}
-            />
-          </DialogContent>
-        </Dialog>
+        <div className="flex gap-2">
+          {wallets.length >= 2 && (
+            <Dialog open={openTransfer} onOpenChange={setOpenTransfer}>
+              <DialogTrigger asChild>
+                <Button variant="outline"><ArrowLeftRight className="h-4 w-4" /> تحويل</Button>
+              </DialogTrigger>
+              <DialogContent className="max-w-md">
+                <WalletTransferForm wallets={wallets} onDone={() => { setOpenTransfer(false); qc.invalidateQueries({ queryKey: ["wallets-list"] }); qc.invalidateQueries({ queryKey: ["dashboard"] }); }} />
+              </DialogContent>
+            </Dialog>
+          )}
+          <Dialog open={open || !!editing} onOpenChange={(v) => { if (!v) { setOpen(false); setEditing(null); } }}>
+            <DialogTrigger asChild>
+              <Button onClick={() => { setEditing(null); setOpen(true); }}><Plus className="h-4 w-4" /> محفظة</Button>
+            </DialogTrigger>
+            <DialogContent className="max-w-md">
+              <WalletForm initial={editing} onDone={() => { setOpen(false); setEditing(null); qc.invalidateQueries({ queryKey: ["wallets-list"] }); qc.invalidateQueries({ queryKey: ["dashboard"] }); }} />
+            </DialogContent>
+          </Dialog>
+        </div>
       </div>
 
       {isLoading ? (
         <div className="grid gap-3 sm:grid-cols-2">{[1,2].map(i => <div key={i} className="h-32 animate-pulse rounded-2xl bg-muted" />)}</div>
-      ) : (data?.wallets ?? []).length === 0 ? (
+      ) : wallets.length === 0 ? (
         <EmptyState />
       ) : (
         <div className="grid gap-3 sm:grid-cols-2">
-          {data!.wallets.map((w: any) => {
+          {wallets.map((w: any) => {
             const meta = typeMeta(w.type);
             const Icon = meta.icon;
-            const spent = spentByWallet.get(w.id) ?? { all: 0, month: 0 };
-            const balance = Number(w.opening_balance) - spent.all;
+            const balance = computeWalletBalance(Number(w.opening_balance), txByWallet.get(w.id) ?? [], expByWallet.get(w.id) ?? []);
             return (
-              <div key={w.id} className="rounded-2xl border bg-card p-5 shadow-[var(--shadow-card)] relative overflow-hidden">
+              <Link key={w.id} to="/app/wallets/$id" params={{ id: w.id }} className="rounded-2xl border bg-card p-5 shadow-[var(--shadow-card)] relative overflow-hidden block transition hover:-translate-y-0.5 hover:shadow-[var(--shadow-elegant)]">
                 <div className="absolute -top-8 -left-8 h-24 w-24 rounded-full opacity-20" style={{ background: w.color ?? meta.color }} />
                 <div className="flex items-start justify-between">
                   <div className="flex items-center gap-3">
@@ -106,9 +116,9 @@ function WalletsPage() {
                       <div className="text-[11px] text-muted-foreground">{meta.label}</div>
                     </div>
                   </div>
-                  <div className="flex gap-1">
-                    <Button variant="ghost" size="icon" onClick={() => setEditing(w)}><Pencil className="h-4 w-4" /></Button>
-                    <Button variant="ghost" size="icon" onClick={() => { if (confirm("حذف المحفظة؟ سيتم فك ربطها عن المصاريف.")) del.mutate(w.id); }}>
+                  <div className="flex gap-1" onClick={(e) => e.preventDefault()}>
+                    <Button variant="ghost" size="icon" onClick={(e) => { e.preventDefault(); setEditing(w); }}><Pencil className="h-4 w-4" /></Button>
+                    <Button variant="ghost" size="icon" onClick={(e) => { e.preventDefault(); if (confirm("حذف المحفظة؟ سيتم حذف جميع عملياتها.")) del.mutate(w.id); }}>
                       <Trash2 className="h-4 w-4 text-destructive" />
                     </Button>
                   </div>
@@ -118,12 +128,12 @@ function WalletsPage() {
                   <div className={cn("text-2xl font-extrabold tabular-nums", balance < 0 && "text-destructive")}>
                     {formatMoney(balance, w.currency)}
                   </div>
-                  <div className="mt-2 flex gap-4 text-[11px] text-muted-foreground">
-                    <div>افتتاحي: <span className="tabular-nums">{formatMoney(w.opening_balance, w.currency)}</span></div>
-                    <div>مصروف الشهر: <span className="tabular-nums">{formatMoney(spent.month, w.currency)}</span></div>
+                  <div className="mt-2 flex items-center justify-between text-[11px] text-muted-foreground">
+                    <span>افتتاحي: <span className="tabular-nums">{formatMoney(w.opening_balance, w.currency)}</span></span>
+                    <span className="inline-flex items-center gap-1 text-primary">عرض الكشف <ChevronLeft className="h-3 w-3" /></span>
                   </div>
                 </div>
-              </div>
+              </Link>
             );
           })}
         </div>
@@ -156,14 +166,7 @@ function WalletForm({ onDone, initial }: { onDone: () => void; initial?: any }) 
     mutationFn: async () => {
       const { data: u } = await supabase.auth.getUser();
       if (!u.user) throw new Error("غير مسجل");
-      const payload = {
-        user_id: u.user.id,
-        name: name.trim(),
-        type,
-        currency,
-        opening_balance: parseFloat(opening) || 0,
-        color,
-      };
+      const payload = { user_id: u.user.id, name: name.trim(), type, currency, opening_balance: parseFloat(opening) || 0, color };
       if (isEdit) {
         const { error } = await supabase.from("wallets").update(payload).eq("id", initial.id);
         if (error) throw error;
@@ -179,24 +182,16 @@ function WalletForm({ onDone, initial }: { onDone: () => void; initial?: any }) 
   return (
     <form onSubmit={(e) => { e.preventDefault(); mut.mutate(); }} className="space-y-4">
       <DialogHeader><DialogTitle>{isEdit ? "تعديل محفظة" : "محفظة جديدة"}</DialogTitle></DialogHeader>
-      <div>
-        <Label>اسم المحفظة</Label>
-        <Input value={name} onChange={(e) => setName(e.target.value)} required maxLength={80} placeholder="مثلاً: الراجحي، نقد جيب، صندوق استثمار" />
-      </div>
+      <div><Label>اسم المحفظة</Label><Input value={name} onChange={(e) => setName(e.target.value)} required maxLength={80} placeholder="مثلاً: الراجحي، نقد جيب" /></div>
       <div>
         <Label>النوع</Label>
         <Select value={type} onValueChange={setType}>
           <SelectTrigger><SelectValue /></SelectTrigger>
-          <SelectContent>
-            {WALLET_TYPES.map(t => <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>)}
-          </SelectContent>
+          <SelectContent>{WALLET_TYPES.map(t => <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>)}</SelectContent>
         </Select>
       </div>
       <div className="grid grid-cols-2 gap-3">
-        <div>
-          <Label>الرصيد الافتتاحي</Label>
-          <Input type="number" step="0.01" value={opening} onChange={(e) => setOpening(e.target.value)} required dir="ltr" />
-        </div>
+        <div><Label>الرصيد الافتتاحي</Label><Input type="number" step="0.01" value={opening} onChange={(e) => setOpening(e.target.value)} required dir="ltr" /></div>
         <div>
           <Label>العملة</Label>
           <Select value={currency} onValueChange={setCurrency}>
@@ -205,13 +200,8 @@ function WalletForm({ onDone, initial }: { onDone: () => void; initial?: any }) 
           </Select>
         </div>
       </div>
-      <div>
-        <Label>اللون</Label>
-        <Input type="color" value={color} onChange={(e) => setColor(e.target.value)} className="h-10 w-full" />
-      </div>
-      <DialogFooter>
-        <Button type="submit" className="w-full" disabled={mut.isPending}>{mut.isPending ? "جاري الحفظ..." : "حفظ"}</Button>
-      </DialogFooter>
+      <div><Label>اللون</Label><Input type="color" value={color} onChange={(e) => setColor(e.target.value)} className="h-10 w-full" /></div>
+      <DialogFooter><Button type="submit" className="w-full" disabled={mut.isPending}>{mut.isPending ? "جاري الحفظ..." : "حفظ"}</Button></DialogFooter>
     </form>
   );
 }
