@@ -1,53 +1,77 @@
-## 1) ربط الأشخاص بجهات الاتصال
+## خطة التحديث الشامل لتطبيق "رصد"
 
-- **توسيع جدول `contacts`**: إضافة عمودَي `email` و`tags` (اختياريين) لإثراء سجل الشخص.
-- **إضافة `contact_id` إلى `person_ledger`**: مفتاح أجنبي اختياري إلى `contacts(id)` مع فهرس `(user_id, contact_id)`. السجلات القديمة تبقى مربوطة بالاسم.
-- **ترحيل ذكي**: تشغيل تحديث لمرة واحدة يربط الحركات الموجودة بـ `contacts` المطابقة بالاسم (case-insensitive) لنفس المستخدم؛ وإن لم يوجد جهة اتصال يتم إنشاؤها تلقائياً من اسم الحركة.
-- **منتقي جهات الاتصال في النموذج (`PersonTxForm`)**: استبدال حقل «اسم الشخص» النصي بـ Combobox يبحث في جهات الاتصال الموجودة مع خيار «+ إضافة جهة اتصال جديدة» داخل نفس النموذج (اسم + جوال اختياري). الحركة تُحفظ بـ `contact_id` و`contact_name` (يبقى كنسخة احتياطية للعرض السريع).
-- **صفحة «الأشخاص»**: تجمع حسب `contact_id` بدل الاسم النصي، وتعرض رقم الجوال أسفل الاسم، مع زر اتصال/واتساب مباشر من البطاقة.
-- **صفحة الشخص (`app.people.$id.tsx`)**: تتحوّل لتأخذ `contactId` بدل الاسم؛ يظهر فيها: الاسم، الجوال، أزرار اتصال/واتساب/SMS لتذكير الشخص بالمبلغ المستحق تلقائياً، وملاحظات جهة الاتصال، وكشف الحساب الموحّد كما هو.
-- **صفحة «جهات الاتصال» (`/app/contacts`)**: CRUD كامل (إضافة/تعديل/حذف/بحث)، مع منع حذف جهة لها حركات سابقة (نعرض رسالة بدل الحذف الصامت).
-- **توافق عكسي**: `debts` القديم يبقى كما هو (مع حقله `contact_id` الموجود مسبقاً). لا يُحذف شيء.
+### 1) دمج الأشخاص + الديون في موديول واحد
+- إزالة صفحات `app.debts.tsx` و `app.debts.$id.tsx` من التنقل
+- نقل **تاريخ الاستحقاق** و**تذكيرات الاستحقاق** إلى `person_ledger` مباشرة
+- إضافة أعمدة لـ `person_ledger`:
+  - `due_date date` — تاريخ استحقاق اختياري لحركات "سلّفته/استلفت منه"
+  - `reminder_enabled boolean default false`
+  - `settled_at timestamptz` — لتأشير الحركة كمسددة
+- صفحة `/app/people` تصبح هي صفحة الديون: تعرض الأرصدة + التحذيرات للمستحق قريباً/المتأخر
+- صفحة `/app/people/$id` (دفتر الحساب) تعرض جدول الحركات مع شارة "مستحق خلال X يوم" أو "متأخر"
+- شريط تذكيرات في الأعلى: "لديك 3 ديون مستحقة هذا الأسبوع"
+- زر تذكير واتساب يحتسب الديون المتأخرة تلقائياً
 
-## 2) تغيير اسم التطبيق إلى «رصد»
+### 2) ربط جهات الاتصال بدفتر هاتف الجهاز
+- إضافة زر "استيراد من جهات الاتصال" في صفحة `/app/contacts` يستخدم **Contact Picker API** للمتصفح:
+  - `navigator.contacts.select(['name','tel','email'], {multiple: true})`
+  - يعمل فقط على Chrome Android (HTTPS + PWA). على باقي الأجهزة: زر vCard مخفي ورسالة شرح.
+- بديل احتياطي: استيراد ملف `.vcf` (vCard) برفع ملف من الجهاز
+- مكوّن جديد `ContactImportButton.tsx`
 
-- تحديث `<title>` في `__root.tsx` وكل `head()` في الصفحات.
-- تحديث `public/manifest.webmanifest` (الاسم، short_name، الوصف).
-- تحديث شعار/اسم التطبيق في `route.tsx` (الشريط العلوي والسفلي) وصفحة `auth.tsx` وصفحة الهبوط `index.tsx`.
-- تحديث وصف OG/Twitter ليعكس «رصد — إدارة مالية شخصية بالعربية».
+### 3) عمليات المحافظ (غير المصاريف)
+- جدول جديد `wallet_transactions`:
+  - `id, user_id, wallet_id, kind, amount, currency, happened_at, notes, counterparty_wallet_id, contact_id, created_at`
+  - `kind`: `deposit` (إيداع كاش) | `withdraw` (سحب) | `transfer_out` | `transfer_in` | `send` (حوالة غير مستردة صادرة) | `receive` (حوالة واردة) | `adjustment` (تسوية يدوية)
+  - التحويل بين محفظتين = صفّان مرتبطان بنفس `transfer_group_id`
+- صفحة `/app/wallets/$id` جديدة: سجل عمليات المحفظة + الرصيد الجاري
+- زر "تحويل بين محافظ" في صفحة المحافظ → نموذج يختار `من` و `إلى` ومبلغ
+- زر "إيداع/سحب/حوالة" مع نوع
+- إعادة احتساب الرصيد:
+  `opening_balance + Σ(deposits + transfer_in + receive) − Σ(withdraw + transfer_out + send) − Σ(expenses)`
 
-## 3) مقترحات تطوير إضافية (للاختيار)
+### 4) المصاريف الدورية / المؤجلة عبر أشهر
+- إضافة أعمدة لـ `expenses`:
+  - `allocation_kind text default 'single'` — `single` | `spread`
+  - `spread_months int` — عدد الأشهر للتوزيع
+  - `spread_start date` — تاريخ بداية التوزيع
+- جدول جديد `expense_allocations` (مولّد تلقائياً عند الحفظ):
+  - `id, expense_id, user_id, period date, amount, currency, created_at`
+  - يخزن مبلغ كل شهر (مثلاً إيجار 12,000 لـ 6 أشهر → 6 صفوف بـ 2,000)
+- التقارير الشهرية تجمع من `expense_allocations` بدل `expenses` مباشرة
+- في نموذج المصروف: مفتاح "توزيع على أشهر مقدماً" → يظهر حقلان (عدد الأشهر، شهر البداية)
+- معاينة: "سيُحسب 2,000 ر.س شهرياً من يناير حتى يونيو"
 
-أرشّحها بحسب الأثر:
+### 5) تحسينات UI
+- شريط جانبي/تنقل سفلي محسّن مع أيقونات أوضح
+- بطاقات الإحصائيات: gradient + iconography أعمق
+- صفحة Dashboard:
+  - بطاقة السيولة الإجمالية مع breakdown لكل محفظة
+  - بطاقة "صافي الديون" (له − عليه)
+  - بطاقة "مصاريف الشهر الحالي" (من allocations)
+  - تذكيرات استحقاق سريعة
+- Skeleton loaders أنعم
+- Empty states موحدة بأيقونة + نص + CTA
+- Toaster بتموضع أفضل للموبايل
 
-1. **تذكيرات ذكية بالديون**: إشعارات داخل التطبيق + رسائل واتساب جاهزة عند اقتراب تاريخ الاستحقاق.
-2. **تحويلات بين المحافظ**: حركة «تحويل» تخصم من محفظة وتضيف لأخرى (مع تحويل عملة اختياري).
-3. **دخل وإيرادات**: إضافة جدول `incomes` مرتبط بالمحفظة ليكتمل صافي السيولة الحقيقي (دخل − مصروف).
-4. **ميزانيات شهرية لكل فئة**: تنبيه عند تجاوز نسبة معينة، مع شريط تقدّم في صفحة المصروفات.
-5. **تقارير ورسوم بيانية**: مخطط زمني للمصروفات، توزيع الفئات (Donut)، تطور صافي السيولة.
-6. **العملات وأسعار الصرف**: عرض الصافي بعملة موحّدة باستخدام أسعار يومية (Lovable AI لجلبها).
-7. **التصدير**: PDF/CSV لكشف حساب أي شخص أو تقرير شهري.
-8. **نسخ احتياطي ومزامنة عبر الأجهزة**: متوفرة فعلياً عبر Lovable Cloud، فقط نوضحها للمستخدم.
-9. **قفل التطبيق برقم سري/بصمة (PWA)** لحساسية البيانات المالية.
-10. **وضع متعدد المستخدمين**: مشاركة مشروع/محفظة مع شخص آخر (للعائلة أو الشركاء).
+### التغييرات التقنية
+- **3 migrations**: تعديل `person_ledger` + تعديل `expenses` + جدولين جديدين (`wallet_transactions`, `expense_allocations`) مع RLS و GRANT
+- **ملفات جديدة**: 
+  - `src/routes/_authenticated/app.wallets.$id.tsx`
+  - `src/components/WalletTxForm.tsx`
+  - `src/components/WalletTransferForm.tsx`
+  - `src/components/ContactImportButton.tsx`
+  - `src/components/DueReminders.tsx`
+- **ملفات معدّلة**:
+  - `PersonTxForm.tsx` (إضافة due_date + reminder)
+  - `app.people.tsx` + `app.people.$id.tsx` (دمج خصائص الديون)
+  - `app.wallets.tsx` (أزرار العمليات الجديدة)
+  - `app.expenses.tsx` (allocation_kind + spread)
+  - `app.index.tsx` (Dashboard محسّن)
+  - `app.reports.tsx` (قراءة من allocations)
+  - `route.tsx` (إزالة "ديون" من التنقل)
+- **ملفات محذوفة**: `app.debts.tsx`, `app.debts.$id.tsx` (سيُحوَّل أي رابط قديم لصفحة الأشخاص)
 
-أنتظر اختيارك للمقترحات قبل إدراجها في التنفيذ (أو نفّذ فقط البندَين 1 و2 الآن وأترك البقية لجولات لاحقة).
-
-## التفاصيل التقنية
-
-- **الترحيل**:
-  ```sql
-  ALTER TABLE public.contacts ADD COLUMN email text, ADD COLUMN tags text[];
-  ALTER TABLE public.person_ledger ADD COLUMN contact_id uuid REFERENCES public.contacts(id) ON DELETE SET NULL;
-  CREATE INDEX person_ledger_user_contact_idx ON public.person_ledger(user_id, contact_id);
-  -- backfill: ربط الحركات الموجودة وإنشاء جهات اتصال ناقصة
-  INSERT INTO public.contacts (user_id, name)
-    SELECT DISTINCT pl.user_id, pl.contact_name FROM public.person_ledger pl
-    LEFT JOIN public.contacts c ON c.user_id=pl.user_id AND lower(c.name)=lower(pl.contact_name)
-    WHERE pl.contact_id IS NULL AND c.id IS NULL;
-  UPDATE public.person_ledger pl SET contact_id=c.id
-    FROM public.contacts c WHERE c.user_id=pl.user_id AND lower(c.name)=lower(pl.contact_name) AND pl.contact_id IS NULL;
-  ```
-- **التوجيه**: `app.people.$name.tsx` → `app.people.$id.tsx` + إنشاء `app.contacts.tsx`.
-- **منتقي**: مكوّن `ContactPicker` يعتمد على `Command` من shadcn.
-- **الواتساب**: رابط `https://wa.me/<phone>?text=<encoded>` مع رسالة افتراضية مولّدة من الرصيد الحالي.
+### ملاحظات
+- البيانات الموجودة في `debts` تبقى كما هي (لن تُحذف الجداول)، فقط الصفحات تُخفى. لاحقاً يمكن عمل migration لنقلها إلى `person_ledger` إذا رغبت.
+- Contact Picker API محدودة بـ Chrome Android — هذا قيد متصفح وليس قيد التطبيق.

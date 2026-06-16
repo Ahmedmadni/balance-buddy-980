@@ -1,7 +1,7 @@
 import { createFileRoute, Outlet, redirect, Link, useRouterState, useNavigate } from "@tanstack/react-router";
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { LayoutDashboard, HandCoins, Wallet, FileBarChart, Settings, LogOut, Menu, Users, Landmark, Contact } from "lucide-react";
+import { LayoutDashboard, Wallet, FileBarChart, Settings, LogOut, Menu, Users, Landmark, Contact } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import { cn } from "@/lib/utils";
@@ -22,11 +22,12 @@ const NAV = [
   { to: "/app/people", icon: Users, label: "الأشخاص" },
   { to: "/app/wallets", icon: Landmark, label: "المحافظ" },
   { to: "/app/expenses", icon: Wallet, label: "المصاريف" },
-  { to: "/app/contacts", icon: Contact, label: "جهات الاتصال" },
-  { to: "/app/debts", icon: HandCoins, label: "الديون" },
   { to: "/app/reports", icon: FileBarChart, label: "التقارير" },
+  { to: "/app/contacts", icon: Contact, label: "جهات الاتصال" },
   { to: "/app/settings", icon: Settings, label: "الإعدادات" },
 ];
+
+const BOTTOM_NAV = NAV.filter((n) => ["/app", "/app/people", "/app/wallets", "/app/expenses", "/app/reports"].includes(n.to));
 
 function NavLinks({ onClick }: { onClick?: () => void }) {
   const pathname = useRouterState({ select: (s) => s.location.pathname });
@@ -77,7 +78,6 @@ function AppLayout() {
 
   return (
     <div className="min-h-screen bg-background">
-      {/* Desktop sidebar */}
       <aside className="fixed inset-y-0 right-0 z-20 hidden w-64 border-l bg-sidebar md:flex md:flex-col">
         <div className="flex items-center gap-2 px-5 py-5 border-b">
           <div className="grid h-9 w-9 place-items-center rounded-xl bg-[image:var(--gradient-primary)] text-white shadow-[var(--shadow-elegant)]">
@@ -104,13 +104,11 @@ function AppLayout() {
             </div>
           </div>
           <Button variant="ghost" size="sm" className="w-full justify-start" onClick={signOut}>
-            <LogOut className="h-4 w-4" />
-            تسجيل الخروج
+            <LogOut className="h-4 w-4" /> تسجيل الخروج
           </Button>
         </div>
       </aside>
 
-      {/* Mobile topbar */}
       <header className="sticky top-0 z-20 flex items-center justify-between border-b bg-background/80 px-4 py-3 backdrop-blur md:hidden">
         <div className="flex items-center gap-2">
           <div className="grid h-9 w-9 place-items-center rounded-xl bg-[image:var(--gradient-primary)] text-white">
@@ -137,14 +135,13 @@ function AppLayout() {
         </div>
       </main>
 
-      {/* Mobile bottom nav */}
-      <nav className="fixed bottom-0 inset-x-0 z-20 border-t bg-background/90 backdrop-blur md:hidden">
+      <nav className="fixed bottom-0 inset-x-0 z-20 border-t bg-background/95 backdrop-blur md:hidden">
         <div className="grid grid-cols-5">
-          {NAV.slice(0, 5).map((n) => {
+          {BOTTOM_NAV.map((n) => {
             const active = n.exact ? pathname === n.to : pathname.startsWith(n.to);
             return (
-              <Link key={n.to} to={n.to} className={cn("flex flex-col items-center gap-1 py-2.5 text-[11px]", active ? "text-primary" : "text-muted-foreground")}>
-                <n.icon className={cn("h-5 w-5", active && "scale-110")} />
+              <Link key={n.to} to={n.to} className={cn("flex flex-col items-center gap-1 py-2.5 text-[11px] transition", active ? "text-primary" : "text-muted-foreground")}>
+                <n.icon className={cn("h-5 w-5 transition", active && "scale-110")} />
                 {n.label}
               </Link>
             );

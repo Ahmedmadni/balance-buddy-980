@@ -9,6 +9,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Plus, Search, Phone, MessageCircle, Pencil, Trash2, Contact as ContactIcon, ChevronLeft } from "lucide-react";
 import { toast } from "sonner";
+import { ContactImportButton } from "@/components/ContactImportButton";
 
 export const Route = createFileRoute("/_authenticated/app/contacts")({
   head: () => ({ meta: [{ title: "جهات الاتصال — رصد" }] }),
@@ -77,10 +78,15 @@ function ContactsPage() {
         </Dialog>
       </div>
 
+      <div className="flex gap-2 flex-wrap">
+        <ContactImportButton />
+      </div>
+
       <div className="relative">
         <Search className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
         <Input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="ابحث بالاسم أو الجوال..." className="pr-9" />
       </div>
+
 
       {isLoading ? (
         <div className="space-y-2">{[1,2,3].map(i => <div key={i} className="h-20 animate-pulse rounded-2xl bg-muted" />)}</div>

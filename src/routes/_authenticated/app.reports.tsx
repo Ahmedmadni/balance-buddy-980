@@ -6,9 +6,10 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
-import { Download, Printer, FileSpreadsheet } from "lucide-react";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Printer, FileSpreadsheet } from "lucide-react";
 import { formatMoney, formatDate, todayISO } from "@/lib/format";
+import { kindMeta, kindSign } from "@/components/PersonTxForm";
 import * as XLSX from "xlsx";
 
 export const Route = createFileRoute("/_authenticated/app/reports")({
@@ -21,7 +22,7 @@ function ReportsPage() {
   const monthStart = new Date(today.getFullYear(), today.getMonth(), 1).toISOString().slice(0, 10);
   const [from, setFrom] = useState(monthStart);
   const [to, setTo] = useState(todayISO());
-  const [type, setType] = useState<"expenses" | "debts">("expenses");
+  const [type, setType] = useState<"expenses" | "people">("expenses");
   const [projectId, setProjectId] = useState<string>("all");
 
   const { data: projects } = useQuery({
@@ -33,20 +34,24 @@ function ReportsPage() {
     queryKey: ["report", type, from, to, projectId],
     queryFn: async () => {
       if (type === "expenses") {
-        let q = supabase.from("expenses").select("*, categories(name), projects(name)").gte("spent_at", from).lte("spent_at", to).order("spent_at", { ascending: false });
-        if (projectId !== "all") q = q.eq("project_id", projectId);
+        // Use allocations within range, joined with expense + category/project
+        let q = supabase.from("expense_allocations")
+          .select("amount,currency,period,expenses(id,note,category_id,project_id,wallet_id,categories(name),projects(name),wallets(name))")
+          .gte("period", from.slice(0, 7) + "-01")
+          .lte("period", to.slice(0, 7) + "-01")
+          .order("period", { ascending: false });
         const { data, error } = await q;
         if (error) throw error;
-        return { rows: data ?? [] };
-      } else {
-        const [dRes, payRes] = await Promise.all([
-          supabase.from("debts").select("*").gte("created_at", from).lte("created_at", to + "T23:59:59"),
-          supabase.from("debt_payments").select("debt_id, amount"),
-        ]);
-        const paid = new Map<string, number>();
-        for (const p of payRes.data ?? []) paid.set(p.debt_id, (paid.get(p.debt_id) ?? 0) + Number(p.amount));
-        const rows = (dRes.data ?? []).map((d: any) => ({ ...d, paid: paid.get(d.id) ?? 0, remaining: Math.max(0, Number(d.amount) - (paid.get(d.id) ?? 0)) }));
+        let rows = (data ?? []) as any[];
+        if (projectId !== "all") rows = rows.filter((r) => r.expenses?.project_id === projectId);
         return { rows };
+      } else {
+        const { data, error } = await supabase.from("person_ledger")
+          .select("*")
+          .gte("happened_at", from).lte("happened_at", to)
+          .order("happened_at", { ascending: false });
+        if (error) throw error;
+        return { rows: data ?? [] };
       }
     },
   });
@@ -55,44 +60,34 @@ function ReportsPage() {
 
   function exportExcel() {
     const sheetData = type === "expenses"
-      ? rows.map((e: any) => ({ "التاريخ": e.spent_at, "الفئة": e.categories?.name ?? "", "المشروع": e.projects?.name ?? "", "المبلغ": Number(e.amount), "العملة": e.currency, "ملاحظة": e.note ?? "" }))
-      : rows.map((d: any) => ({ "التاريخ": d.created_at?.slice(0, 10), "الشخص": d.contact_name, "النوع": d.direction === "owed_to_me" ? "لي" : "عليّ", "المبلغ": Number(d.amount), "مدفوع": Number(d.paid), "متبقي": Number(d.remaining), "العملة": d.currency, "تاريخ الاستحقاق": d.due_date ?? "", "ملاحظات": d.notes ?? "" }));
+      ? rows.map((r: any) => ({ "الشهر": (r.period as string).slice(0, 7), "الفئة": r.expenses?.categories?.name ?? "", "المشروع": r.expenses?.projects?.name ?? "", "المحفظة": r.expenses?.wallets?.name ?? "", "المبلغ": Number(r.amount), "العملة": r.currency, "ملاحظة": r.expenses?.note ?? "" }))
+      : rows.map((r: any) => ({ "التاريخ": r.happened_at, "الشخص": r.contact_name, "النوع": kindMeta(r.kind).label, "المبلغ": Number(r.amount), "العملة": r.currency, "الاستحقاق": r.due_date ?? "", "مسدد": r.settled_at ? "نعم" : "لا", "ملاحظات": r.notes ?? "" }));
+    if (sheetData.length === 0) return;
     const ws = XLSX.utils.json_to_sheet(sheetData);
-    ws["!cols"] = Object.keys(sheetData[0] ?? {}).map(() => ({ wch: 18 }));
+    ws["!cols"] = Object.keys(sheetData[0]).map(() => ({ wch: 18 }));
     const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, type === "expenses" ? "المصاريف" : "الديون");
-    XLSX.writeFile(wb, `تقرير-${type === "expenses" ? "مصاريف" : "ديون"}-${from}_${to}.xlsx`);
-  }
-
-  function exportPDF() {
-    window.print();
+    XLSX.utils.book_append_sheet(wb, ws, type === "expenses" ? "المصاريف" : "الأشخاص");
+    XLSX.writeFile(wb, `تقرير-${type}-${from}_${to}.xlsx`);
   }
 
   // Totals
   const totalsByCur: Record<string, number> = {};
-  if (type === "expenses") {
-    for (const r of rows) totalsByCur[r.currency] = (totalsByCur[r.currency] ?? 0) + Number(r.amount);
-  }
-  const debtTotals = { lendByCur: {} as Record<string, number>, borrowByCur: {} as Record<string, number> };
-  if (type === "debts") {
-    for (const r of rows as any[]) {
-      const map = r.direction === "owed_to_me" ? debtTotals.lendByCur : debtTotals.borrowByCur;
-      map[r.currency] = (map[r.currency] ?? 0) + Number(r.remaining);
-    }
-  }
+  if (type === "expenses") for (const r of rows as any[]) totalsByCur[r.currency] = (totalsByCur[r.currency] ?? 0) + Number(r.amount);
+  const peopleNet: Record<string, number> = {};
+  if (type === "people") for (const r of rows as any[]) peopleNet[r.currency] = (peopleNet[r.currency] ?? 0) + kindSign(r.kind) * Number(r.amount);
 
   return (
     <div className="space-y-5">
       <div className="no-print">
         <h1 className="text-2xl font-bold">التقارير</h1>
-        <p className="text-sm text-muted-foreground mt-1">تقارير قابلة للتصدير بصيغة PDF و Excel</p>
+        <p className="text-sm text-muted-foreground mt-1">تقارير شهرية بحسب التوزيع</p>
       </div>
 
       <div className="rounded-2xl border bg-card p-4 space-y-4 no-print">
         <Tabs value={type} onValueChange={(v) => setType(v as any)}>
           <TabsList className="grid grid-cols-2 w-full">
             <TabsTrigger value="expenses">مصاريف</TabsTrigger>
-            <TabsTrigger value="debts">ديون</TabsTrigger>
+            <TabsTrigger value="people">أشخاص</TabsTrigger>
           </TabsList>
         </Tabs>
 
@@ -116,21 +111,21 @@ function ReportsPage() {
 
         <div className="flex gap-2">
           <Button onClick={() => refetch()} variant="outline" className="flex-1">{isFetching ? "جاري..." : "تحديث"}</Button>
-          <Button onClick={exportPDF} className="flex-1"><Printer className="h-4 w-4" /> طباعة / PDF</Button>
-          <Button onClick={exportExcel} variant="outline" disabled={rows.length === 0}><FileSpreadsheet className="h-4 w-4" /> Excel</Button>
+          <Button onClick={() => window.print()} className="flex-1"><Printer className="h-4 w-4" /> طباعة</Button>
+          <Button onClick={exportExcel} variant="outline" disabled={rows.length === 0}><FileSpreadsheet className="h-4 w-4" /></Button>
         </div>
       </div>
 
       <div className="rounded-2xl border bg-card p-6">
         <div className="text-center mb-4 pb-4 border-b">
-          <h2 className="text-xl font-bold">تقرير {type === "expenses" ? "المصاريف" : "الديون"}</h2>
+          <h2 className="text-xl font-bold">تقرير {type === "expenses" ? "المصاريف" : "الأشخاص"}</h2>
           <div className="text-sm text-muted-foreground mt-1">من {formatDate(from)} إلى {formatDate(to)}</div>
         </div>
 
         {type === "expenses" ? (
           <>
             <div className="grid sm:grid-cols-2 gap-3 mb-4">
-              <div className="rounded-xl bg-accent/40 p-3"><div className="text-xs text-muted-foreground">عدد العمليات</div><div className="text-lg font-bold">{rows.length}</div></div>
+              <div className="rounded-xl bg-accent/40 p-3"><div className="text-xs text-muted-foreground">عدد التوزيعات</div><div className="text-lg font-bold">{rows.length}</div></div>
               <div className="rounded-xl bg-accent/40 p-3"><div className="text-xs text-muted-foreground">الإجمالي</div>
                 {Object.entries(totalsByCur).map(([c, v]) => <div key={c} className="font-bold tabular-nums">{formatMoney(v, c)}</div>)}
                 {Object.keys(totalsByCur).length === 0 && <div className="text-muted-foreground">—</div>}
@@ -138,15 +133,16 @@ function ReportsPage() {
             </div>
             <table className="w-full text-sm">
               <thead className="text-right text-xs text-muted-foreground border-b">
-                <tr><th className="py-2">التاريخ</th><th>الفئة</th><th>المشروع</th><th className="text-left">المبلغ</th></tr>
+                <tr><th className="py-2">الشهر</th><th>الفئة</th><th>المحفظة</th><th>المشروع</th><th className="text-left">المبلغ</th></tr>
               </thead>
               <tbody>
-                {rows.map((e: any) => (
-                  <tr key={e.id} className="border-b last:border-0">
-                    <td className="py-2">{formatDate(e.spent_at)}</td>
-                    <td>{e.categories?.name ?? "—"}</td>
-                    <td>{e.projects?.name ?? "—"}</td>
-                    <td className="text-left tabular-nums">{formatMoney(e.amount, e.currency)}</td>
+                {(rows as any[]).map((r, i) => (
+                  <tr key={i} className="border-b last:border-0">
+                    <td className="py-2 tabular-nums" dir="ltr">{(r.period as string).slice(0, 7)}</td>
+                    <td>{r.expenses?.categories?.name ?? "—"}</td>
+                    <td>{r.expenses?.wallets?.name ?? "—"}</td>
+                    <td>{r.expenses?.projects?.name ?? "—"}</td>
+                    <td className="text-left tabular-nums">{formatMoney(r.amount, r.currency)}</td>
                   </tr>
                 ))}
               </tbody>
@@ -154,28 +150,23 @@ function ReportsPage() {
           </>
         ) : (
           <>
-            <div className="grid sm:grid-cols-2 gap-3 mb-4">
-              <div className="rounded-xl bg-success/10 p-3"><div className="text-xs text-success">مستحق لي (متبقي)</div>
-                {Object.entries(debtTotals.lendByCur).map(([c, v]) => <div key={c} className="font-bold tabular-nums">{formatMoney(v, c)}</div>)}
-                {Object.keys(debtTotals.lendByCur).length === 0 && <div className="text-muted-foreground">—</div>}
-              </div>
-              <div className="rounded-xl bg-destructive/10 p-3"><div className="text-xs text-destructive">مستحق عليّ (متبقي)</div>
-                {Object.entries(debtTotals.borrowByCur).map(([c, v]) => <div key={c} className="font-bold tabular-nums">{formatMoney(v, c)}</div>)}
-                {Object.keys(debtTotals.borrowByCur).length === 0 && <div className="text-muted-foreground">—</div>}
-              </div>
+            <div className="rounded-xl bg-accent/40 p-3 mb-4">
+              <div className="text-xs text-muted-foreground">صافي الحركات (موجب = له، سالب = عليه)</div>
+              {Object.entries(peopleNet).map(([c, v]) => <div key={c} className="font-bold tabular-nums">{formatMoney(v, c)}</div>)}
+              {Object.keys(peopleNet).length === 0 && <div className="text-muted-foreground">—</div>}
             </div>
             <table className="w-full text-sm">
               <thead className="text-right text-xs text-muted-foreground border-b">
-                <tr><th className="py-2">الشخص</th><th>النوع</th><th>المبلغ</th><th>المتبقي</th><th>الاستحقاق</th></tr>
+                <tr><th className="py-2">التاريخ</th><th>الشخص</th><th>النوع</th><th>الاستحقاق</th><th className="text-left">المبلغ</th></tr>
               </thead>
               <tbody>
-                {rows.map((d: any) => (
-                  <tr key={d.id} className="border-b last:border-0">
-                    <td className="py-2">{d.contact_name}</td>
-                    <td>{d.direction === "owed_to_me" ? "لي" : "عليّ"}</td>
-                    <td className="tabular-nums">{formatMoney(d.amount, d.currency)}</td>
-                    <td className="tabular-nums">{formatMoney(d.remaining, d.currency)}</td>
-                    <td>{d.due_date ? formatDate(d.due_date) : "—"}</td>
+                {(rows as any[]).map((r) => (
+                  <tr key={r.id} className="border-b last:border-0">
+                    <td className="py-2">{formatDate(r.happened_at)}</td>
+                    <td>{r.contact_name}</td>
+                    <td>{kindMeta(r.kind).label}</td>
+                    <td>{r.due_date ? formatDate(r.due_date) : "—"}</td>
+                    <td className="text-left tabular-nums">{kindMeta(r.kind).sign}{formatMoney(r.amount, r.currency)}</td>
                   </tr>
                 ))}
               </tbody>

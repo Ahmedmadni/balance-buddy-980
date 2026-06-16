@@ -4,7 +4,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useState, useMemo } from "react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogTrigger } from "@/components/ui/dialog";
-import { ArrowRight, Plus, Trash2, Phone, MessageCircle } from "lucide-react";
+import { ArrowRight, Plus, Trash2, Phone, MessageCircle, CheckCircle2, AlertTriangle, Clock } from "lucide-react";
 import { formatMoney, formatDate } from "@/lib/format";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
@@ -19,6 +19,7 @@ function PersonDetail() {
   const { id } = Route.useParams();
   const qc = useQueryClient();
   const [open, setOpen] = useState(false);
+  const today = new Date().toISOString().slice(0, 10);
 
   const { data: contact } = useQuery({
     queryKey: ["contact", id],
@@ -43,19 +44,25 @@ function PersonDetail() {
     },
   });
 
-  const del = useMutation({
-    mutationFn: async (rid: string) => {
-      const { error } = await supabase.from("person_ledger").delete().eq("id", rid);
-      if (error) throw error;
-    },
-    onSuccess: () => { toast.success("تم الحذف"); invalidate(); },
-    onError: (e: any) => toast.error("خطأ", { description: e.message }),
-  });
-
   const invalidate = () => {
     qc.invalidateQueries({ queryKey: ["person_ledger"] });
     qc.invalidateQueries({ queryKey: ["dashboard"] });
   };
+
+  const del = useMutation({
+    mutationFn: async (rid: string) => { const { error } = await supabase.from("person_ledger").delete().eq("id", rid); if (error) throw error; },
+    onSuccess: () => { toast.success("تم الحذف"); invalidate(); },
+    onError: (e: any) => toast.error("خطأ", { description: e.message }),
+  });
+
+  const toggleSettled = useMutation({
+    mutationFn: async ({ rid, settled }: { rid: string; settled: boolean }) => {
+      const { error } = await supabase.from("person_ledger").update({ settled_at: settled ? new Date().toISOString() : null } as any).eq("id", rid);
+      if (error) throw error;
+    },
+    onSuccess: () => { toast.success("تم التحديث"); invalidate(); },
+    onError: (e: any) => toast.error("خطأ", { description: e.message }),
+  });
 
   const enriched = useMemo(() => {
     const running: Record<string, number> = {};
@@ -72,6 +79,9 @@ function PersonDetail() {
     return m;
   }, [rows]);
 
+  const dueCount = (rows ?? []).filter((r: any) => (r.kind === "lend" || r.kind === "borrow") && r.due_date && !r.settled_at).length;
+  const overdueCount = (rows ?? []).filter((r: any) => (r.kind === "lend" || r.kind === "borrow") && r.due_date && !r.settled_at && r.due_date < today).length;
+
   const name = contact?.name ?? "—";
   const phone = contact?.phone ?? null;
 
@@ -79,9 +89,11 @@ function PersonDetail() {
     const parts: string[] = [`مرحباً ${name}،`];
     const owing = Object.entries(finalBalances).filter(([, v]) => v > 0.001);
     if (owing.length) parts.push("تذكير ودي بالرصيد المستحق: " + owing.map(([c, v]) => `${formatMoney(v, c)}`).join("، "));
+    const overdue = (rows ?? []).filter((r: any) => r.kind === "lend" && r.due_date && !r.settled_at && r.due_date < today);
+    if (overdue.length) parts.push(`(${overdue.length} مبلغ متأخر عن الاستحقاق)`);
     parts.push("شكراً لك.");
     return encodeURIComponent(parts.join("\n"));
-  }, [name, finalBalances]);
+  }, [name, finalBalances, rows, today]);
 
   const phoneClean = phone?.replace(/[^\d+]/g, "");
 
@@ -109,13 +121,19 @@ function PersonDetail() {
             );
           })}
         </div>
+        {(dueCount > 0 || overdueCount > 0) && (
+          <div className="mt-3 flex gap-2 text-[11px]">
+            {overdueCount > 0 && <span className="inline-flex items-center gap-1 rounded-full bg-destructive/30 px-2 py-1"><AlertTriangle className="h-3 w-3" /> {overdueCount} متأخر</span>}
+            {dueCount - overdueCount > 0 && <span className="inline-flex items-center gap-1 rounded-full bg-white/20 px-2 py-1"><Clock className="h-3 w-3" /> {dueCount - overdueCount} مستحق قريباً</span>}
+          </div>
+        )}
         {phoneClean && (
           <div className="mt-4 flex gap-2">
             <a href={`tel:${phoneClean}`} className="flex-1 rounded-xl bg-white/15 hover:bg-white/25 px-3 py-2 text-sm font-medium inline-flex items-center justify-center gap-1.5">
               <Phone className="h-4 w-4" /> اتصال
             </a>
             <a href={`https://wa.me/${phoneClean.replace(/^\+/, "")}?text=${waMsg}`} target="_blank" rel="noreferrer" className="flex-1 rounded-xl bg-white/15 hover:bg-white/25 px-3 py-2 text-sm font-medium inline-flex items-center justify-center gap-1.5">
-              <MessageCircle className="h-4 w-4" /> واتساب
+              <MessageCircle className="h-4 w-4" /> تذكير واتساب
             </a>
           </div>
         )}
@@ -141,13 +159,20 @@ function PersonDetail() {
             {enriched.map((r: any) => {
               const m = kindMeta(r.kind);
               const Icon = m.icon;
+              const isDebt = r.kind === "lend" || r.kind === "borrow";
+              const overdue = isDebt && r.due_date && !r.settled_at && r.due_date < today;
               return (
-                <div key={r.id} className="flex items-center gap-3 rounded-xl border bg-card p-3">
+                <div key={r.id} className={cn("flex items-center gap-3 rounded-xl border bg-card p-3", r.settled_at && "opacity-60", overdue && "border-destructive/40")}>
                   <div className={cn("grid h-10 w-10 place-items-center rounded-xl", m.bg, m.color)}>
                     <Icon className="h-5 w-5" />
                   </div>
                   <div className="flex-1 min-w-0">
-                    <div className="font-medium text-sm">{m.label}</div>
+                    <div className="font-medium text-sm flex items-center gap-1.5 flex-wrap">
+                      {m.label}
+                      {r.settled_at && <span className="text-[10px] rounded-full bg-success/15 text-success px-1.5 py-0.5">مسدد</span>}
+                      {overdue && <span className="text-[10px] rounded-full bg-destructive/15 text-destructive px-1.5 py-0.5">متأخر</span>}
+                      {isDebt && r.due_date && !r.settled_at && !overdue && <span className="text-[10px] rounded-full bg-amber-500/15 text-amber-700 px-1.5 py-0.5">مستحق {formatDate(r.due_date)}</span>}
+                    </div>
                     <div className="text-[11px] text-muted-foreground">{formatDate(r.happened_at)}{r.notes ? ` · ${r.notes}` : ""}</div>
                   </div>
                   <div className="text-left shrink-0">
@@ -158,6 +183,11 @@ function PersonDetail() {
                       الرصيد: {formatMoney(Math.abs(r.balance), r.currency)}{r.balance > 0.001 ? " له" : r.balance < -0.001 ? " عليه" : ""}
                     </div>
                   </div>
+                  {isDebt && (
+                    <Button variant="ghost" size="icon" title={r.settled_at ? "إلغاء السداد" : "تأشير كمسدد"} onClick={() => toggleSettled.mutate({ rid: r.id, settled: !r.settled_at })}>
+                      <CheckCircle2 className={cn("h-4 w-4", r.settled_at ? "text-success" : "text-muted-foreground")} />
+                    </Button>
+                  )}
                   <Button variant="ghost" size="icon" onClick={() => { if (confirm("حذف الحركة؟")) del.mutate(r.id); }}>
                     <Trash2 className="h-4 w-4 text-destructive" />
                   </Button>

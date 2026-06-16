@@ -1,0 +1,160 @@
+import { useState } from "react";
+import { useMutation } from "@tanstack/react-query";
+import { supabase } from "@/integrations/supabase/client";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { todayISO } from "@/lib/format";
+import { toast } from "sonner";
+import { cn } from "@/lib/utils";
+import { WALLET_TX_KINDS } from "@/lib/wallet-balance";
+import { ArrowDownToLine, ArrowUpFromLine, Send, Inbox, Equal } from "lucide-react";
+
+const ICONS: Record<string, any> = { deposit: ArrowDownToLine, withdraw: ArrowUpFromLine, send: Send, receive: Inbox, adjustment: Equal };
+
+export function WalletTxForm({ wallet, onDone }: { wallet: { id: string; name: string; currency: string }; onDone: () => void }) {
+  const [kind, setKind] = useState<string>("deposit");
+  const [amount, setAmount] = useState("");
+  const [happenedAt, setHappenedAt] = useState(todayISO());
+  const [notes, setNotes] = useState("");
+
+  const mut = useMutation({
+    mutationFn: async () => {
+      const { data: u } = await supabase.auth.getUser();
+      if (!u.user) throw new Error("غير مسجل");
+      const { error } = await supabase.from("wallet_transactions").insert({
+        user_id: u.user.id,
+        wallet_id: wallet.id,
+        kind,
+        amount: parseFloat(amount),
+        currency: wallet.currency,
+        happened_at: happenedAt,
+        notes: notes.trim() || null,
+      } as any);
+      if (error) throw error;
+    },
+    onSuccess: () => { toast.success("تم تسجيل العملية"); onDone(); },
+    onError: (e: any) => toast.error("خطأ", { description: e.message }),
+  });
+
+  return (
+    <form onSubmit={(e) => { e.preventDefault(); mut.mutate(); }} className="space-y-4">
+      <DialogHeader><DialogTitle>عملية على {wallet.name}</DialogTitle></DialogHeader>
+
+      <div>
+        <Label className="mb-2 block">نوع العملية</Label>
+        <div className="grid grid-cols-2 gap-2">
+          {WALLET_TX_KINDS.map((k) => {
+            const Icon = ICONS[k.value];
+            const active = kind === k.value;
+            return (
+              <button type="button" key={k.value} onClick={() => setKind(k.value)}
+                className={cn("flex items-center gap-2 rounded-xl border p-3 text-sm font-medium transition text-right",
+                  active ? `${k.bg} border-current ${k.color}` : "border-border bg-card hover:bg-accent")}
+              >
+                <Icon className="h-4 w-4 shrink-0" />
+                <span className="flex-1">{k.label}</span>
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
+      <div className="grid grid-cols-2 gap-3">
+        <div>
+          <Label>المبلغ ({wallet.currency})</Label>
+          <Input type="number" step="0.01" min="0.01" value={amount} onChange={(e) => setAmount(e.target.value)} required dir="ltr" />
+        </div>
+        <div>
+          <Label>التاريخ</Label>
+          <Input type="date" value={happenedAt} onChange={(e) => setHappenedAt(e.target.value)} required dir="ltr" />
+        </div>
+      </div>
+
+      <div>
+        <Label>ملاحظات</Label>
+        <Textarea value={notes} onChange={(e) => setNotes(e.target.value)} maxLength={300} rows={2} />
+      </div>
+
+      <DialogFooter>
+        <Button type="submit" className="w-full" disabled={mut.isPending}>{mut.isPending ? "جاري الحفظ..." : "حفظ"}</Button>
+      </DialogFooter>
+    </form>
+  );
+}
+
+export function WalletTransferForm({ wallets, defaultFromId, onDone }: { wallets: any[]; defaultFromId?: string; onDone: () => void }) {
+  const [fromId, setFromId] = useState<string>(defaultFromId ?? wallets[0]?.id ?? "");
+  const [toId, setToId] = useState<string>(wallets.find((w) => w.id !== (defaultFromId ?? wallets[0]?.id))?.id ?? "");
+  const [amount, setAmount] = useState("");
+  const [happenedAt, setHappenedAt] = useState(todayISO());
+  const [notes, setNotes] = useState("");
+
+  const from = wallets.find((w) => w.id === fromId);
+  const to = wallets.find((w) => w.id === toId);
+
+  const mut = useMutation({
+    mutationFn: async () => {
+      const { data: u } = await supabase.auth.getUser();
+      if (!u.user) throw new Error("غير مسجل");
+      if (fromId === toId) throw new Error("اختر محفظتين مختلفتين");
+      if (!from || !to) throw new Error("اختر المحافظ");
+      if (from.currency !== to.currency) throw new Error("تحويل بعملات مختلفة غير مدعوم بعد");
+      const tg = (crypto as any).randomUUID();
+      const a = parseFloat(amount);
+      const { error } = await supabase.from("wallet_transactions").insert([
+        { user_id: u.user.id, wallet_id: fromId, kind: "transfer_out", amount: a, currency: from.currency, happened_at: happenedAt, notes: notes || null, counterparty_wallet_id: toId, transfer_group_id: tg },
+        { user_id: u.user.id, wallet_id: toId, kind: "transfer_in", amount: a, currency: to.currency, happened_at: happenedAt, notes: notes || null, counterparty_wallet_id: fromId, transfer_group_id: tg },
+      ] as any);
+      if (error) throw error;
+    },
+    onSuccess: () => { toast.success("تم التحويل"); onDone(); },
+    onError: (e: any) => toast.error("خطأ", { description: e.message }),
+  });
+
+  return (
+    <form onSubmit={(e) => { e.preventDefault(); mut.mutate(); }} className="space-y-4">
+      <DialogHeader><DialogTitle>تحويل بين محافظ</DialogTitle></DialogHeader>
+
+      <div className="grid grid-cols-2 gap-3">
+        <div>
+          <Label>من</Label>
+          <Select value={fromId} onValueChange={setFromId}>
+            <SelectTrigger><SelectValue /></SelectTrigger>
+            <SelectContent>{wallets.map((w: any) => <SelectItem key={w.id} value={w.id}>{w.name}</SelectItem>)}</SelectContent>
+          </Select>
+        </div>
+        <div>
+          <Label>إلى</Label>
+          <Select value={toId} onValueChange={setToId}>
+            <SelectTrigger><SelectValue /></SelectTrigger>
+            <SelectContent>{wallets.filter((w: any) => w.id !== fromId).map((w: any) => <SelectItem key={w.id} value={w.id}>{w.name}</SelectItem>)}</SelectContent>
+          </Select>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-2 gap-3">
+        <div>
+          <Label>المبلغ {from && `(${from.currency})`}</Label>
+          <Input type="number" step="0.01" min="0.01" value={amount} onChange={(e) => setAmount(e.target.value)} required dir="ltr" />
+        </div>
+        <div>
+          <Label>التاريخ</Label>
+          <Input type="date" value={happenedAt} onChange={(e) => setHappenedAt(e.target.value)} required dir="ltr" />
+        </div>
+      </div>
+
+      <div>
+        <Label>ملاحظات</Label>
+        <Textarea value={notes} onChange={(e) => setNotes(e.target.value)} maxLength={300} rows={2} />
+      </div>
+
+      <DialogFooter>
+        <Button type="submit" className="w-full" disabled={mut.isPending}>{mut.isPending ? "جاري التحويل..." : "تنفيذ التحويل"}</Button>
+      </DialogFooter>
+    </form>
+  );
+}

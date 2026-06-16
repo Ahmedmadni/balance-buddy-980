@@ -168,8 +168,47 @@ export type Database = {
           },
         ]
       }
+      expense_allocations: {
+        Row: {
+          amount: number
+          created_at: string
+          currency: string
+          expense_id: string
+          id: string
+          period: string
+          user_id: string
+        }
+        Insert: {
+          amount: number
+          created_at?: string
+          currency?: string
+          expense_id: string
+          id?: string
+          period: string
+          user_id: string
+        }
+        Update: {
+          amount?: number
+          created_at?: string
+          currency?: string
+          expense_id?: string
+          id?: string
+          period?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "expense_allocations_expense_id_fkey"
+            columns: ["expense_id"]
+            isOneToOne: false
+            referencedRelation: "expenses"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       expenses: {
         Row: {
+          allocation_kind: string
           amount: number
           category_id: string | null
           created_at: string
@@ -178,10 +217,13 @@ export type Database = {
           note: string | null
           project_id: string | null
           spent_at: string
+          spread_months: number | null
+          spread_start: string | null
           user_id: string
           wallet_id: string | null
         }
         Insert: {
+          allocation_kind?: string
           amount: number
           category_id?: string | null
           created_at?: string
@@ -190,10 +232,13 @@ export type Database = {
           note?: string | null
           project_id?: string | null
           spent_at?: string
+          spread_months?: number | null
+          spread_start?: string | null
           user_id: string
           wallet_id?: string | null
         }
         Update: {
+          allocation_kind?: string
           amount?: number
           category_id?: string | null
           created_at?: string
@@ -202,6 +247,8 @@ export type Database = {
           note?: string | null
           project_id?: string | null
           spent_at?: string
+          spread_months?: number | null
+          spread_start?: string | null
           user_id?: string
           wallet_id?: string | null
         }
@@ -236,10 +283,13 @@ export type Database = {
           contact_name: string
           created_at: string
           currency: string
+          due_date: string | null
           happened_at: string
           id: string
           kind: string
           notes: string | null
+          reminder_enabled: boolean
+          settled_at: string | null
           user_id: string
         }
         Insert: {
@@ -248,10 +298,13 @@ export type Database = {
           contact_name: string
           created_at?: string
           currency?: string
+          due_date?: string | null
           happened_at?: string
           id?: string
           kind: string
           notes?: string | null
+          reminder_enabled?: boolean
+          settled_at?: string | null
           user_id: string
         }
         Update: {
@@ -260,10 +313,13 @@ export type Database = {
           contact_name?: string
           created_at?: string
           currency?: string
+          due_date?: string | null
           happened_at?: string
           id?: string
           kind?: string
           notes?: string | null
+          reminder_enabled?: boolean
+          settled_at?: string | null
           user_id?: string
         }
         Relationships: [
@@ -341,6 +397,73 @@ export type Database = {
           user_id?: string
         }
         Relationships: []
+      }
+      wallet_transactions: {
+        Row: {
+          amount: number
+          contact_id: string | null
+          counterparty_wallet_id: string | null
+          created_at: string
+          currency: string
+          happened_at: string
+          id: string
+          kind: string
+          notes: string | null
+          transfer_group_id: string | null
+          user_id: string
+          wallet_id: string
+        }
+        Insert: {
+          amount: number
+          contact_id?: string | null
+          counterparty_wallet_id?: string | null
+          created_at?: string
+          currency?: string
+          happened_at?: string
+          id?: string
+          kind: string
+          notes?: string | null
+          transfer_group_id?: string | null
+          user_id: string
+          wallet_id: string
+        }
+        Update: {
+          amount?: number
+          contact_id?: string | null
+          counterparty_wallet_id?: string | null
+          created_at?: string
+          currency?: string
+          happened_at?: string
+          id?: string
+          kind?: string
+          notes?: string | null
+          transfer_group_id?: string | null
+          user_id?: string
+          wallet_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "wallet_transactions_contact_id_fkey"
+            columns: ["contact_id"]
+            isOneToOne: false
+            referencedRelation: "contacts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "wallet_transactions_counterparty_wallet_id_fkey"
+            columns: ["counterparty_wallet_id"]
+            isOneToOne: false
+            referencedRelation: "wallets"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "wallet_transactions_wallet_id_fkey"
+            columns: ["wallet_id"]
+            isOneToOne: false
+            referencedRelation: "wallets"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       wallets: {
         Row: {
