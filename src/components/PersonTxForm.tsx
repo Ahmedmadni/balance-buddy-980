@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { CURRENCIES, todayISO } from "@/lib/format";
@@ -26,7 +27,6 @@ export function kindMeta(k: string) {
   return LEDGER_KINDS.find((x) => x.value === k) ?? LEDGER_KINDS[0];
 }
 
-/** Sign per kind for balance: positive => he owes me more */
 export function kindSign(k: string): 1 | -1 {
   return k === "lend" || k === "pay" ? 1 : -1;
 }
@@ -51,7 +51,11 @@ export function PersonTxForm({
   const [amount, setAmount] = useState("");
   const [currency, setCurrency] = useState(defaultCurrency);
   const [happenedAt, setHappenedAt] = useState(todayISO());
+  const [dueDate, setDueDate] = useState<string>("");
+  const [reminderEnabled, setReminderEnabled] = useState(false);
   const [notes, setNotes] = useState("");
+
+  const isDebtLike = kind === "lend" || kind === "borrow";
 
   const mut = useMutation({
     mutationFn: async () => {
@@ -66,8 +70,10 @@ export function PersonTxForm({
         amount: parseFloat(amount),
         currency,
         happened_at: happenedAt,
+        due_date: isDebtLike && dueDate ? dueDate : null,
+        reminder_enabled: isDebtLike && !!dueDate && reminderEnabled,
         notes: notes.trim() || null,
-      });
+      } as any);
       if (error) throw error;
     },
     onSuccess: () => { toast.success("تم تسجيل الحركة"); onDone(); },
@@ -127,10 +133,28 @@ export function PersonTxForm({
         </div>
       </div>
 
-      <div>
-        <Label>التاريخ</Label>
-        <Input type="date" value={happenedAt} onChange={(e) => setHappenedAt(e.target.value)} required dir="ltr" />
+      <div className="grid grid-cols-2 gap-3">
+        <div>
+          <Label>التاريخ</Label>
+          <Input type="date" value={happenedAt} onChange={(e) => setHappenedAt(e.target.value)} required dir="ltr" />
+        </div>
+        {isDebtLike && (
+          <div>
+            <Label>تاريخ الاستحقاق (اختياري)</Label>
+            <Input type="date" value={dueDate} onChange={(e) => setDueDate(e.target.value)} dir="ltr" />
+          </div>
+        )}
       </div>
+
+      {isDebtLike && dueDate && (
+        <div className="flex items-center justify-between rounded-xl border bg-accent/30 px-3 py-2">
+          <div>
+            <div className="text-sm font-medium">تفعيل تذكير الاستحقاق</div>
+            <div className="text-[11px] text-muted-foreground">ستظهر هذه الحركة في تنبيهات الاستحقاق</div>
+          </div>
+          <Switch checked={reminderEnabled} onCheckedChange={setReminderEnabled} />
+        </div>
+      )}
 
       <div>
         <Label>ملاحظات</Label>
