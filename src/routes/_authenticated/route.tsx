@@ -22,6 +22,7 @@ const NAV = [
   { to: "/app/people", icon: Users, label: "الأشخاص" },
   { to: "/app/wallets", icon: Landmark, label: "المحافظ" },
   { to: "/app/expenses", icon: Wallet, label: "المصاريف" },
+  { to: "/app/recurring", icon: Repeat, label: "المصاريف الدورية" },
   { to: "/app/reports", icon: FileBarChart, label: "التقارير" },
   { to: "/app/contacts", icon: Contact, label: "جهات الاتصال" },
   { to: "/app/settings", icon: Settings, label: "الإعدادات" },
