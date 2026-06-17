@@ -14,6 +14,7 @@ import { Route as AuthenticatedRouteRouteImport } from './routes/_authenticated/
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as AuthenticatedAppRouteImport } from './routes/_authenticated/app'
 import { Route as AuthenticatedAppIndexRouteImport } from './routes/_authenticated/app.index'
+import { Route as AuthenticatedAppZakatRouteImport } from './routes/_authenticated/app.zakat'
 import { Route as AuthenticatedAppWalletsRouteImport } from './routes/_authenticated/app.wallets'
 import { Route as AuthenticatedAppSettingsRouteImport } from './routes/_authenticated/app.settings'
 import { Route as AuthenticatedAppReportsRouteImport } from './routes/_authenticated/app.reports'
@@ -51,6 +52,11 @@ const AuthenticatedAppRoute = AuthenticatedAppRouteImport.update({
 const AuthenticatedAppIndexRoute = AuthenticatedAppIndexRouteImport.update({
   id: '/',
   path: '/',
+  getParentRoute: () => AuthenticatedAppRoute,
+} as any)
+const AuthenticatedAppZakatRoute = AuthenticatedAppZakatRouteImport.update({
+  id: '/zakat',
+  path: '/zakat',
   getParentRoute: () => AuthenticatedAppRoute,
 } as any)
 const AuthenticatedAppWalletsRoute = AuthenticatedAppWalletsRouteImport.update({
@@ -147,6 +153,7 @@ export interface FileRoutesByFullPath {
   '/app/reports': typeof AuthenticatedAppReportsRoute
   '/app/settings': typeof AuthenticatedAppSettingsRoute
   '/app/wallets': typeof AuthenticatedAppWalletsRouteWithChildren
+  '/app/zakat': typeof AuthenticatedAppZakatRoute
   '/app/': typeof AuthenticatedAppIndexRoute
   '/app/debts/$id': typeof AuthenticatedAppDebtsIdRoute
   '/app/people/$id': typeof AuthenticatedAppPeopleIdRoute
@@ -166,6 +173,7 @@ export interface FileRoutesByTo {
   '/app/reports': typeof AuthenticatedAppReportsRoute
   '/app/settings': typeof AuthenticatedAppSettingsRoute
   '/app/wallets': typeof AuthenticatedAppWalletsRouteWithChildren
+  '/app/zakat': typeof AuthenticatedAppZakatRoute
   '/app': typeof AuthenticatedAppIndexRoute
   '/app/debts/$id': typeof AuthenticatedAppDebtsIdRoute
   '/app/people/$id': typeof AuthenticatedAppPeopleIdRoute
@@ -188,6 +196,7 @@ export interface FileRoutesById {
   '/_authenticated/app/reports': typeof AuthenticatedAppReportsRoute
   '/_authenticated/app/settings': typeof AuthenticatedAppSettingsRoute
   '/_authenticated/app/wallets': typeof AuthenticatedAppWalletsRouteWithChildren
+  '/_authenticated/app/zakat': typeof AuthenticatedAppZakatRoute
   '/_authenticated/app/': typeof AuthenticatedAppIndexRoute
   '/_authenticated/app/debts/$id': typeof AuthenticatedAppDebtsIdRoute
   '/_authenticated/app/people/$id': typeof AuthenticatedAppPeopleIdRoute
@@ -210,6 +219,7 @@ export interface FileRouteTypes {
     | '/app/reports'
     | '/app/settings'
     | '/app/wallets'
+    | '/app/zakat'
     | '/app/'
     | '/app/debts/$id'
     | '/app/people/$id'
@@ -229,6 +239,7 @@ export interface FileRouteTypes {
     | '/app/reports'
     | '/app/settings'
     | '/app/wallets'
+    | '/app/zakat'
     | '/app'
     | '/app/debts/$id'
     | '/app/people/$id'
@@ -250,6 +261,7 @@ export interface FileRouteTypes {
     | '/_authenticated/app/reports'
     | '/_authenticated/app/settings'
     | '/_authenticated/app/wallets'
+    | '/_authenticated/app/zakat'
     | '/_authenticated/app/'
     | '/_authenticated/app/debts/$id'
     | '/_authenticated/app/people/$id'
@@ -298,6 +310,13 @@ declare module '@tanstack/react-router' {
       path: '/'
       fullPath: '/app/'
       preLoaderRoute: typeof AuthenticatedAppIndexRouteImport
+      parentRoute: typeof AuthenticatedAppRoute
+    }
+    '/_authenticated/app/zakat': {
+      id: '/_authenticated/app/zakat'
+      path: '/zakat'
+      fullPath: '/app/zakat'
+      preLoaderRoute: typeof AuthenticatedAppZakatRouteImport
       parentRoute: typeof AuthenticatedAppRoute
     }
     '/_authenticated/app/wallets': {
@@ -467,6 +486,7 @@ interface AuthenticatedAppRouteChildren {
   AuthenticatedAppReportsRoute: typeof AuthenticatedAppReportsRoute
   AuthenticatedAppSettingsRoute: typeof AuthenticatedAppSettingsRoute
   AuthenticatedAppWalletsRoute: typeof AuthenticatedAppWalletsRouteWithChildren
+  AuthenticatedAppZakatRoute: typeof AuthenticatedAppZakatRoute
   AuthenticatedAppIndexRoute: typeof AuthenticatedAppIndexRoute
 }
 
@@ -481,6 +501,7 @@ const AuthenticatedAppRouteChildren: AuthenticatedAppRouteChildren = {
   AuthenticatedAppReportsRoute: AuthenticatedAppReportsRoute,
   AuthenticatedAppSettingsRoute: AuthenticatedAppSettingsRoute,
   AuthenticatedAppWalletsRoute: AuthenticatedAppWalletsRouteWithChildren,
+  AuthenticatedAppZakatRoute: AuthenticatedAppZakatRoute,
   AuthenticatedAppIndexRoute: AuthenticatedAppIndexRoute,
 }
 
