@@ -17,6 +17,7 @@ import { Route as AuthenticatedAppIndexRouteImport } from './routes/_authenticat
 import { Route as AuthenticatedAppWalletsRouteImport } from './routes/_authenticated/app.wallets'
 import { Route as AuthenticatedAppSettingsRouteImport } from './routes/_authenticated/app.settings'
 import { Route as AuthenticatedAppReportsRouteImport } from './routes/_authenticated/app.reports'
+import { Route as AuthenticatedAppRecurringRouteImport } from './routes/_authenticated/app.recurring'
 import { Route as AuthenticatedAppProjectsRouteImport } from './routes/_authenticated/app.projects'
 import { Route as AuthenticatedAppPeopleRouteImport } from './routes/_authenticated/app.people'
 import { Route as AuthenticatedAppExpensesRouteImport } from './routes/_authenticated/app.expenses'
@@ -67,6 +68,12 @@ const AuthenticatedAppReportsRoute = AuthenticatedAppReportsRouteImport.update({
   path: '/reports',
   getParentRoute: () => AuthenticatedAppRoute,
 } as any)
+const AuthenticatedAppRecurringRoute =
+  AuthenticatedAppRecurringRouteImport.update({
+    id: '/recurring',
+    path: '/recurring',
+    getParentRoute: () => AuthenticatedAppRoute,
+  } as any)
 const AuthenticatedAppProjectsRoute =
   AuthenticatedAppProjectsRouteImport.update({
     id: '/projects',
@@ -128,6 +135,7 @@ export interface FileRoutesByFullPath {
   '/app/expenses': typeof AuthenticatedAppExpensesRoute
   '/app/people': typeof AuthenticatedAppPeopleRouteWithChildren
   '/app/projects': typeof AuthenticatedAppProjectsRouteWithChildren
+  '/app/recurring': typeof AuthenticatedAppRecurringRoute
   '/app/reports': typeof AuthenticatedAppReportsRoute
   '/app/settings': typeof AuthenticatedAppSettingsRoute
   '/app/wallets': typeof AuthenticatedAppWalletsRouteWithChildren
@@ -145,6 +153,7 @@ export interface FileRoutesByTo {
   '/app/expenses': typeof AuthenticatedAppExpensesRoute
   '/app/people': typeof AuthenticatedAppPeopleRouteWithChildren
   '/app/projects': typeof AuthenticatedAppProjectsRouteWithChildren
+  '/app/recurring': typeof AuthenticatedAppRecurringRoute
   '/app/reports': typeof AuthenticatedAppReportsRoute
   '/app/settings': typeof AuthenticatedAppSettingsRoute
   '/app/wallets': typeof AuthenticatedAppWalletsRouteWithChildren
@@ -165,6 +174,7 @@ export interface FileRoutesById {
   '/_authenticated/app/expenses': typeof AuthenticatedAppExpensesRoute
   '/_authenticated/app/people': typeof AuthenticatedAppPeopleRouteWithChildren
   '/_authenticated/app/projects': typeof AuthenticatedAppProjectsRouteWithChildren
+  '/_authenticated/app/recurring': typeof AuthenticatedAppRecurringRoute
   '/_authenticated/app/reports': typeof AuthenticatedAppReportsRoute
   '/_authenticated/app/settings': typeof AuthenticatedAppSettingsRoute
   '/_authenticated/app/wallets': typeof AuthenticatedAppWalletsRouteWithChildren
@@ -185,6 +195,7 @@ export interface FileRouteTypes {
     | '/app/expenses'
     | '/app/people'
     | '/app/projects'
+    | '/app/recurring'
     | '/app/reports'
     | '/app/settings'
     | '/app/wallets'
@@ -202,6 +213,7 @@ export interface FileRouteTypes {
     | '/app/expenses'
     | '/app/people'
     | '/app/projects'
+    | '/app/recurring'
     | '/app/reports'
     | '/app/settings'
     | '/app/wallets'
@@ -221,6 +233,7 @@ export interface FileRouteTypes {
     | '/_authenticated/app/expenses'
     | '/_authenticated/app/people'
     | '/_authenticated/app/projects'
+    | '/_authenticated/app/recurring'
     | '/_authenticated/app/reports'
     | '/_authenticated/app/settings'
     | '/_authenticated/app/wallets'
@@ -293,6 +306,13 @@ declare module '@tanstack/react-router' {
       path: '/reports'
       fullPath: '/app/reports'
       preLoaderRoute: typeof AuthenticatedAppReportsRouteImport
+      parentRoute: typeof AuthenticatedAppRoute
+    }
+    '/_authenticated/app/recurring': {
+      id: '/_authenticated/app/recurring'
+      path: '/recurring'
+      fullPath: '/app/recurring'
+      preLoaderRoute: typeof AuthenticatedAppRecurringRouteImport
       parentRoute: typeof AuthenticatedAppRoute
     }
     '/_authenticated/app/projects': {
@@ -422,6 +442,7 @@ interface AuthenticatedAppRouteChildren {
   AuthenticatedAppExpensesRoute: typeof AuthenticatedAppExpensesRoute
   AuthenticatedAppPeopleRoute: typeof AuthenticatedAppPeopleRouteWithChildren
   AuthenticatedAppProjectsRoute: typeof AuthenticatedAppProjectsRouteWithChildren
+  AuthenticatedAppRecurringRoute: typeof AuthenticatedAppRecurringRoute
   AuthenticatedAppReportsRoute: typeof AuthenticatedAppReportsRoute
   AuthenticatedAppSettingsRoute: typeof AuthenticatedAppSettingsRoute
   AuthenticatedAppWalletsRoute: typeof AuthenticatedAppWalletsRouteWithChildren
@@ -434,6 +455,7 @@ const AuthenticatedAppRouteChildren: AuthenticatedAppRouteChildren = {
   AuthenticatedAppExpensesRoute: AuthenticatedAppExpensesRoute,
   AuthenticatedAppPeopleRoute: AuthenticatedAppPeopleRouteWithChildren,
   AuthenticatedAppProjectsRoute: AuthenticatedAppProjectsRouteWithChildren,
+  AuthenticatedAppRecurringRoute: AuthenticatedAppRecurringRoute,
   AuthenticatedAppReportsRoute: AuthenticatedAppReportsRoute,
   AuthenticatedAppSettingsRoute: AuthenticatedAppSettingsRoute,
   AuthenticatedAppWalletsRoute: AuthenticatedAppWalletsRouteWithChildren,

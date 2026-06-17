@@ -8,9 +8,10 @@ import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from "@/components/ui/dialog";
-import { Plus, Trash2, Wallet, CalendarRange } from "lucide-react";
+import { Plus, Trash2, Wallet, CalendarRange, Paperclip } from "lucide-react";
 import { CURRENCIES, formatMoney, formatDate, todayISO } from "@/lib/format";
 import { toast } from "sonner";
+import { AttachmentUploader } from "@/components/AttachmentUploader";
 
 export const Route = createFileRoute("/_authenticated/app/expenses")({
   head: () => ({ meta: [{ title: "المصاريف — رصد" }] }),
@@ -118,6 +119,13 @@ function ExpensesPage() {
                 <div className="text-xs text-muted-foreground truncate">{formatDate(e.spent_at)}{e.note ? ` · ${e.note}` : ""}</div>
               </div>
               <div className="font-bold tabular-nums shrink-0">{formatMoney(e.amount, e.currency)}</div>
+              <Dialog>
+                <DialogTrigger asChild><Button variant="ghost" size="icon" title="المرفقات"><Paperclip className="h-4 w-4" /></Button></DialogTrigger>
+                <DialogContent className="max-w-md">
+                  <DialogHeader><DialogTitle>مرفقات المصروف</DialogTitle></DialogHeader>
+                  <AttachmentUploader entityType="expense" entityId={e.id} />
+                </DialogContent>
+              </Dialog>
               <Button variant="ghost" size="icon" onClick={() => del.mutate(e.id)}><Trash2 className="h-4 w-4 text-destructive" /></Button>
             </div>
           ))}

@@ -14,6 +14,45 @@ export type Database = {
   }
   public: {
     Tables: {
+      attachments: {
+        Row: {
+          created_at: string
+          entity_id: string
+          entity_type: string
+          file_name: string
+          file_path: string
+          id: string
+          kind: string | null
+          mime_type: string | null
+          size_bytes: number | null
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          entity_id: string
+          entity_type: string
+          file_name: string
+          file_path: string
+          id?: string
+          kind?: string | null
+          mime_type?: string | null
+          size_bytes?: number | null
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          entity_id?: string
+          entity_type?: string
+          file_name?: string
+          file_path?: string
+          id?: string
+          kind?: string | null
+          mime_type?: string | null
+          size_bytes?: number | null
+          user_id?: string
+        }
+        Relationships: []
+      }
       categories: {
         Row: {
           color: string | null
@@ -290,6 +329,7 @@ export type Database = {
           notes: string | null
           reminder_enabled: boolean
           settled_at: string | null
+          status: string | null
           user_id: string
         }
         Insert: {
@@ -305,6 +345,7 @@ export type Database = {
           notes?: string | null
           reminder_enabled?: boolean
           settled_at?: string | null
+          status?: string | null
           user_id: string
         }
         Update: {
@@ -320,6 +361,7 @@ export type Database = {
           notes?: string | null
           reminder_enabled?: boolean
           settled_at?: string | null
+          status?: string | null
           user_id?: string
         }
         Relationships: [
@@ -397,6 +439,104 @@ export type Database = {
           user_id?: string
         }
         Relationships: []
+      }
+      recurring_expenses: {
+        Row: {
+          amount: number
+          auto_post: boolean
+          category_id: string | null
+          contact_id: string | null
+          created_at: string
+          currency: string
+          end_date: string | null
+          frequency: string
+          id: string
+          interval_count: number
+          is_active: boolean
+          last_posted_at: string | null
+          name: string
+          next_due: string
+          notes: string | null
+          project_id: string | null
+          start_date: string
+          updated_at: string
+          user_id: string
+          wallet_id: string | null
+        }
+        Insert: {
+          amount: number
+          auto_post?: boolean
+          category_id?: string | null
+          contact_id?: string | null
+          created_at?: string
+          currency?: string
+          end_date?: string | null
+          frequency?: string
+          id?: string
+          interval_count?: number
+          is_active?: boolean
+          last_posted_at?: string | null
+          name: string
+          next_due: string
+          notes?: string | null
+          project_id?: string | null
+          start_date: string
+          updated_at?: string
+          user_id: string
+          wallet_id?: string | null
+        }
+        Update: {
+          amount?: number
+          auto_post?: boolean
+          category_id?: string | null
+          contact_id?: string | null
+          created_at?: string
+          currency?: string
+          end_date?: string | null
+          frequency?: string
+          id?: string
+          interval_count?: number
+          is_active?: boolean
+          last_posted_at?: string | null
+          name?: string
+          next_due?: string
+          notes?: string | null
+          project_id?: string | null
+          start_date?: string
+          updated_at?: string
+          user_id?: string
+          wallet_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "recurring_expenses_category_id_fkey"
+            columns: ["category_id"]
+            isOneToOne: false
+            referencedRelation: "categories"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "recurring_expenses_contact_id_fkey"
+            columns: ["contact_id"]
+            isOneToOne: false
+            referencedRelation: "contacts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "recurring_expenses_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "recurring_expenses_wallet_id_fkey"
+            columns: ["wallet_id"]
+            isOneToOne: false
+            referencedRelation: "wallets"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       wallet_transactions: {
         Row: {
