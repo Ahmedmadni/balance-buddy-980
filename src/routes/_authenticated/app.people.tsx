@@ -34,6 +34,8 @@ function PeoplePage() {
   const qc = useQueryClient();
   const [search, setSearch] = useState("");
   const [openNew, setOpenNew] = useState(false);
+  const [drawerId, setDrawerId] = useState<string | null>(null);
+  const [drawerName, setDrawerName] = useState<string>("");
 
   const { data: rows, isLoading } = useQuery({
     queryKey: ["person_ledger"],
