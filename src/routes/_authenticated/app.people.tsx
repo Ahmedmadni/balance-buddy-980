@@ -5,7 +5,7 @@ import { useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogTrigger } from "@/components/ui/dialog";
-import { Plus, Users, Search, ChevronLeft, Phone, BellRing, AlertTriangle, FileText } from "lucide-react";
+import { Plus, Users, Search, Phone, BellRing, AlertTriangle, FileText } from "lucide-react";
 import { formatMoney, formatDate } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { PersonTxForm, kindSign } from "@/components/PersonTxForm";
