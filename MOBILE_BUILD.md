@@ -1,115 +1,127 @@
 # دليل تحويل تطبيق "رصد" إلى APK ونشره على Google Play
 
-تم تهيئة المشروع باستخدام **Capacitor** لتحويل تطبيق الويب إلى تطبيق Android أصلي.
-
-## المتطلبات الأساسية
-
-- **Node.js / Bun** مثبت
-- **Android Studio** (آخر إصدار) — لبناء APK/AAB والتوقيع
-- **JDK 17+** (يأتي مع Android Studio)
-- **Git** لاستنساخ المشروع
+تم تهيئة المشروع بالكامل باستخدام **Capacitor 8** — كل الإعدادات الأساسية (اسم التطبيق، الأيقونات، شاشة البداية، شريط الحالة، الألوان) جاهزة.
 
 ---
 
-## الخطوات الكاملة (أول مرة)
+## ✅ ما تم إعداده مسبقاً
 
-### 1) استنساخ المشروع محلياً
+| العنصر | القيمة |
+|---|---|
+| **اسم التطبيق** | رصد |
+| **App ID** | `app.lovable.rasd` |
+| **اللون الأساسي** | `#0b1220` (نيلي داكن) |
+| **التوجه** | عمودي (Portrait) |
+| **شاشة البداية** | 2.5 ثانية بخلفية داكنة وشعار مركزي |
+| **شريط الحالة** | داكن مطابق للهوية |
+| **أيقونة المصدر** | `resources/icon.png` (1024×1024) |
+| **سبلاش المصدر** | `resources/splash.png` (2732×2732) |
+
+---
+
+## 📱 خطوات البناء (أول مرة فقط)
+
+### المتطلبات
+- **Node.js / Bun** + **Android Studio** (آخر إصدار) + **JDK 17+**
+
+### 1) صدّر المشروع إلى GitHub واستنسخه محلياً
 ```bash
 git clone <YOUR_REPO_URL>
 cd <PROJECT_FOLDER>
 bun install
 ```
 
-### 2) إضافة منصة Android
+### 2) أضف منصة Android
 ```bash
-npx cap add android
-npx cap update android
-```
-سيتم إنشاء مجلد `android/` (لا تعدل ملفاته يدوياً إلا للأيقونات والتوقيع).
-
-### 3) البناء والمزامنة
-```bash
-bun run build
-npx cap sync android
+bun run android:add
 ```
 
-### 4) الفتح في Android Studio
+### 3) ولّد جميع أحجام الأيقونات وشاشة البداية تلقائياً
 ```bash
-npx cap open android
+bun run android:assets
 ```
-- اترك Gradle ينهي المزامنة.
-- شغّل التطبيق على جهاز/محاكي عبر زر ▶️.
+سيقوم `@capacitor/assets` بتوليد كل أحجام الأيقونات (mdpi → xxxhdpi)، الأيقونة التكيّفية (Adaptive Icon)، وشاشات البداية لجميع الكثافات تلقائياً من ملفي `resources/icon.png` و `resources/splash.png`.
+
+### 4) ابنِ التطبيق وزامن
+```bash
+bun run android:sync
+```
+
+### 5) افتح في Android Studio
+```bash
+bun run android:open
+```
+ثم شغّل عبر ▶️ على جهاز/محاكي.
 
 ---
 
-## وضع التطوير (Live Reload)
-
-ملف `capacitor.config.ts` يحتوي على كائن `server.url` يحمّل التطبيق مباشرة من رابط Lovable المنشور.
-- أي تعديل تنشره من Lovable يظهر فوراً في تطبيق Android دون إعادة بناء.
-- مفيد جداً للاختبار السريع.
-
----
-
-## وضع الإنتاج (للنشر على Play Store)
-
-قبل إنشاء ملف AAB/APK للمتجر:
+## 🚀 إنشاء APK/AAB للنشر على Play Store
 
 ### 1) عطّل Live Reload
-في `capacitor.config.ts` **علّق أو احذف** كائن `server` بالكامل:
+في `capacitor.config.ts` **علّق كائن `server` بالكامل**:
 ```ts
-// server: { url: '...', cleartext: true },
+// server: {
+//   url: '...',
+//   cleartext: true,
+//   androidScheme: 'https',
+// },
 ```
 
-### 2) ابنِ نسخة ثابتة
+### 2) أعد المزامنة
 ```bash
-bun run build
-npx cap sync android
-npx cap open android
+bun run android:sync
+bun run android:open
 ```
 
-### 3) إنشاء AAB موقّع (في Android Studio)
+### 3) عدّل رقم الإصدار في `android/app/build.gradle`
+```gradle
+defaultConfig {
+    applicationId "app.lovable.rasd"
+    versionCode 1        // ارفعه مع كل تحديث (+1)
+    versionName "1.0.0"  // الإصدار الظاهر للمستخدم
+}
+```
+
+### 4) في Android Studio: أنشئ AAB موقّع
 - `Build → Generate Signed Bundle / APK`
 - اختر **Android App Bundle (.aab)** — مطلوب من Google Play
-- أنشئ **Keystore جديد** (احفظه في مكان آمن — ستحتاجه لكل تحديث)
+- أنشئ **Keystore جديد** واحفظه في مكان آمن (تحتاجه لكل تحديث مستقبلي)
 - اختر `release` ثم `Finish`
-- ستجد الملف في: `android/app/release/app-release.aab`
+- الملف الناتج: `android/app/release/app-release.aab`
 
-### 4) رفع على Google Play Console
-- أنشئ حساب مطوّر (رسوم 25$ لمرة واحدة): https://play.google.com/console
-- أنشئ تطبيقاً جديداً → ارفع ملف `.aab`
-- املأ بيانات التطبيق (الوصف، الأيقونة، لقطات الشاشة، سياسة الخصوصية)
-- ابدأ المراجعة (تستغرق عادة 1-7 أيام)
-
----
-
-## الأيقونات وشاشة البداية
-
-ضع الأيقونات في `android/app/src/main/res/` بالأحجام التالية (Android Studio → Image Asset):
-- `mipmap-mdpi`: 48x48
-- `mipmap-hdpi`: 72x72
-- `mipmap-xhdpi`: 96x96
-- `mipmap-xxhdpi`: 144x144
-- `mipmap-xxxhdpi`: 192x192
-
-أو استخدم أدوات مثل: https://icon.kitchen أو https://www.appicon.co
+### 5) ارفع على Google Play Console
+- أنشئ حساب مطوّر: https://play.google.com/console (رسوم 25$ لمرة واحدة)
+- أنشئ تطبيقاً → ارفع `.aab`
+- املأ: الوصف، لقطات الشاشة، سياسة الخصوصية، التصنيف
+- أرسل للمراجعة (1-7 أيام عادةً)
 
 ---
 
-## تحديثات لاحقة
+## 🔄 التحديثات اللاحقة
 
-بعد أي تعديل في الكود:
 ```bash
-bun run build
-npx cap sync android
+# 1) عدّل versionCode و versionName في android/app/build.gradle
+# 2) ابنِ وزامن
+bun run android:sync
+# 3) أنشئ AAB موقّع جديد بنفس الـ Keystore
 ```
-ثم أعد البناء في Android Studio (Build → Generate Signed Bundle).
-
-⚠ **مهم**: عند نشر تحديث، ارفع `versionCode` و `versionName` في `android/app/build.gradle` قبل البناء.
 
 ---
 
-## ملاحظات
+## 🎨 تغيير الأيقونة أو شاشة البداية لاحقاً
 
-- التطبيق يستخدم **Lovable Cloud (Supabase)** كخلفية — يعمل تلقائياً في النسخة المحمولة.
-- اللغة العربية و RTL مدعومة.
-- إذا واجهت مشاكل، راجع: https://capacitorjs.com/docs/android
+1. استبدل `resources/icon.png` (1024×1024) و/أو `resources/splash.png` (2732×2732)
+2. شغّل:
+```bash
+bun run android:assets
+bun run android:sync
+```
+
+---
+
+## 🔐 ملاحظات أمنية ومهمة
+
+- **احفظ ملف Keystore وكلمة مروره في مكان آمن** — فقدانه يعني أنك لن تستطيع تحديث التطبيق مستقبلاً وستضطر لنشر تطبيق جديد.
+- التطبيق يستخدم **Lovable Cloud** كخلفية — يعمل تلقائياً في النسخة المحمولة.
+- اللغة العربية و RTL مدعومة بالكامل.
+- لمزيد من التفاصيل: https://capacitorjs.com/docs/android
