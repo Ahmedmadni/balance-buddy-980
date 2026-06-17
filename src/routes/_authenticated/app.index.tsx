@@ -74,6 +74,26 @@ function Dashboard() {
     if ((a.period as string).slice(0, 7) === currentMonth) monthlyExp[a.currency] = (monthlyExp[a.currency] ?? 0) + Number(a.amount);
   }
 
+  // Monthly cashflows from wallet_transactions
+  const monthlyInflow: Record<string, number> = {};
+  const monthlyOutflow: Record<string, number> = {};
+  const INFLOW = new Set(["deposit", "receive", "adjustment"]);
+  const OUTFLOW = new Set(["withdraw", "send"]);
+  for (const t of d.txs as any[]) {
+    if ((t.happened_at as string).slice(0, 7) !== currentMonth) continue;
+    if (INFLOW.has(t.kind)) monthlyInflow[t.currency] = (monthlyInflow[t.currency] ?? 0) + Number(t.amount);
+    else if (OUTFLOW.has(t.kind)) monthlyOutflow[t.currency] = (monthlyOutflow[t.currency] ?? 0) + Number(t.amount);
+  }
+  // Add expenses to outflow
+  for (const e of d.expenses as any[]) {
+    if ((e.spent_at as string).slice(0, 7) === currentMonth) {
+      monthlyOutflow[e.currency] = (monthlyOutflow[e.currency] ?? 0) + Number(e.amount);
+    }
+  }
+  const monthlyNet: Record<string, number> = {};
+  const allCurs = new Set([...Object.keys(monthlyInflow), ...Object.keys(monthlyOutflow)]);
+  for (const c of allCurs) monthlyNet[c] = (monthlyInflow[c] ?? 0) - (monthlyOutflow[c] ?? 0);
+
   // Daily expenses last 14 days
   const byCat: Record<string, { name: string; color: string; value: number }> = {};
   const daily: { day: string; value: number }[] = [];
@@ -108,6 +128,15 @@ function Dashboard() {
         <StatCard icon={ArrowDownRight} label="مستحق لي" gradient="var(--gradient-success)" amounts={owedToMe} emptyText="لا يوجد" />
         <StatCard icon={ArrowUpRight} label="مستحق عليّ" gradient="var(--gradient-destructive)" amounts={owedByMe} emptyText="لا يوجد" />
         <StatCard icon={TrendingUp} label="مصاريف الشهر" gradient="var(--gradient-primary)" amounts={monthlyExp} emptyText="0" />
+      </div>
+
+      <div className="rounded-2xl border bg-card p-5 shadow-[var(--shadow-card)]">
+        <h3 className="font-bold mb-3 text-sm">التدفقات النقدية للشهر الحالي</h3>
+        <div className="grid gap-3 sm:grid-cols-3">
+          <MiniStat label="الإيرادات" amounts={monthlyInflow} tone="positive" />
+          <MiniStat label="المصروفات" amounts={monthlyOutflow} tone="negative" />
+          <MiniStat label="صافي التدفق" amounts={monthlyNet} tone="signed" />
+        </div>
       </div>
 
       {dueRows.length > 0 && (
@@ -202,6 +231,24 @@ function StatCard({ icon: Icon, label, gradient, amounts, emptyText }: { icon: a
           <div key={cur} className="text-xl font-bold tabular-nums">{formatMoney(amt, cur)}</div>
         ))}
       </div>
+    </div>
+  );
+}
+
+function MiniStat({ label, amounts, tone }: { label: string; amounts: Record<string, number>; tone: "positive" | "negative" | "signed" }) {
+  const entries = Object.entries(amounts).filter(([, v]) => Math.abs(v) > 0.001);
+  return (
+    <div className="rounded-xl border bg-background/40 p-3">
+      <div className="text-[11px] text-muted-foreground">{label}</div>
+      {entries.length === 0 ? (
+        <div className="text-base font-semibold text-muted-foreground/60 mt-1">0</div>
+      ) : entries.map(([cur, amt]) => {
+        const color = tone === "positive" ? "text-success"
+          : tone === "negative" ? "text-destructive"
+          : amt > 0 ? "text-success" : amt < 0 ? "text-destructive" : "";
+        const sign = tone === "signed" ? (amt > 0 ? "+" : amt < 0 ? "−" : "") : "";
+        return <div key={cur} className={cn("text-lg font-bold tabular-nums mt-1", color)}>{sign}{formatMoney(Math.abs(amt), cur)}</div>;
+      })}
     </div>
   );
 }

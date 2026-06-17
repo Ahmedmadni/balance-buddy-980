@@ -401,6 +401,7 @@ export type Database = {
       wallet_transactions: {
         Row: {
           amount: number
+          category_id: string | null
           contact_id: string | null
           counterparty_wallet_id: string | null
           created_at: string
@@ -415,6 +416,7 @@ export type Database = {
         }
         Insert: {
           amount: number
+          category_id?: string | null
           contact_id?: string | null
           counterparty_wallet_id?: string | null
           created_at?: string
@@ -429,6 +431,7 @@ export type Database = {
         }
         Update: {
           amount?: number
+          category_id?: string | null
           contact_id?: string | null
           counterparty_wallet_id?: string | null
           created_at?: string
@@ -442,6 +445,13 @@ export type Database = {
           wallet_id?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "wallet_transactions_category_id_fkey"
+            columns: ["category_id"]
+            isOneToOne: false
+            referencedRelation: "wallet_tx_categories"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "wallet_transactions_contact_id_fkey"
             columns: ["contact_id"]
@@ -465,6 +475,39 @@ export type Database = {
           },
         ]
       }
+      wallet_tx_categories: {
+        Row: {
+          color: string | null
+          created_at: string
+          icon: string | null
+          id: string
+          is_default: boolean
+          kind: string
+          name: string
+          user_id: string
+        }
+        Insert: {
+          color?: string | null
+          created_at?: string
+          icon?: string | null
+          id?: string
+          is_default?: boolean
+          kind: string
+          name: string
+          user_id: string
+        }
+        Update: {
+          color?: string | null
+          created_at?: string
+          icon?: string | null
+          id?: string
+          is_default?: boolean
+          kind?: string
+          name?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       wallets: {
         Row: {
           color: string | null
@@ -472,6 +515,7 @@ export type Database = {
           currency: string
           icon: string | null
           id: string
+          is_archived: boolean
           name: string
           opening_balance: number
           type: string
@@ -484,6 +528,7 @@ export type Database = {
           currency?: string
           icon?: string | null
           id?: string
+          is_archived?: boolean
           name: string
           opening_balance?: number
           type?: string
@@ -496,6 +541,7 @@ export type Database = {
           currency?: string
           icon?: string | null
           id?: string
+          is_archived?: boolean
           name?: string
           opening_balance?: number
           type?: string

@@ -5,10 +5,11 @@ import { useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogTrigger } from "@/components/ui/dialog";
-import { Plus, Users, Search, ChevronLeft, Phone, BellRing, AlertTriangle } from "lucide-react";
+import { Plus, Users, Search, Phone, BellRing, AlertTriangle, FileText } from "lucide-react";
 import { formatMoney, formatDate } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { PersonTxForm, kindSign } from "@/components/PersonTxForm";
+import { PersonStatementDrawer } from "@/components/PersonStatementDrawer";
 
 export const Route = createFileRoute("/_authenticated/app/people")({
   head: () => ({ meta: [{ title: "الأشخاص والديون — رصد" }] }),
@@ -33,6 +34,8 @@ function PeoplePage() {
   const qc = useQueryClient();
   const [search, setSearch] = useState("");
   const [openNew, setOpenNew] = useState(false);
+  const [drawerId, setDrawerId] = useState<string | null>(null);
+  const [drawerName, setDrawerName] = useState<string>("");
 
   const { data: rows, isLoading } = useQuery({
     queryKey: ["person_ledger"],
@@ -139,11 +142,11 @@ function PeoplePage() {
       ) : (
         <div className="space-y-2">
           {filtered.map((p) => (
-            <Link
+            <div
               key={p.id}
-              to="/app/people/$id"
-              params={{ id: p.id }}
-              className="flex items-center gap-3 rounded-2xl border bg-card p-4 shadow-[var(--shadow-card)] transition hover:-translate-y-0.5 hover:shadow-[var(--shadow-elegant)]"
+              role="button"
+              onClick={() => { setDrawerId(p.id); setDrawerName(p.name); }}
+              className="flex items-center gap-3 rounded-2xl border bg-card p-4 shadow-[var(--shadow-card)] transition hover:-translate-y-0.5 hover:shadow-[var(--shadow-elegant)] cursor-pointer"
             >
               <div className="grid h-11 w-11 place-items-center rounded-xl bg-[image:var(--gradient-primary)] text-white shrink-0 font-bold">
                 {p.name.slice(0, 1)}
@@ -166,11 +169,17 @@ function PeoplePage() {
                   );
                 })}
               </div>
-              <ChevronLeft className="h-4 w-4 text-muted-foreground" />
-            </Link>
+              <FileText className="h-4 w-4 text-muted-foreground" />
+            </div>
           ))}
         </div>
       )}
+
+      <PersonStatementDrawer
+        contactId={drawerId}
+        contactName={drawerName}
+        onOpenChange={(v) => { if (!v) setDrawerId(null); }}
+      />
     </div>
   );
 }
