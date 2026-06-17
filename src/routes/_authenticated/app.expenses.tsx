@@ -119,6 +119,13 @@ function ExpensesPage() {
                 <div className="text-xs text-muted-foreground truncate">{formatDate(e.spent_at)}{e.note ? ` · ${e.note}` : ""}</div>
               </div>
               <div className="font-bold tabular-nums shrink-0">{formatMoney(e.amount, e.currency)}</div>
+              <Dialog>
+                <DialogTrigger asChild><Button variant="ghost" size="icon" title="المرفقات"><Paperclip className="h-4 w-4" /></Button></DialogTrigger>
+                <DialogContent className="max-w-md">
+                  <DialogHeader><DialogTitle>مرفقات المصروف</DialogTitle></DialogHeader>
+                  <AttachmentUploader entityType="expense" entityId={e.id} />
+                </DialogContent>
+              </Dialog>
               <Button variant="ghost" size="icon" onClick={() => del.mutate(e.id)}><Trash2 className="h-4 w-4 text-destructive" /></Button>
             </div>
           ))}
