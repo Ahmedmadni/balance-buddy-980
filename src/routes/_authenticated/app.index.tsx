@@ -235,6 +235,24 @@ function StatCard({ icon: Icon, label, gradient, amounts, emptyText }: { icon: a
   );
 }
 
+function MiniStat({ label, amounts, tone }: { label: string; amounts: Record<string, number>; tone: "positive" | "negative" | "signed" }) {
+  const entries = Object.entries(amounts).filter(([, v]) => Math.abs(v) > 0.001);
+  return (
+    <div className="rounded-xl border bg-background/40 p-3">
+      <div className="text-[11px] text-muted-foreground">{label}</div>
+      {entries.length === 0 ? (
+        <div className="text-base font-semibold text-muted-foreground/60 mt-1">0</div>
+      ) : entries.map(([cur, amt]) => {
+        const color = tone === "positive" ? "text-success"
+          : tone === "negative" ? "text-destructive"
+          : amt > 0 ? "text-success" : amt < 0 ? "text-destructive" : "";
+        const sign = tone === "signed" ? (amt > 0 ? "+" : amt < 0 ? "−" : "") : "";
+        return <div key={cur} className={cn("text-lg font-bold tabular-nums mt-1", color)}>{sign}{formatMoney(Math.abs(amt), cur)}</div>;
+      })}
+    </div>
+  );
+}
+
 function SkeletonGrid() {
   return (
     <div className="space-y-4">
