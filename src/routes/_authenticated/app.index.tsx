@@ -74,6 +74,26 @@ function Dashboard() {
     if ((a.period as string).slice(0, 7) === currentMonth) monthlyExp[a.currency] = (monthlyExp[a.currency] ?? 0) + Number(a.amount);
   }
 
+  // Monthly cashflows from wallet_transactions
+  const monthlyInflow: Record<string, number> = {};
+  const monthlyOutflow: Record<string, number> = {};
+  const INFLOW = new Set(["deposit", "receive", "adjustment"]);
+  const OUTFLOW = new Set(["withdraw", "send"]);
+  for (const t of d.txs as any[]) {
+    if ((t.happened_at as string).slice(0, 7) !== currentMonth) continue;
+    if (INFLOW.has(t.kind)) monthlyInflow[t.currency] = (monthlyInflow[t.currency] ?? 0) + Number(t.amount);
+    else if (OUTFLOW.has(t.kind)) monthlyOutflow[t.currency] = (monthlyOutflow[t.currency] ?? 0) + Number(t.amount);
+  }
+  // Add expenses to outflow
+  for (const e of d.expenses as any[]) {
+    if ((e.spent_at as string).slice(0, 7) === currentMonth) {
+      monthlyOutflow[e.currency] = (monthlyOutflow[e.currency] ?? 0) + Number(e.amount);
+    }
+  }
+  const monthlyNet: Record<string, number> = {};
+  const allCurs = new Set([...Object.keys(monthlyInflow), ...Object.keys(monthlyOutflow)]);
+  for (const c of allCurs) monthlyNet[c] = (monthlyInflow[c] ?? 0) - (monthlyOutflow[c] ?? 0);
+
   // Daily expenses last 14 days
   const byCat: Record<string, { name: string; color: string; value: number }> = {};
   const daily: { day: string; value: number }[] = [];
