@@ -130,6 +130,15 @@ function Dashboard() {
         <StatCard icon={TrendingUp} label="مصاريف الشهر" gradient="var(--gradient-primary)" amounts={monthlyExp} emptyText="0" />
       </div>
 
+      <div className="rounded-2xl border bg-card p-5 shadow-[var(--shadow-card)]">
+        <h3 className="font-bold mb-3 text-sm">التدفقات النقدية للشهر الحالي</h3>
+        <div className="grid gap-3 sm:grid-cols-3">
+          <MiniStat label="الإيرادات" amounts={monthlyInflow} tone="positive" />
+          <MiniStat label="المصروفات" amounts={monthlyOutflow} tone="negative" />
+          <MiniStat label="صافي التدفق" amounts={monthlyNet} tone="signed" />
+        </div>
+      </div>
+
       {dueRows.length > 0 && (
         <Link to="/app/people" className="block rounded-2xl border border-amber-500/30 bg-amber-500/10 p-4 hover:bg-amber-500/15 transition">
           <div className="flex items-center gap-2">
