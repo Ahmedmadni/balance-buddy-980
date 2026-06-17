@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useMutation } from "@tanstack/react-query";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -10,7 +10,7 @@ import { DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog"
 import { todayISO } from "@/lib/format";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
-import { WALLET_TX_KINDS } from "@/lib/wallet-balance";
+import { WALLET_TX_KINDS, INFLOW_KINDS } from "@/lib/wallet-balance";
 import { ArrowDownToLine, ArrowUpFromLine, Send, Inbox, Equal } from "lucide-react";
 
 const ICONS: Record<string, any> = { deposit: ArrowDownToLine, withdraw: ArrowUpFromLine, send: Send, receive: Inbox, adjustment: Equal };
@@ -20,6 +20,23 @@ export function WalletTxForm({ wallet, onDone }: { wallet: { id: string; name: s
   const [amount, setAmount] = useState("");
   const [happenedAt, setHappenedAt] = useState(todayISO());
   const [notes, setNotes] = useState("");
+  const [categoryId, setCategoryId] = useState<string>("");
+
+  const isInflow = INFLOW_KINDS.has(kind) && kind !== "adjustment" ? true : kind === "deposit" || kind === "receive";
+  const catKind = isInflow ? "inflow" : "outflow";
+
+  const { data: cats } = useQuery({
+    queryKey: ["wallet-tx-cats", catKind],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("wallet_tx_categories" as any)
+        .select("id,name,kind")
+        .eq("kind", catKind)
+        .order("name");
+      if (error) throw error;
+      return (data ?? []) as any[];
+    },
+  });
 
   const mut = useMutation({
     mutationFn: async () => {
@@ -33,6 +50,7 @@ export function WalletTxForm({ wallet, onDone }: { wallet: { id: string; name: s
         currency: wallet.currency,
         happened_at: happenedAt,
         notes: notes.trim() || null,
+        category_id: categoryId || null,
       } as any);
       if (error) throw error;
     },
@@ -51,7 +69,7 @@ export function WalletTxForm({ wallet, onDone }: { wallet: { id: string; name: s
             const Icon = ICONS[k.value];
             const active = kind === k.value;
             return (
-              <button type="button" key={k.value} onClick={() => setKind(k.value)}
+              <button type="button" key={k.value} onClick={() => { setKind(k.value); setCategoryId(""); }}
                 className={cn("flex items-center gap-2 rounded-xl border p-3 text-sm font-medium transition text-right",
                   active ? `${k.bg} border-current ${k.color}` : "border-border bg-card hover:bg-accent")}
               >
@@ -61,6 +79,16 @@ export function WalletTxForm({ wallet, onDone }: { wallet: { id: string; name: s
             );
           })}
         </div>
+      </div>
+
+      <div>
+        <Label>التصنيف</Label>
+        <Select value={categoryId} onValueChange={setCategoryId}>
+          <SelectTrigger><SelectValue placeholder="اختر تصنيفاً (اختياري)" /></SelectTrigger>
+          <SelectContent>
+            {(cats ?? []).map((c) => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}
+          </SelectContent>
+        </Select>
       </div>
 
       <div className="grid grid-cols-2 gap-3">
@@ -100,8 +128,8 @@ export function WalletTransferForm({ wallets, defaultFromId, onDone }: { wallets
     mutationFn: async () => {
       const { data: u } = await supabase.auth.getUser();
       if (!u.user) throw new Error("غير مسجل");
-      if (fromId === toId) throw new Error("اختر محفظتين مختلفتين");
-      if (!from || !to) throw new Error("اختر المحافظ");
+      if (fromId === toId) throw new Error("اختر حسابين مختلفين");
+      if (!from || !to) throw new Error("اختر الحسابات");
       if (from.currency !== to.currency) throw new Error("تحويل بعملات مختلفة غير مدعوم بعد");
       const tg = (crypto as any).randomUUID();
       const a = parseFloat(amount);
@@ -117,7 +145,7 @@ export function WalletTransferForm({ wallets, defaultFromId, onDone }: { wallets
 
   return (
     <form onSubmit={(e) => { e.preventDefault(); mut.mutate(); }} className="space-y-4">
-      <DialogHeader><DialogTitle>تحويل بين محافظ</DialogTitle></DialogHeader>
+      <DialogHeader><DialogTitle>تحويل بين الحسابات</DialogTitle></DialogHeader>
 
       <div className="grid grid-cols-2 gap-3">
         <div>
