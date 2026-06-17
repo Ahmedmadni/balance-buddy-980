@@ -1,7 +1,7 @@
 import { createFileRoute, Outlet, redirect, Link, useRouterState, useNavigate } from "@tanstack/react-router";
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { LayoutDashboard, Wallet, FileBarChart, Settings, LogOut, Menu, Users, Landmark, Contact } from "lucide-react";
+import { LayoutDashboard, Wallet, FileBarChart, Settings, LogOut, Menu, Users, Landmark, Contact, Repeat } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import { cn } from "@/lib/utils";
