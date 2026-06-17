@@ -31,7 +31,7 @@ export function buildWalletStatement(inp: WalletInputs): StatementRow[] {
     const m = walletKindMeta(t.kind);
     const inflow = INFLOW_KINDS.has(t.kind) || t.kind === "transfer_in";
     const outflow = OUTFLOW_KINDS.has(t.kind) || t.kind === "transfer_out";
-    let desc = m.label;
+    let desc: string = m.label;
     if (t.kind === "transfer_in" || t.kind === "transfer_out") {
       const cn = t.counterparty_wallet_id ? inp.walletNames?.get(t.counterparty_wallet_id) ?? "—" : "—";
       desc = t.kind === "transfer_in" ? `تحويل وارد من ${cn}` : `تحويل صادر إلى ${cn}`;
