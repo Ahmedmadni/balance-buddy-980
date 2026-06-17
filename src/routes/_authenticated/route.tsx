@@ -1,7 +1,7 @@
 import { createFileRoute, Outlet, redirect, Link, useRouterState, useNavigate } from "@tanstack/react-router";
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { LayoutDashboard, Wallet, FileBarChart, Settings, LogOut, Menu, Users, Landmark, Contact, Repeat } from "lucide-react";
+import { LayoutDashboard, Wallet, FileBarChart, Settings, LogOut, Menu, Users, Landmark, Contact, Repeat, TrendingUp, HandCoins } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import { cn } from "@/lib/utils";
@@ -23,6 +23,8 @@ const NAV = [
   { to: "/app/wallets", icon: Landmark, label: "المحافظ" },
   { to: "/app/expenses", icon: Wallet, label: "المصاريف" },
   { to: "/app/recurring", icon: Repeat, label: "المصاريف الدورية" },
+  { to: "/app/investments", icon: TrendingUp, label: "الاستثمارات" },
+  { to: "/app/zakat", icon: HandCoins, label: "الزكاة" },
   { to: "/app/reports", icon: FileBarChart, label: "التقارير" },
   { to: "/app/contacts", icon: Contact, label: "جهات الاتصال" },
   { to: "/app/settings", icon: Settings, label: "الإعدادات" },

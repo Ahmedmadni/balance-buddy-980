@@ -315,6 +315,122 @@ export type Database = {
           },
         ]
       }
+      investment_transactions: {
+        Row: {
+          amount: number
+          created_at: string
+          currency: string
+          happened_at: string
+          id: string
+          investment_id: string
+          kind: string
+          notes: string | null
+          user_id: string
+          wallet_id: string | null
+        }
+        Insert: {
+          amount: number
+          created_at?: string
+          currency?: string
+          happened_at?: string
+          id?: string
+          investment_id: string
+          kind: string
+          notes?: string | null
+          user_id: string
+          wallet_id?: string | null
+        }
+        Update: {
+          amount?: number
+          created_at?: string
+          currency?: string
+          happened_at?: string
+          id?: string
+          investment_id?: string
+          kind?: string
+          notes?: string | null
+          user_id?: string
+          wallet_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "investment_transactions_investment_id_fkey"
+            columns: ["investment_id"]
+            isOneToOne: false
+            referencedRelation: "investments"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "investment_transactions_wallet_id_fkey"
+            columns: ["wallet_id"]
+            isOneToOne: false
+            referencedRelation: "wallets"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      investments: {
+        Row: {
+          created_at: string
+          currency: string
+          current_value: number
+          id: string
+          is_zakatable: boolean
+          name: string
+          notes: string | null
+          ownership_pct: number
+          principal: number
+          start_date: string
+          status: string
+          type: string
+          updated_at: string
+          user_id: string
+          wallet_id: string | null
+        }
+        Insert: {
+          created_at?: string
+          currency?: string
+          current_value?: number
+          id?: string
+          is_zakatable?: boolean
+          name: string
+          notes?: string | null
+          ownership_pct?: number
+          principal?: number
+          start_date?: string
+          status?: string
+          type?: string
+          updated_at?: string
+          user_id: string
+          wallet_id?: string | null
+        }
+        Update: {
+          created_at?: string
+          currency?: string
+          current_value?: number
+          id?: string
+          is_zakatable?: boolean
+          name?: string
+          notes?: string | null
+          ownership_pct?: number
+          principal?: number
+          start_date?: string
+          status?: string
+          type?: string
+          updated_at?: string
+          user_id?: string
+          wallet_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "investments_wallet_id_fkey"
+            columns: ["wallet_id"]
+            isOneToOne: false
+            referencedRelation: "wallets"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       person_ledger: {
         Row: {
           amount: number
@@ -687,6 +803,57 @@ export type Database = {
           type?: string
           updated_at?: string
           user_id?: string
+        }
+        Relationships: []
+      }
+      zakat_records: {
+        Row: {
+          base_amount: number
+          breakdown: Json | null
+          calculated_at: string
+          created_at: string
+          currency: string
+          hijri_year: string | null
+          id: string
+          notes: string | null
+          paid: boolean
+          paid_at: string | null
+          rate: number
+          updated_at: string
+          user_id: string
+          zakat_amount: number
+        }
+        Insert: {
+          base_amount: number
+          breakdown?: Json | null
+          calculated_at?: string
+          created_at?: string
+          currency?: string
+          hijri_year?: string | null
+          id?: string
+          notes?: string | null
+          paid?: boolean
+          paid_at?: string | null
+          rate?: number
+          updated_at?: string
+          user_id: string
+          zakat_amount: number
+        }
+        Update: {
+          base_amount?: number
+          breakdown?: Json | null
+          calculated_at?: string
+          created_at?: string
+          currency?: string
+          hijri_year?: string | null
+          id?: string
+          notes?: string | null
+          paid?: boolean
+          paid_at?: string | null
+          rate?: number
+          updated_at?: string
+          user_id?: string
+          zakat_amount?: number
         }
         Relationships: []
       }
