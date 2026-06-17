@@ -1,29 +1,45 @@
 import type { CapacitorConfig } from '@capacitor/cli';
 
 const config: CapacitorConfig = {
-  appId: 'app.lovable.a152564d27eb4c3488c3bd4d16c0e912',
+  appId: 'app.lovable.rasd',
   appName: 'رصد',
   webDir: 'dist',
-  // أثناء التطوير: حمّل التطبيق من رابط Lovable المنشور (Live Reload)
-  // قبل البناء النهائي للنشر على المتجر: علّق هذا الكائن server بالكامل
-  // ثم نفّذ: bun run build && npx cap sync android
+  // ─────────────────────────────────────────────────────────────
+  // وضع التطوير (Live Reload): يحمّل التطبيق من رابط Lovable
+  // قبل بناء النسخة النهائية للنشر علّق/احذف كائن server بالكامل
+  // ─────────────────────────────────────────────────────────────
   server: {
     url: 'https://a152564d-27eb-4c34-88c3-bd4d16c0e912.lovableproject.com?forceHideBadge=true',
     cleartext: true,
+    androidScheme: 'https',
   },
   android: {
     allowMixedContent: true,
+    captureInput: true,
+    webContentsDebuggingEnabled: false,
+    backgroundColor: '#0b1220',
   },
   plugins: {
     SplashScreen: {
-      launchShowDuration: 2000,
+      launchShowDuration: 2500,
+      launchAutoHide: true,
+      launchFadeOutDuration: 300,
       backgroundColor: '#0b1220',
-      showSpinner: false,
+      androidSplashResourceName: 'splash',
       androidScaleType: 'CENTER_CROP',
+      showSpinner: false,
+      splashFullScreen: true,
+      splashImmersive: true,
+      useDialog: false,
     },
     StatusBar: {
       style: 'DARK',
       backgroundColor: '#0b1220',
+      overlaysWebView: false,
+    },
+    Keyboard: {
+      resize: 'body',
+      resizeOnFullScreen: true,
     },
   },
 };
