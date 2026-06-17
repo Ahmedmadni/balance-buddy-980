@@ -325,7 +325,7 @@ function InvestmentTxForm({ investment, wallets, onDone }: any) {
           await supabase.from("wallet_transactions").insert({
             user_id: u.user.id, wallet_id: walletId, kind: txKind,
             amount: amt, currency: investment.currency, happened_at: happenedAt,
-            note: `${kindMeta(kind).label} — ${investment.name}`,
+            notes: `${kindMeta(kind).label} — ${investment.name}`,
           });
         }
       }
