@@ -106,8 +106,63 @@ function WalletDetail() {
             openingBalance: Number(w.opening_balance),
             closingBalance: balance,
           }}
+          onEdit={(row) => {
+            if (row.sourceTable === "wallet_transactions" && row.raw) {
+              setEditTx({
+                id: row.raw.id,
+                kind: row.raw.kind,
+                amount: row.raw.amount,
+                happened_at: row.raw.happened_at,
+                notes: row.raw.notes,
+                category_id: row.raw.category_id,
+              });
+            } else if (row.sourceTable === "expenses") {
+              toast.info("تعديل المصاريف يتم من صفحة المصاريف");
+            }
+          }}
+          onDelete={(row) => setConfirmDel(row)}
         />
       </div>
+
+      <Dialog open={!!editTx} onOpenChange={(v) => { if (!v) setEditTx(null); }}>
+        <DialogContent className="max-w-md">
+          {editTx && <WalletTxForm wallet={w} initial={editTx} onDone={() => { setEditTx(null); invalidate(); }} />}
+        </DialogContent>
+      </Dialog>
+
+      <AlertDialog open={!!confirmDel} onOpenChange={(v) => { if (!v) setConfirmDel(null); }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>تأكيد الحذف</AlertDialogTitle>
+            <AlertDialogDescription>هل تريد حذف هذه الحركة نهائياً؟ لا يمكن التراجع.</AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>إلغاء</AlertDialogCancel>
+            <AlertDialogAction onClick={async () => {
+              if (!confirmDel?.sourceTable || !confirmDel.sourceId) return;
+              try {
+                if (confirmDel.sourceTable === "wallet_transactions") {
+                  // If it's part of a transfer pair, delete both legs
+                  const r = confirmDel.raw as any;
+                  if (r?.transfer_group_id) {
+                    await supabase.from("wallet_transactions").delete().eq("transfer_group_id", r.transfer_group_id);
+                  } else {
+                    await supabase.from("wallet_transactions").delete().eq("id", confirmDel.sourceId);
+                  }
+                } else if (confirmDel.sourceTable === "expenses") {
+                  await supabase.from("expenses").delete().eq("id", confirmDel.sourceId);
+                }
+                toast.success("تم الحذف");
+                invalidate();
+              } catch (e: any) {
+                toast.error("تعذر الحذف", { description: e.message });
+              } finally {
+                setConfirmDel(null);
+              }
+            }}>حذف</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
