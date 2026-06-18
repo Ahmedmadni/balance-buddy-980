@@ -447,6 +447,7 @@ export type Database = {
           settled_at: string | null
           status: string | null
           user_id: string
+          wallet_id: string | null
         }
         Insert: {
           amount: number
@@ -463,6 +464,7 @@ export type Database = {
           settled_at?: string | null
           status?: string | null
           user_id: string
+          wallet_id?: string | null
         }
         Update: {
           amount?: number
@@ -479,6 +481,7 @@ export type Database = {
           settled_at?: string | null
           status?: string | null
           user_id?: string
+          wallet_id?: string | null
         }
         Relationships: [
           {
@@ -486,6 +489,13 @@ export type Database = {
             columns: ["contact_id"]
             isOneToOne: false
             referencedRelation: "contacts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "person_ledger_wallet_id_fkey"
+            columns: ["wallet_id"]
+            isOneToOne: false
+            referencedRelation: "wallets"
             referencedColumns: ["id"]
           },
         ]
@@ -666,6 +676,8 @@ export type Database = {
           id: string
           kind: string
           notes: string | null
+          source_id: string | null
+          source_kind: string | null
           transfer_group_id: string | null
           user_id: string
           wallet_id: string
@@ -681,6 +693,8 @@ export type Database = {
           id?: string
           kind: string
           notes?: string | null
+          source_id?: string | null
+          source_kind?: string | null
           transfer_group_id?: string | null
           user_id: string
           wallet_id: string
@@ -696,6 +710,8 @@ export type Database = {
           id?: string
           kind?: string
           notes?: string | null
+          source_id?: string | null
+          source_kind?: string | null
           transfer_group_id?: string | null
           user_id?: string
           wallet_id?: string
