@@ -131,8 +131,65 @@ export function PersonStatementDrawer({
               currency: primaryCur,
             }}
             dense
+            onEdit={(row) => {
+              if (row.sourceTable === "person_ledger" && row.raw) {
+                const r = row.raw as any;
+                setEditing({
+                  id: r.id,
+                  kind: r.kind,
+                  contact_id: r.contact_id,
+                  contact_name: r.contact_name,
+                  amount: r.amount,
+                  currency: r.currency,
+                  happened_at: r.happened_at,
+                  due_date: r.due_date,
+                  reminder_enabled: !!r.reminder_enabled,
+                  notes: r.notes,
+                  wallet_id: r.wallet_id,
+                });
+              }
+            }}
+            onDelete={(row) => setConfirmDel(row)}
           />
         </div>
+
+        <Dialog open={!!editing} onOpenChange={(v) => { if (!v) setEditing(null); }}>
+          <DialogContent className="max-w-md max-h-[90vh] overflow-y-auto">
+            {editing && (
+              <PersonTxForm
+                initial={editing}
+                lockContact
+                onDone={() => { setEditing(null); invalidate(); }}
+              />
+            )}
+          </DialogContent>
+        </Dialog>
+
+        <AlertDialog open={!!confirmDel} onOpenChange={(v) => { if (!v) setConfirmDel(null); }}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>تأكيد الحذف</AlertDialogTitle>
+              <AlertDialogDescription>سيتم حذف الحركة وأي أثر مرتبط بها في كشف المحفظة.</AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>إلغاء</AlertDialogCancel>
+              <AlertDialogAction onClick={async () => {
+                if (!confirmDel?.sourceId) return;
+                try {
+                  await deleteWalletTxForSource("person_ledger", confirmDel.sourceId);
+                  const { error } = await supabase.from("person_ledger").delete().eq("id", confirmDel.sourceId);
+                  if (error) throw error;
+                  toast.success("تم الحذف");
+                  invalidate();
+                } catch (e: any) {
+                  toast.error("تعذر الحذف", { description: e.message });
+                } finally {
+                  setConfirmDel(null);
+                }
+              }}>حذف</AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
       </SheetContent>
     </Sheet>
   );
