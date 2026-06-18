@@ -4,14 +4,16 @@ import { supabase } from "@/integrations/supabase/client";
 import { useState, useMemo } from "react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogTrigger } from "@/components/ui/dialog";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { ArrowRight, Plus, ArrowLeftRight } from "lucide-react";
 import { formatMoney } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { computeWalletBalance } from "@/lib/wallet-balance";
-import { WalletTxForm, WalletTransferForm } from "@/components/WalletTxForm";
-import { buildWalletStatement } from "@/lib/statement";
+import { WalletTxForm, WalletTransferForm, type WalletTxInitial } from "@/components/WalletTxForm";
+import { buildWalletStatement, type StatementRow } from "@/lib/statement";
 import { StatementTable } from "@/components/StatementTable";
 import { typeMeta } from "@/routes/_authenticated/app.wallets";
+import { toast } from "sonner";
 
 export const Route = createFileRoute("/_authenticated/app/wallets/$id")({
   head: () => ({ meta: [{ title: "كشف الحساب — رصد" }] }),
@@ -23,6 +25,8 @@ function WalletDetail() {
   const qc = useQueryClient();
   const [openTx, setOpenTx] = useState(false);
   const [openTr, setOpenTr] = useState(false);
+  const [editTx, setEditTx] = useState<WalletTxInitial | null>(null);
+  const [confirmDel, setConfirmDel] = useState<StatementRow | null>(null);
 
   const { data, isLoading } = useQuery({
     queryKey: ["wallet-detail", id],
