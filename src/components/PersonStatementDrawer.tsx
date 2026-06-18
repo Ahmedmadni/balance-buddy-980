@@ -1,27 +1,34 @@
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
+import { Dialog, DialogContent } from "@/components/ui/dialog";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Link } from "@tanstack/react-router";
 import { Phone, MessageCircle, ExternalLink } from "lucide-react";
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { formatMoney } from "@/lib/format";
 import { cn } from "@/lib/utils";
-import { buildPersonStatement } from "@/lib/statement";
+import { buildPersonStatement, type StatementRow } from "@/lib/statement";
 import { StatementTable } from "@/components/StatementTable";
-import { kindSign } from "@/components/PersonTxForm";
+import { kindSign, PersonTxForm, type PersonLedgerInitial } from "@/components/PersonTxForm";
+import { deleteWalletTxForSource } from "@/lib/wallet-sync";
+import { toast } from "sonner";
 
 export function PersonStatementDrawer({
   contactId, contactName, onOpenChange,
 }: { contactId: string | null; contactName?: string; onOpenChange: (v: boolean) => void }) {
   const open = !!contactId;
+  const qc = useQueryClient();
+  const [editing, setEditing] = useState<PersonLedgerInitial | null>(null);
+  const [confirmDel, setConfirmDel] = useState<StatementRow | null>(null);
   const { data } = useQuery({
     enabled: !!contactId,
     queryKey: ["person-statement", contactId],
     queryFn: async () => {
       const [lRes, cRes] = await Promise.all([
         supabase.from("person_ledger")
-          .select("id,kind,amount,currency,happened_at,notes,due_date,settled_at,contact_name")
+          .select("id,kind,amount,currency,happened_at,notes,due_date,settled_at,contact_name,contact_id,wallet_id,reminder_enabled")
           .eq("contact_id", contactId!)
           .order("happened_at", { ascending: false }),
         supabase.from("contacts").select("id,name,phone").eq("id", contactId!).maybeSingle(),
@@ -29,6 +36,14 @@ export function PersonStatementDrawer({
       return { rows: lRes.data ?? [], contact: cRes.data };
     },
   });
+
+  const invalidate = () => {
+    qc.invalidateQueries({ queryKey: ["person-statement", contactId] });
+    qc.invalidateQueries({ queryKey: ["person_ledger"] });
+    qc.invalidateQueries({ queryKey: ["wallets-list"] });
+    qc.invalidateQueries({ queryKey: ["wallet-detail"] });
+    qc.invalidateQueries({ queryKey: ["dashboard"] });
+  };
 
   const rows = data?.rows ?? [];
   const name = data?.contact?.name ?? contactName ?? rows[0]?.contact_name ?? "—";
