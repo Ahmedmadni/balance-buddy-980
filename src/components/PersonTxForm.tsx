@@ -1,5 +1,5 @@
-import { useState } from "react";
-import { useMutation } from "@tanstack/react-query";
+import { useState, useEffect } from "react";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -13,6 +13,7 @@ import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { ArrowDownRight, ArrowUpRight, HandCoins, CircleCheck } from "lucide-react";
 import { ContactPicker } from "@/components/ContactPicker";
+import { personLedgerWalletKind, syncWalletTx } from "@/lib/wallet-sync";
 
 export const LEDGER_KINDS = [
   { value: "lend", label: "سلّفته", short: "تسليف", icon: ArrowUpRight, color: "text-success", bg: "bg-success/10 hover:bg-success/20 border-success/30", sign: "+" },
@@ -31,59 +32,116 @@ export function kindSign(k: string): 1 | -1 {
   return k === "lend" || k === "pay" ? 1 : -1;
 }
 
+export type PersonLedgerInitial = {
+  id: string;
+  kind: string;
+  contact_id: string | null;
+  contact_name: string;
+  amount: number | string;
+  currency: string;
+  happened_at: string;
+  due_date: string | null;
+  reminder_enabled: boolean;
+  notes: string | null;
+  wallet_id?: string | null;
+};
+
 export function PersonTxForm({
   onDone,
   defaultContactId,
   defaultName,
   lockContact,
   defaultCurrency = "SAR",
+  initial,
 }: {
   onDone: () => void;
   defaultContactId?: string | null;
   defaultName?: string;
   lockContact?: boolean;
   defaultCurrency?: string;
+  initial?: PersonLedgerInitial | null;
 }) {
-  const [kind, setKind] = useState<LedgerKind>("lend");
+  const [kind, setKind] = useState<LedgerKind>((initial?.kind as LedgerKind) ?? "lend");
   const [contact, setContact] = useState<{ id: string | null; name: string }>(
-    { id: defaultContactId ?? null, name: defaultName ?? "" },
+    { id: initial?.contact_id ?? defaultContactId ?? null, name: initial?.contact_name ?? defaultName ?? "" },
   );
-  const [amount, setAmount] = useState("");
-  const [currency, setCurrency] = useState(defaultCurrency);
-  const [happenedAt, setHappenedAt] = useState(todayISO());
-  const [dueDate, setDueDate] = useState<string>("");
-  const [reminderEnabled, setReminderEnabled] = useState(false);
-  const [notes, setNotes] = useState("");
+  const [amount, setAmount] = useState(initial ? String(initial.amount) : "");
+  const [currency, setCurrency] = useState(initial?.currency ?? defaultCurrency);
+  const [happenedAt, setHappenedAt] = useState(initial?.happened_at ?? todayISO());
+  const [dueDate, setDueDate] = useState<string>(initial?.due_date ?? "");
+  const [reminderEnabled, setReminderEnabled] = useState(initial?.reminder_enabled ?? false);
+  const [notes, setNotes] = useState(initial?.notes ?? "");
+  const [walletId, setWalletId] = useState<string>(initial?.wallet_id ?? "none");
 
   const isDebtLike = kind === "lend" || kind === "borrow";
+  const isEdit = !!initial;
+
+  const { data: wallets } = useQuery({
+    queryKey: ["wallets-for-person-form"],
+    queryFn: async () => {
+      const { data } = await supabase.from("wallets").select("id,name,currency").order("created_at");
+      return (data ?? []) as { id: string; name: string; currency: string }[];
+    },
+  });
+
+  // Auto-pick currency to wallet currency on selection
+  useEffect(() => {
+    if (walletId && walletId !== "none") {
+      const w = wallets?.find((x) => x.id === walletId);
+      if (w?.currency) setCurrency(w.currency);
+    }
+  }, [walletId, wallets]);
 
   const mut = useMutation({
     mutationFn: async () => {
       const { data: u } = await supabase.auth.getUser();
       if (!u.user) throw new Error("غير مسجل");
       if (!contact.id) throw new Error("اختر جهة اتصال");
-      const { error } = await supabase.from("person_ledger").insert({
+      const amt = parseFloat(amount);
+      const payload: any = {
         user_id: u.user.id,
         contact_id: contact.id,
         contact_name: contact.name.trim(),
         kind,
-        amount: parseFloat(amount),
+        amount: amt,
         currency,
         happened_at: happenedAt,
         due_date: isDebtLike && dueDate ? dueDate : null,
         reminder_enabled: isDebtLike && !!dueDate && reminderEnabled,
         notes: notes.trim() || null,
-      } as any);
-      if (error) throw error;
+        wallet_id: walletId !== "none" ? walletId : null,
+      };
+
+      let rowId: string;
+      if (isEdit) {
+        const { error } = await supabase.from("person_ledger").update(payload).eq("id", initial!.id);
+        if (error) throw error;
+        rowId = initial!.id;
+      } else {
+        const { data: ins, error } = await supabase.from("person_ledger").insert(payload).select("id").single();
+        if (error) throw error;
+        rowId = (ins as any).id;
+      }
+
+      await syncWalletTx({
+        userId: u.user.id,
+        walletId: walletId !== "none" ? walletId : null,
+        walletKind: personLedgerWalletKind(kind),
+        amount: amt,
+        currency,
+        happenedAt,
+        notes: notes.trim() ? `${kindMeta(kind).label} — ${contact.name.trim()}: ${notes.trim()}` : `${kindMeta(kind).label} — ${contact.name.trim()}`,
+        source: { kind: "person_ledger", id: rowId },
+      });
     },
-    onSuccess: () => { toast.success("تم تسجيل الحركة"); onDone(); },
+    onSuccess: () => { toast.success(isEdit ? "تم التحديث" : "تم تسجيل الحركة"); onDone(); },
     onError: (e: any) => toast.error("خطأ", { description: e.message }),
   });
 
   return (
     <form onSubmit={(e) => { e.preventDefault(); mut.mutate(); }} className="space-y-4">
       <DialogHeader>
-        <DialogTitle>{defaultName ? `معاملة جديدة مع ${defaultName}` : "حركة جديدة"}</DialogTitle>
+        <DialogTitle>{isEdit ? "تعديل الحركة" : defaultName ? `معاملة جديدة مع ${defaultName}` : "حركة جديدة"}</DialogTitle>
       </DialogHeader>
 
       <div>
@@ -119,6 +177,22 @@ export function PersonTxForm({
         />
       </div>
 
+      <div>
+        <Label>المحفظة المتأثرة (اختياري)</Label>
+        <Select value={walletId} onValueChange={setWalletId}>
+          <SelectTrigger><SelectValue placeholder="بدون تأثير على المحافظ" /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value="none">بدون تأثير على المحافظ</SelectItem>
+            {(wallets ?? []).map((w) => (
+              <SelectItem key={w.id} value={w.id}>{w.name} · {w.currency}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        <p className="text-[11px] text-muted-foreground mt-1">
+          عند تحديد المحفظة سيُسجَّل {kind === "lend" || kind === "pay" ? "خصم" : "إيداع"} مطابق تلقائياً في كشف المحفظة.
+        </p>
+      </div>
+
       <div className="grid grid-cols-2 gap-3">
         <div>
           <Label>المبلغ</Label>
@@ -126,7 +200,7 @@ export function PersonTxForm({
         </div>
         <div>
           <Label>العملة</Label>
-          <Select value={currency} onValueChange={setCurrency}>
+          <Select value={currency} onValueChange={setCurrency} disabled={walletId !== "none"}>
             <SelectTrigger><SelectValue /></SelectTrigger>
             <SelectContent>{CURRENCIES.map(c => <SelectItem key={c.code} value={c.code}>{c.name}</SelectItem>)}</SelectContent>
           </Select>
@@ -162,7 +236,9 @@ export function PersonTxForm({
       </div>
 
       <DialogFooter>
-        <Button type="submit" className="w-full" disabled={mut.isPending || !contact.id}>{mut.isPending ? "جاري الحفظ..." : "حفظ"}</Button>
+        <Button type="submit" className="w-full" disabled={mut.isPending || !contact.id}>
+          {mut.isPending ? "جاري الحفظ..." : isEdit ? "حفظ التعديلات" : "حفظ"}
+        </Button>
       </DialogFooter>
     </form>
   );
