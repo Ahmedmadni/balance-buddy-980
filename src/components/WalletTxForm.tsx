@@ -76,7 +76,7 @@ export function WalletTxForm({ wallet, onDone, initial }: { wallet: { id: string
 
   return (
     <form onSubmit={(e) => { e.preventDefault(); mut.mutate(); }} className="space-y-4">
-      <DialogHeader><DialogTitle>عملية على {wallet.name}</DialogTitle></DialogHeader>
+      <DialogHeader><DialogTitle>{isEdit ? `تعديل عملية — ${wallet.name}` : `عملية على ${wallet.name}`}</DialogTitle></DialogHeader>
 
       <div>
         <Label className="mb-2 block">نوع العملية</Label>
