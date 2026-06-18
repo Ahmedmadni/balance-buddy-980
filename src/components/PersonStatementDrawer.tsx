@@ -1,27 +1,34 @@
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
+import { Dialog, DialogContent } from "@/components/ui/dialog";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Link } from "@tanstack/react-router";
 import { Phone, MessageCircle, ExternalLink } from "lucide-react";
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { formatMoney } from "@/lib/format";
 import { cn } from "@/lib/utils";
-import { buildPersonStatement } from "@/lib/statement";
+import { buildPersonStatement, type StatementRow } from "@/lib/statement";
 import { StatementTable } from "@/components/StatementTable";
-import { kindSign } from "@/components/PersonTxForm";
+import { kindSign, PersonTxForm, type PersonLedgerInitial } from "@/components/PersonTxForm";
+import { deleteWalletTxForSource } from "@/lib/wallet-sync";
+import { toast } from "sonner";
 
 export function PersonStatementDrawer({
   contactId, contactName, onOpenChange,
 }: { contactId: string | null; contactName?: string; onOpenChange: (v: boolean) => void }) {
   const open = !!contactId;
+  const qc = useQueryClient();
+  const [editing, setEditing] = useState<PersonLedgerInitial | null>(null);
+  const [confirmDel, setConfirmDel] = useState<StatementRow | null>(null);
   const { data } = useQuery({
     enabled: !!contactId,
     queryKey: ["person-statement", contactId],
     queryFn: async () => {
       const [lRes, cRes] = await Promise.all([
         supabase.from("person_ledger")
-          .select("id,kind,amount,currency,happened_at,notes,due_date,settled_at,contact_name")
+          .select("id,kind,amount,currency,happened_at,notes,due_date,settled_at,contact_name,contact_id,wallet_id,reminder_enabled")
           .eq("contact_id", contactId!)
           .order("happened_at", { ascending: false }),
         supabase.from("contacts").select("id,name,phone").eq("id", contactId!).maybeSingle(),
@@ -29,6 +36,14 @@ export function PersonStatementDrawer({
       return { rows: lRes.data ?? [], contact: cRes.data };
     },
   });
+
+  const invalidate = () => {
+    qc.invalidateQueries({ queryKey: ["person-statement", contactId] });
+    qc.invalidateQueries({ queryKey: ["person_ledger"] });
+    qc.invalidateQueries({ queryKey: ["wallets-list"] });
+    qc.invalidateQueries({ queryKey: ["wallet-detail"] });
+    qc.invalidateQueries({ queryKey: ["dashboard"] });
+  };
 
   const rows = data?.rows ?? [];
   const name = data?.contact?.name ?? contactName ?? rows[0]?.contact_name ?? "—";
@@ -116,8 +131,65 @@ export function PersonStatementDrawer({
               currency: primaryCur,
             }}
             dense
+            onEdit={(row) => {
+              if (row.sourceTable === "person_ledger" && row.raw) {
+                const r = row.raw as any;
+                setEditing({
+                  id: r.id,
+                  kind: r.kind,
+                  contact_id: r.contact_id,
+                  contact_name: r.contact_name,
+                  amount: r.amount,
+                  currency: r.currency,
+                  happened_at: r.happened_at,
+                  due_date: r.due_date,
+                  reminder_enabled: !!r.reminder_enabled,
+                  notes: r.notes,
+                  wallet_id: r.wallet_id,
+                });
+              }
+            }}
+            onDelete={(row) => setConfirmDel(row)}
           />
         </div>
+
+        <Dialog open={!!editing} onOpenChange={(v) => { if (!v) setEditing(null); }}>
+          <DialogContent className="max-w-md max-h-[90vh] overflow-y-auto">
+            {editing && (
+              <PersonTxForm
+                initial={editing}
+                lockContact
+                onDone={() => { setEditing(null); invalidate(); }}
+              />
+            )}
+          </DialogContent>
+        </Dialog>
+
+        <AlertDialog open={!!confirmDel} onOpenChange={(v) => { if (!v) setConfirmDel(null); }}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>تأكيد الحذف</AlertDialogTitle>
+              <AlertDialogDescription>سيتم حذف الحركة وأي أثر مرتبط بها في كشف المحفظة.</AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>إلغاء</AlertDialogCancel>
+              <AlertDialogAction onClick={async () => {
+                if (!confirmDel?.sourceId) return;
+                try {
+                  await deleteWalletTxForSource("person_ledger", confirmDel.sourceId);
+                  const { error } = await supabase.from("person_ledger").delete().eq("id", confirmDel.sourceId);
+                  if (error) throw error;
+                  toast.success("تم الحذف");
+                  invalidate();
+                } catch (e: any) {
+                  toast.error("تعذر الحذف", { description: e.message });
+                } finally {
+                  setConfirmDel(null);
+                }
+              }}>حذف</AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
       </SheetContent>
     </Sheet>
   );

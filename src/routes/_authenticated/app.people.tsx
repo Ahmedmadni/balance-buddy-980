@@ -12,7 +12,7 @@ import { PersonTxForm, kindSign } from "@/components/PersonTxForm";
 import { PersonStatementDrawer } from "@/components/PersonStatementDrawer";
 
 export const Route = createFileRoute("/_authenticated/app/people")({
-  head: () => ({ meta: [{ title: "الأشخاص والديون — رصد" }] }),
+  head: () => ({ meta: [{ title: "الديون — رصد" }] }),
   component: PeoplePage,
 });
 
@@ -94,7 +94,7 @@ function PeoplePage() {
     <div className="space-y-5">
       <div className="flex items-center justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-bold">الأشخاص والديون</h1>
+          <h1 className="text-2xl font-bold">الديون</h1>
           <p className="text-sm text-muted-foreground mt-1">دفتر حساب موحّد + متابعة استحقاقات</p>
         </div>
         <Dialog open={openNew} onOpenChange={setOpenNew}>

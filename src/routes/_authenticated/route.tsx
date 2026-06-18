@@ -19,7 +19,7 @@ export const Route = createFileRoute("/_authenticated")({
 
 const NAV = [
   { to: "/app", icon: LayoutDashboard, label: "الرئيسية", exact: true },
-  { to: "/app/people", icon: Users, label: "الأشخاص" },
+  { to: "/app/people", icon: HandCoins, label: "الديون" },
   { to: "/app/wallets", icon: Landmark, label: "المحافظ" },
   { to: "/app/expenses", icon: Wallet, label: "المصاريف" },
   { to: "/app/recurring", icon: Repeat, label: "المصاريف الدورية" },

@@ -13,12 +13,20 @@ export type StatementRow = {
   currency: string;
   ref?: string;
   kindLabel?: string;
+  // For edit/delete actions:
+  sourceTable?: "wallet_transactions" | "expenses" | "person_ledger";
+  sourceId?: string;
+  // Raw fields for editing (only set if editable):
+  raw?: any;
+  // True if this wallet_transactions row is a mirror of another module
+  // (e.g. person_ledger / investment) → user should edit the source, not this row.
+  lockedMirror?: boolean;
 };
 
 export type WalletInputs = {
   openingBalance: number;
   currency: string;
-  txs: Array<{ id: string; happened_at: string; kind: string; amount: number; currency: string; notes: string | null; counterparty_wallet_id?: string | null; category_id?: string | null; transfer_group_id?: string | null }>;
+  txs: Array<{ id: string; happened_at: string; kind: string; amount: number; currency: string; notes: string | null; counterparty_wallet_id?: string | null; category_id?: string | null; transfer_group_id?: string | null; source_kind?: string | null; source_id?: string | null }>;
   expenses: Array<{ id: string; spent_at: string; amount: number; currency: string; note: string | null; categories?: { name?: string | null } | null }>;
   walletNames?: Map<string, string>;
   categoryNames?: Map<string, string>;
@@ -38,16 +46,26 @@ export function buildWalletStatement(inp: WalletInputs): StatementRow[] {
     }
     if (t.notes) desc += ` — ${t.notes}`;
     const cat = t.category_id ? inp.categoryNames?.get(t.category_id) ?? "" : "";
+    const isMirror = !!t.source_kind && !!t.source_id;
+    const mirrorLabel =
+      t.source_kind === "person_ledger" ? "ديون"
+      : t.source_kind === "investment_transactions" ? "استثمار"
+      : t.source_kind === "zakat_records" ? "زكاة"
+      : "";
     evs.push({
       id: `t-${t.id}`,
       date: t.happened_at,
       description: desc,
-      category: cat || m.short,
+      category: cat || (mirrorLabel || m.short),
       debit: outflow ? Number(t.amount) : 0,
       credit: inflow ? Number(t.amount) : 0,
       balance: 0,
       currency: t.currency,
-      kindLabel: m.short,
+      kindLabel: mirrorLabel || m.short,
+      sourceTable: "wallet_transactions",
+      sourceId: t.id,
+      raw: t,
+      lockedMirror: isMirror,
     });
   }
   for (const e of inp.expenses) {
@@ -63,6 +81,9 @@ export function buildWalletStatement(inp: WalletInputs): StatementRow[] {
       balance: 0,
       currency: e.currency,
       kindLabel: "مصروف",
+      sourceTable: "expenses",
+      sourceId: e.id,
+      raw: e,
     });
   }
   // Oldest first to compute running balance, then reverse for UI
@@ -77,7 +98,7 @@ export function buildWalletStatement(inp: WalletInputs): StatementRow[] {
 
 export type PersonInputs = {
   currency: string;
-  rows: Array<{ id: string; happened_at: string; kind: string; amount: number; currency: string; notes: string | null; due_date?: string | null; settled_at?: string | null }>;
+  rows: Array<{ id: string; happened_at: string; kind: string; amount: number; currency: string; notes: string | null; due_date?: string | null; settled_at?: string | null; contact_id?: string | null; contact_name?: string; wallet_id?: string | null; reminder_enabled?: boolean }>;
 };
 
 // For a person ledger, "debit" = increases what they owe me (lend/pay)
@@ -102,6 +123,9 @@ export function buildPersonStatement(inp: PersonInputs): StatementRow[] {
       balance: 0,
       currency: r.currency,
       kindLabel: m.short,
+      sourceTable: "person_ledger",
+      sourceId: r.id,
+      raw: r,
     });
   }
   evs.sort((a, b) => a.date.localeCompare(b.date));
