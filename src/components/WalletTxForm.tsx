@@ -15,12 +15,22 @@ import { ArrowDownToLine, ArrowUpFromLine, Send, Inbox, Equal } from "lucide-rea
 
 const ICONS: Record<string, any> = { deposit: ArrowDownToLine, withdraw: ArrowUpFromLine, send: Send, receive: Inbox, adjustment: Equal };
 
-export function WalletTxForm({ wallet, onDone }: { wallet: { id: string; name: string; currency: string }; onDone: () => void }) {
-  const [kind, setKind] = useState<string>("deposit");
-  const [amount, setAmount] = useState("");
-  const [happenedAt, setHappenedAt] = useState(todayISO());
-  const [notes, setNotes] = useState("");
-  const [categoryId, setCategoryId] = useState<string>("");
+export type WalletTxInitial = {
+  id: string;
+  kind: string;
+  amount: number | string;
+  happened_at: string;
+  notes: string | null;
+  category_id: string | null;
+};
+
+export function WalletTxForm({ wallet, onDone, initial }: { wallet: { id: string; name: string; currency: string }; onDone: () => void; initial?: WalletTxInitial | null }) {
+  const [kind, setKind] = useState<string>(initial?.kind ?? "deposit");
+  const [amount, setAmount] = useState(initial ? String(initial.amount) : "");
+  const [happenedAt, setHappenedAt] = useState(initial?.happened_at ?? todayISO());
+  const [notes, setNotes] = useState(initial?.notes ?? "");
+  const [categoryId, setCategoryId] = useState<string>(initial?.category_id ?? "");
+  const isEdit = !!initial;
 
   const isInflow = INFLOW_KINDS.has(kind) && kind !== "adjustment" ? true : kind === "deposit" || kind === "receive";
   const catKind = isInflow ? "inflow" : "outflow";
@@ -42,7 +52,7 @@ export function WalletTxForm({ wallet, onDone }: { wallet: { id: string; name: s
     mutationFn: async () => {
       const { data: u } = await supabase.auth.getUser();
       if (!u.user) throw new Error("غير مسجل");
-      const { error } = await supabase.from("wallet_transactions").insert({
+      const payload: any = {
         user_id: u.user.id,
         wallet_id: wallet.id,
         kind,
@@ -51,10 +61,16 @@ export function WalletTxForm({ wallet, onDone }: { wallet: { id: string; name: s
         happened_at: happenedAt,
         notes: notes.trim() || null,
         category_id: categoryId || null,
-      } as any);
-      if (error) throw error;
+      };
+      if (isEdit) {
+        const { error } = await supabase.from("wallet_transactions").update(payload).eq("id", initial!.id);
+        if (error) throw error;
+      } else {
+        const { error } = await supabase.from("wallet_transactions").insert(payload);
+        if (error) throw error;
+      }
     },
-    onSuccess: () => { toast.success("تم تسجيل العملية"); onDone(); },
+    onSuccess: () => { toast.success(isEdit ? "تم التحديث" : "تم تسجيل العملية"); onDone(); },
     onError: (e: any) => toast.error("خطأ", { description: e.message }),
   });
 
