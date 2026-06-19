@@ -17,7 +17,7 @@ export function Counter({ value, format, duration = 1.2, className }: Props) {
 
   useEffect(() => {
     if (!inView) return;
-    const controls = animate(mv, value, { duration, ease: [0.22, 1, 0.36, 1] });
+    const controls = animate(mv, value, { duration, ease: [0.22, 1, 0.36, 1] as any });
     return () => controls.stop();
   }, [inView, value, duration, mv]);
 
