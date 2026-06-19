@@ -91,6 +91,14 @@ function RootComponent() {
   const router = useRouter();
 
   useEffect(() => {
+    // Init theme from localStorage / system preference (avoid SSR flash by running early)
+    try {
+      const saved = localStorage.getItem("rasd-theme");
+      const prefersDark = window.matchMedia?.("(prefers-color-scheme: dark)").matches;
+      const theme = saved === "dark" || saved === "light" ? saved : prefersDark ? "dark" : "light";
+      document.documentElement.classList.toggle("dark", theme === "dark");
+      document.documentElement.style.colorScheme = theme;
+    } catch {}
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event) => {
       if (event !== "SIGNED_IN" && event !== "SIGNED_OUT" && event !== "USER_UPDATED") return;
       router.invalidate();
