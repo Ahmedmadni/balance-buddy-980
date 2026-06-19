@@ -1,71 +1,96 @@
-## الهدف
-ربط جميع الموديولات بالمحافظ، إضافة التعديل/الحذف للعمليات من الكشوفات، وإعادة تسمية «الأشخاص» إلى «الديون»، وتفعيل كشف حساب المحافظ بشكل كامل.
+# خطة التحسين الشاملة — رصد
 
-## 1) ربط الموديولات بالمحافظ (Cloud / DB)
+## 1) نظام التصميم (Design Tokens)
 
-إضافة حقل `wallet_id uuid NULL REFERENCES wallets(id) ON DELETE SET NULL` على الجداول التالية إذا غير موجود:
-- `person_ledger` (الديون: سلّفت/اقترضت/سددت/حصّلت)
-- `investment_transactions` (إيداع/سحب رأس المال + أرباح)
-- `zakat_records` (المحفظة التي خرجت منها الزكاة)
-- `debt_payments` (موجود؟ — يضاف إن لم يكن)
+تحديث `src/styles.css` لتطبيق هوية "البنكي الفاخر":
+- خط `IBM Plex Sans Arabic` بدل Cairo (مع Cairo كاحتياط) — إضافة `<link>` في `__root.tsx`.
+- لوحة ألوان مكررة بالضبط من النموذج: `slate/zinc` للخلفيات و `teal-600` للأساسي، `emerald`/`rose` للحالات الإيجابية/السلبية.
+- **زوايا أكثر استدارة**: `--radius: 1rem` و `rounded-2xl`/`rounded-3xl` للبطاقات الكبرى.
+- **ظلال ناعمة**: `shadow-card`, `shadow-elegant` معاد ضبطها لتطابق `shadow-2xl shadow-slate-200/50`.
+- مفتاح تبديل الوضع الداكن في الـ Sidebar السفلي (يحفظ في `localStorage`).
 
-ومنطق المزامنة (في الواجهة لا في DB لتجنب تعقيد التريغرات):
-- عند إنشاء حركة في `person_ledger` مع `wallet_id`:
-  - `lend` (سلّفته) → `wallet_transactions` نوع `withdraw` بنفس المبلغ.
-  - `borrow` (اقترضت) → `deposit`.
-  - `collect` (حصّلت) → `deposit`.
-  - `pay` (سددت) → `withdraw`.
-- يُحفظ `source_kind='person_ledger'` و`source_id` في `wallet_transactions` (إضافة العمودين) لتتبع المصدر ومنع التكرار عند التعديل/الحذف.
-- نفس النمط للزكاة (`withdraw`) والاستثمار (deposit/withdraw حسب النوع).
+## 2) Sidebar والـ Layout الرئيسي
 
-تعديل `wallet_transactions`:
-```sql
-ALTER TABLE wallet_transactions
-  ADD COLUMN source_kind text,
-  ADD COLUMN source_id uuid;
-CREATE INDEX ON wallet_transactions(source_kind, source_id);
-```
+- إعادة تصميم `src/routes/_authenticated/route.tsx`:
+  - شعار `رصد` بمربع teal-600 مستدير بدل التصميم الحالي.
+  - عناصر القائمة بأيقونات Lucide نظيفة، حالة active بـ `bg-teal-50 text-teal-700`.
+  - فاصل علوي قبل "الإعدادات" + زر تبديل الوضع الداكن + بطاقة المستخدم.
+- Header موحد في كل صفحة: عنوان كبير + وصف صغير + أزرار إجراءات يمين.
 
-## 2) إعادة تسمية «الأشخاص» إلى «الديون»
+## 3) لوحة التحكم (`app.index.tsx`)
 
-- استبدال نصوص الواجهة فقط: «الأشخاص» → «الديون»، وأيقونة/تسمية الـ Sidebar في `app.tsx`.
-- إبقاء المسار `/app/people` كما هو (لا داعي لكسر الروابط) — أو إعادة توجيه `/app/debts` → `/app/people` (موجودة فعلاً). إعادة التسمية بصرية فقط.
-- صفحة التفاصيل تبقى كشف حساب الشخص/الدين.
+- 4 بطاقات KPI بالتصميم الجديد + شارة `+%` للسيولة (مقارنة الشهر الماضي).
+- لوحة "التدفق النقدي 14 يوم" بأعمدة Recharts ملونة (teal فاتح للإيرادات، slate للمصروفات).
+- بطاقة "المحافظ" بنقاط ملونة + زر "إضافة محفظة" متقطع الإطار.
+- بطاقة "توزيع المصاريف" أفقية: قائمة فئات بنسب وأشرطة تقدم على اليمين، Donut Chart كبير على اليسار مع إجمالي في الوسط.
 
-## 3) تفعيل كشف حساب المحافظ + التعديل والحذف
+## 4) باقي الصفحات (تطبيق نفس اللغة البصرية)
 
-موجود بالفعل في `app.wallets.$id.tsx` عبر `StatementTable` لكن بدون أزرار تعديل. التحديثات:
+- **المحافظ، المصاريف، الديون، الاستثمارات، الزكاة، التقارير، جهات الاتصال، الإعدادات**:
+  - كل البطاقات → `rounded-2xl/3xl`, `border border-slate-100 dark:border-zinc-800`, `shadow-sm`.
+  - الجداول → خلفية بيضاء، حدود خفيفة، صفوف بـ `hover:bg-slate-50`.
+  - الأزرار الأساسية → teal-600، الثانوية → outline.
+  - النماذج (Dialogs/Drawers) → نفس نظام الحواف والظلال.
 
-### أ) إضافة عمود إجراءات في `StatementTable`
-- توسيع `StatementRow` بحقول: `editable?: boolean`, `sourceTable?: 'wallet_transactions' | 'expenses' | 'person_ledger' | 'investment_transactions' | 'zakat_records'`, `sourceId?: string`.
-- إضافة عمود في آخر الجدول فيه زر «تعديل» وزر «حذف» (مع تأكيد).
+## 5) الحركات (Framer Motion)
 
-### ب) نموذج تعديل موحّد
-- تحديث `WalletTxForm` ليقبل `initial` (لتعديل عملية محفظة قائمة) ويعمل `update` بدل `insert`.
-- تحديث `ExpenseForm` و`PersonTxForm` بنفس الأسلوب.
-- عند فتح زر التعديل من الكشف → فتح Dialog يحوي الفورم المناسب حسب `sourceTable`.
+تثبيت `framer-motion` ثم إنشاء helpers:
+- `src/components/motion/FadeIn.tsx`, `StaggerGrid.tsx`, `Counter.tsx` (عدّاد رقمي يصعد عند التحميل).
+- تطبيق:
+  - دخول مرحلي (stagger) لبطاقات KPI ولصفوف القوائم.
+  - `hover:-translate-y-1` على البطاقات + transition ناعم.
+  - عدّاد رقمي على أرقام السيولة والمستحقات.
+  - انتقالات صفحات `AnimatePresence` على Outlet (اختياري وخفيف).
 
-### ج) الحذف
-- `delete` من الجدول المصدر + حذف الحركة المرتبطة في `wallet_transactions` عبر `source_kind/source_id` (إن وُجدت).
+## 6) تدقيق الأمان الاحترافي
 
-## 4) إضافة اختيار المحفظة في كل الفورمات
-- `PersonTxForm`: حقل «المحفظة المتأثرة» (اختياري؛ إن لم تُحدَّد لا تنشأ حركة محفظة).
-- `InvestmentTxForm` و`ZakatForm`: نفس الحقل.
+### 6.1 فحوصات تلقائية
+- `security--run_security_scan` + `supabase--linter` ومعالجة كل ملاحظة.
+- تفعيل **HIBP** (Have I Been Pwned) لكلمات المرور عبر `supabase--configure_auth`.
 
-## 5) عرض الكشف الموحّد للمحفظة
-حالياً `buildWalletStatement` يقرأ `wallet_transactions` + `expenses` فقط. سيستفيد تلقائياً من حركات الديون/الاستثمار/الزكاة لأنها ستُكتب أيضاً في `wallet_transactions`. لكن وصف العملية سيُحسَّن:
-- لو `source_kind='person_ledger'` → عرض «سداد لـ X» / «تحصيل من X» بدل «سحب/إيداع».
+### 6.2 مراجعة RLS والـ GRANTs
+- مراجعة جميع 17 جدول للتأكد من:
+  - `ENABLE ROW LEVEL SECURITY` مفعّل.
+  - السياسات مقيدة بـ `auth.uid() = user_id`.
+  - وجود `GRANT` صحيح لـ `authenticated` و `service_role` فقط (لا `anon`).
+- إصلاح أي قصور عبر migration واحدة موحدة.
 
-## ملفات ستتغير
-- ترحيل DB جديد (الأعمدة الإضافية).
-- `src/components/PersonTxForm.tsx`, `WalletTxForm.tsx`, نماذج الاستثمار والزكاة → دعم `initial`/تعديل + ربط المحفظة.
-- `src/components/StatementTable.tsx` → عمود إجراءات.
-- `src/lib/statement.ts` → تمرير `sourceTable/sourceId` + تحسين الوصف.
-- `src/routes/_authenticated/app.wallets.$id.tsx` → ربط Dialogات التعديل.
-- `src/routes/_authenticated/app.tsx` → تسمية «الديون».
-- صفحات `app.people.tsx` و `app.people.$id.tsx` → عناوين «الديون».
+### 6.3 التحقق من المدخلات (Zod)
+- إنشاء `src/lib/schemas.ts` بمخططات Zod لكل النماذج: محافظ، مصاريف، ديون، اشخاص، استثمارات، زكاة.
+- استخدامها في جميع `*Form.tsx` لمنع البيانات السيئة قبل الإرسال.
+- حدود أطوال صارمة لكل الحقول النصية.
 
-## تأكيدات قبل التنفيذ
-1. هل أعيد تسمية المسار من `/app/people` إلى `/app/debts` فعلياً، أم تكفي التسمية البصرية فقط؟
-2. ربط الديون بالمحفظة: هل يكون **إلزامياً** عند الإنشاء، أم اختياري (لو غير محدد لا تتأثر المحفظة)؟
-3. هل أبقي حركات المحفظة المرتبطة قابلة للتعديل مستقلةً، أم القفل عليها وإجبار التعديل من المصدر فقط (موصى به)؟
+### 6.4 تنظيف الكود
+- إزالة أي `console.log` يكشف بيانات حساسة.
+- التأكد من عدم استخدام `dangerouslySetInnerHTML` على محتوى مستخدم.
+- مراجعة `src/lib/wallet-sync.ts` و `statement.ts` للتأكد من التحقق من ملكية المستخدم.
+
+### 6.5 تحديث ذاكرة الأمان
+- `security--update_memory` بملخص الوضع الأمني الجديد ونموذج التحكم في الوصول.
+
+## التفاصيل التقنية
+
+**ملفات جديدة:**
+- `src/components/motion/{FadeIn,StaggerGrid,Counter,PageTransition}.tsx`
+- `src/components/ThemeToggle.tsx`
+- `src/lib/schemas.ts`
+- `src/hooks/use-theme.ts`
+
+**ملفات معدّلة:**
+- `src/styles.css` — tokens جديدة + خط جديد
+- `src/routes/__root.tsx` — `<link>` الخط + ThemeProvider
+- `src/routes/_authenticated/route.tsx` — Sidebar الجديد
+- `src/routes/_authenticated/app.index.tsx` — لوحة التحكم الجديدة
+- باقي صفحات `_authenticated/app.*.tsx` — تطبيق التصميم
+- `src/components/{WalletTxForm,PersonTxForm,*Form}.tsx` — إضافة Zod
+- جميع `Card`/`Button`/`Dialog` shadcn variants حسب الحاجة
+
+**Migration واحدة:** `tighten_rls_and_grants` لإصلاح أي ثغرات.
+
+**حزم جديدة:** `framer-motion`, `zod` (مثبت غالباً).
+
+## النتيجة المتوقعة
+
+- واجهة بنكية فاخرة بنفس النموذج المختار + وضع داكن كامل.
+- حركات احترافية ناعمة على كل التفاعلات الرئيسية.
+- درجة أمان مرتفعة: RLS محكم، HIBP مفعل، Zod على كل المدخلات، صفر تحذيرات من linter.
