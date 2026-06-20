@@ -21,6 +21,14 @@ export const Route = createFileRoute("/_authenticated/app/expenses")({
 function ExpensesPage() {
   const qc = useQueryClient();
   const [open, setOpen] = useState(false);
+  const search = useSearch({ strict: false }) as { new?: string };
+  const navigate = useNavigate();
+  useEffect(() => {
+    if (search?.new) {
+      setOpen(true);
+      navigate({ to: "/app/expenses", search: {}, replace: true });
+    }
+  }, [search?.new, navigate]);
 
   const { data, isLoading } = useQuery({
     queryKey: ["expenses-list"],
