@@ -2,7 +2,7 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { formatMoney } from "@/lib/format";
-import { ArrowDownRight, ArrowUpRight, Wallet, TrendingUp, BellRing, Plus, Receipt } from "lucide-react";
+import { ArrowDownRight, ArrowUpRight, Wallet, TrendingUp, BellRing, Plus, Receipt, PieChart as PieChartIcon } from "lucide-react";
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from "recharts";
 import { computeWalletBalance } from "@/lib/wallet-balance";
 import { kindSign } from "@/components/PersonTxForm";
