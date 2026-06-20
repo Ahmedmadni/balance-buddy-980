@@ -9,6 +9,7 @@ import { kindSign } from "@/components/PersonTxForm";
 import { cn } from "@/lib/utils";
 import { StaggerGrid, StaggerItem } from "@/components/motion/StaggerGrid";
 import { FadeIn } from "@/components/motion/FadeIn";
+import { QuickActionsRow } from "@/components/dashboard/QuickActionsRow";
 
 export const Route = createFileRoute("/_authenticated/app/")({
   head: () => ({ meta: [{ title: "اللوحة الرئيسية — رصد" }] }),
