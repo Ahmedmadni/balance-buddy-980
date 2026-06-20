@@ -141,6 +141,11 @@ function Dashboard() {
         </StaggerItem>
       </StaggerGrid>
 
+      <FadeIn delay={0.08}>
+        <QuickActionsRow />
+      </FadeIn>
+
+
       {dueRows.length > 0 && (
         <FadeIn delay={0.1}>
           <Link to="/app/people" className="block rounded-3xl border border-warning/30 bg-warning/10 p-4 transition-colors hover:bg-warning/15">
