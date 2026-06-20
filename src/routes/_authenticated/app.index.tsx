@@ -338,10 +338,10 @@ function Dashboard() {
 }
 
 function KpiCard({
-  icon: Icon, label, amounts, emptyText, accent,
+  icon: Icon, label, amounts, emptyText, accent, signed = false,
 }: {
   icon: any; label: string; amounts: Record<string, number>; emptyText: string;
-  accent: "primary" | "success" | "destructive" | "muted";
+  accent: "primary" | "success" | "destructive" | "muted"; signed?: boolean;
 }) {
   const entries = Object.entries(amounts).filter(([, v]) => Math.abs(v) > 0.001);
   const accentClass = {
@@ -350,28 +350,32 @@ function KpiCard({
     destructive: "text-destructive bg-destructive/10",
     muted: "text-foreground bg-muted",
   }[accent];
-  const valueColor = {
+  const baseValueColor = {
     primary: "text-foreground",
     success: "text-success",
     destructive: "text-destructive",
     muted: "text-foreground",
   }[accent];
   return (
-    <div className="group relative h-full rounded-3xl border border-border bg-card p-5 shadow-[var(--shadow-card)] transition-all duration-300 hover:-translate-y-0.5 hover:shadow-[var(--shadow-elegant)]">
+    <div className="group relative h-full rounded-3xl border border-border bg-card p-4 sm:p-5 shadow-[var(--shadow-card)] transition-all duration-300 hover:-translate-y-0.5 hover:shadow-[var(--shadow-elegant)]">
       <div className="flex items-start justify-between gap-3">
-        <div className={cn("grid h-11 w-11 place-items-center rounded-2xl", accentClass)}>
+        <div className={cn("grid h-10 w-10 sm:h-11 sm:w-11 place-items-center rounded-2xl", accentClass)}>
           <Icon className="h-5 w-5" />
         </div>
       </div>
-      <p className="mt-4 text-xs font-medium text-muted-foreground">{label}</p>
+      <p className="mt-3 sm:mt-4 text-xs font-medium text-muted-foreground">{label}</p>
       <div className="mt-1 space-y-0.5">
         {entries.length === 0 ? (
-          <div className="text-2xl font-bold text-muted-foreground/50">{emptyText}</div>
-        ) : entries.map(([cur, amt]) => (
-          <div key={cur} className={cn("text-2xl font-bold tabular-nums tracking-tight", valueColor)}>
-            {formatMoney(amt, cur)}
-          </div>
-        ))}
+          <div className="text-xl sm:text-2xl font-bold text-muted-foreground/50">{emptyText}</div>
+        ) : entries.map(([cur, amt]) => {
+          const color = signed ? (amt > 0 ? "text-success" : amt < 0 ? "text-destructive" : baseValueColor) : baseValueColor;
+          const prefix = signed ? (amt > 0 ? "+" : amt < 0 ? "−" : "") : "";
+          return (
+            <div key={cur} className={cn("text-xl sm:text-2xl font-bold tabular-nums tracking-tight", color)}>
+              {prefix}{formatMoney(Math.abs(amt), cur)}
+            </div>
+          );
+        })}
       </div>
     </div>
   );
