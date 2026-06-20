@@ -149,19 +149,25 @@ function Dashboard() {
         </div>
       </FadeIn>
 
-      {/* KPIs */}
-      <StaggerGrid className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      {/* KPIs — pairs of two */}
+      <StaggerGrid className="grid grid-cols-2 gap-3 sm:gap-4">
         <StaggerItem>
           <KpiCard icon={Wallet} label="إجمالي السيولة" amounts={liquidity} emptyText="أضف محفظة" accent="primary" />
+        </StaggerItem>
+        <StaggerItem>
+          <KpiCard icon={Receipt} label="مصاريف الشهر" amounts={monthlyExp} emptyText="0" accent="muted" />
+        </StaggerItem>
+        <StaggerItem>
+          <KpiCard icon={PieChartIcon} label="الاستثمارات" amounts={investmentsTotal} emptyText="لا يوجد" accent="primary" />
+        </StaggerItem>
+        <StaggerItem>
+          <KpiCard icon={TrendingUp} label="ربح الاستثمارات" amounts={investmentsProfit} emptyText="0" accent="success" signed />
         </StaggerItem>
         <StaggerItem>
           <KpiCard icon={ArrowDownRight} label="مستحق لي" amounts={owedToMe} emptyText="لا يوجد" accent="success" />
         </StaggerItem>
         <StaggerItem>
           <KpiCard icon={ArrowUpRight} label="مستحق عليّ" amounts={owedByMe} emptyText="لا يوجد" accent="destructive" />
-        </StaggerItem>
-        <StaggerItem>
-          <KpiCard icon={Receipt} label="مصاريف الشهر" amounts={monthlyExp} emptyText="0" accent="muted" />
         </StaggerItem>
       </StaggerGrid>
 
