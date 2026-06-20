@@ -1,7 +1,7 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute, Link, useSearch, useNavigate } from "@tanstack/react-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -38,6 +38,13 @@ function WalletsPage() {
   const [editing, setEditing] = useState<any | null>(null);
   const [openTransfer, setOpenTransfer] = useState(false);
   const [showArchived, setShowArchived] = useState(false);
+  const qs = useSearch({ strict: false }) as { new?: string };
+  const navigate = useNavigate();
+  useEffect(() => {
+    if (qs?.new === "transfer") setOpenTransfer(true);
+    else if (qs?.new) setOpen(true);
+    if (qs?.new) navigate({ to: "/app/wallets", search: {}, replace: true });
+  }, [qs?.new, navigate]);
 
   const { data, isLoading } = useQuery({
     queryKey: ["wallets-list"],

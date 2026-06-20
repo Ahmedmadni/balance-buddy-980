@@ -1,7 +1,7 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute, Link, useSearch, useNavigate } from "@tanstack/react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogTrigger } from "@/components/ui/dialog";
@@ -36,6 +36,14 @@ function PeoplePage() {
   const [openNew, setOpenNew] = useState(false);
   const [drawerId, setDrawerId] = useState<string | null>(null);
   const [drawerName, setDrawerName] = useState<string>("");
+  const qs = useSearch({ strict: false }) as { new?: string };
+  const navigate = useNavigate();
+  useEffect(() => {
+    if (qs?.new) {
+      setOpenNew(true);
+      navigate({ to: "/app/people", search: {}, replace: true });
+    }
+  }, [qs?.new, navigate]);
 
   const { data: rows, isLoading } = useQuery({
     queryKey: ["person_ledger"],

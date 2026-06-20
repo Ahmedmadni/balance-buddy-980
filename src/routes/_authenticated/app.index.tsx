@@ -9,6 +9,7 @@ import { kindSign } from "@/components/PersonTxForm";
 import { cn } from "@/lib/utils";
 import { StaggerGrid, StaggerItem } from "@/components/motion/StaggerGrid";
 import { FadeIn } from "@/components/motion/FadeIn";
+import { QuickActionsRow } from "@/components/dashboard/QuickActionsRow";
 
 export const Route = createFileRoute("/_authenticated/app/")({
   head: () => ({ meta: [{ title: "اللوحة الرئيسية — رصد" }] }),
@@ -139,6 +140,11 @@ function Dashboard() {
           <KpiCard icon={Receipt} label="مصاريف الشهر" amounts={monthlyExp} emptyText="0" accent="muted" />
         </StaggerItem>
       </StaggerGrid>
+
+      <FadeIn delay={0.08}>
+        <QuickActionsRow />
+      </FadeIn>
+
 
       {dueRows.length > 0 && (
         <FadeIn delay={0.1}>
