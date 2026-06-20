@@ -88,6 +88,7 @@ export type Database = {
           created_at: string
           email: string | null
           id: string
+          kind: Database["public"]["Enums"]["contact_kind"]
           name: string
           notes: string | null
           phone: string | null
@@ -98,6 +99,7 @@ export type Database = {
           created_at?: string
           email?: string | null
           id?: string
+          kind?: Database["public"]["Enums"]["contact_kind"]
           name: string
           notes?: string | null
           phone?: string | null
@@ -108,6 +110,7 @@ export type Database = {
           created_at?: string
           email?: string | null
           id?: string
+          kind?: Database["public"]["Enums"]["contact_kind"]
           name?: string
           notes?: string | null
           phone?: string | null
@@ -664,6 +667,103 @@ export type Database = {
           },
         ]
       }
+      transactions: {
+        Row: {
+          account_id: string | null
+          affects_balance: boolean
+          amount: number
+          category_id: string | null
+          category_kind: string | null
+          counterparty_account_id: string | null
+          created_at: string
+          currency: string
+          description: string | null
+          direction: Database["public"]["Enums"]["txn_direction"]
+          happened_at: string
+          id: string
+          meta: Json
+          notes: string | null
+          person_id: string | null
+          person_name: string | null
+          source_id: string
+          source_kind: string
+          transfer_group_id: string | null
+          type: Database["public"]["Enums"]["txn_type"]
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          account_id?: string | null
+          affects_balance?: boolean
+          amount: number
+          category_id?: string | null
+          category_kind?: string | null
+          counterparty_account_id?: string | null
+          created_at?: string
+          currency?: string
+          description?: string | null
+          direction: Database["public"]["Enums"]["txn_direction"]
+          happened_at?: string
+          id?: string
+          meta?: Json
+          notes?: string | null
+          person_id?: string | null
+          person_name?: string | null
+          source_id: string
+          source_kind: string
+          transfer_group_id?: string | null
+          type: Database["public"]["Enums"]["txn_type"]
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          account_id?: string | null
+          affects_balance?: boolean
+          amount?: number
+          category_id?: string | null
+          category_kind?: string | null
+          counterparty_account_id?: string | null
+          created_at?: string
+          currency?: string
+          description?: string | null
+          direction?: Database["public"]["Enums"]["txn_direction"]
+          happened_at?: string
+          id?: string
+          meta?: Json
+          notes?: string | null
+          person_id?: string | null
+          person_name?: string | null
+          source_id?: string
+          source_kind?: string
+          transfer_group_id?: string | null
+          type?: Database["public"]["Enums"]["txn_type"]
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "transactions_account_id_fkey"
+            columns: ["account_id"]
+            isOneToOne: false
+            referencedRelation: "wallets"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "transactions_counterparty_account_id_fkey"
+            columns: ["counterparty_account_id"]
+            isOneToOne: false
+            referencedRelation: "wallets"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "transactions_person_id_fkey"
+            columns: ["person_id"]
+            isOneToOne: false
+            referencedRelation: "contacts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       wallet_transactions: {
         Row: {
           amount: number
@@ -875,13 +975,62 @@ export type Database = {
       }
     }
     Views: {
-      [_ in never]: never
+      v_account_statement: {
+        Row: {
+          account_id: string | null
+          amount: number | null
+          category_id: string | null
+          created_at: string | null
+          currency: string | null
+          description: string | null
+          direction: Database["public"]["Enums"]["txn_direction"] | null
+          happened_at: string | null
+          id: string | null
+          person_name: string | null
+          running_balance: number | null
+          signed_amount: number | null
+          source_kind: string | null
+          type: Database["public"]["Enums"]["txn_type"] | null
+          user_id: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "transactions_account_id_fkey"
+            columns: ["account_id"]
+            isOneToOne: false
+            referencedRelation: "wallets"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Functions: {
-      [_ in never]: never
+      _wallet_kind_dir: {
+        Args: { _kind: string }
+        Returns: Database["public"]["Enums"]["txn_direction"]
+      }
+      _wallet_kind_type: {
+        Args: { _kind: string }
+        Returns: Database["public"]["Enums"]["txn_type"]
+      }
     }
     Enums: {
-      [_ in never]: never
+      contact_kind:
+        | "individual"
+        | "spouse"
+        | "relative"
+        | "friend"
+        | "employee"
+        | "client"
+        | "supplier"
+      txn_direction: "in" | "out" | "neutral"
+      txn_type:
+        | "expense"
+        | "income"
+        | "transfer"
+        | "debt"
+        | "investment"
+        | "adjustment"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -1008,6 +1157,25 @@ export type CompositeTypes<
 
 export const Constants = {
   public: {
-    Enums: {},
+    Enums: {
+      contact_kind: [
+        "individual",
+        "spouse",
+        "relative",
+        "friend",
+        "employee",
+        "client",
+        "supplier",
+      ],
+      txn_direction: ["in", "out", "neutral"],
+      txn_type: [
+        "expense",
+        "income",
+        "transfer",
+        "debt",
+        "investment",
+        "adjustment",
+      ],
+    },
   },
 } as const

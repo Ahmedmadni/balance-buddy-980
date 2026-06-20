@@ -1,60 +1,109 @@
-## الهدف
+# خطة إعادة هيكلة النظام المالي
 
-محاذاة لوحة التحكم في الويب مع التطبيق (الصور المرفقة): إضافة شريط "إجراءات سريعة" + شريط "الأدوات" مع انتقالات سلسة، وتحسينات بصرية صغيرة مطابقة للصور.
+## الملخص
+إعادة تعريف النظام ليعتمد على **المعاملة المالية (Transaction)** ككيان مركزي بدلاً من الصفحات المنفصلة. هذا تغيير جوهري يمس قاعدة البيانات والمنطق والواجهات.
 
-## التغييرات
+⚠️ هذا تعديل كبير يستغرق عدة جولات تنفيذ. أقترح تنفيذه على **4 مراحل** متتابعة، كل مرحلة قابلة للاستخدام بدون كسر ما قبلها.
 
-### 1) قسم "إجراءات سريعة" (في `app.index.tsx` فوق رسم التدفقات)
+---
 
-بطاقات أيقونية مربعة (rounded-2xl) قابلة للتمرير أفقياً على الجوال، شبكة 3-6 أعمدة على الديسكتوب:
+## المرحلة 1 — توحيد المعاملات (Foundation)
 
-- **مصروف** (أحمر، أيقونة TrendingDown) → يفتح Drawer جديد لإضافة مصروف سريع
-- **دخل** (أخضر، TrendingUp) → wallet tx kind=deposit
-- **تحويل** (أزرق، ArrowLeftRight) → wallet tx kind=transfer
-- **دين/تحصيل** (برتقالي، Users) → person tx (lend/repay)
-- **استثمار** (بنفسجي، PieChart) → /app/investments
-- **الزكاة** (أخضر فاتح، Percent) → /app/zakat
+### قاعدة البيانات (Migration)
+إنشاء جدول موحّد `transactions` يكون المصدر الوحيد للحقيقة:
 
-كل بطاقة: أيقونة داخل مربع ملوّن شفاف + اسم تحت الأيقونة، تأثير `hover:-translate-y-0.5` + `whileTap scale 0.95` بـ Framer Motion.
+```text
+transactions
+├── id, user_id, created_at, updated_at
+├── type            : expense | income | transfer | debt | investment
+├── direction       : in | out (محسوبة من type)
+├── amount, currency
+├── happened_at
+├── account_id      → wallets (المحفظة المتأثرة، nullable للديون فقط)
+├── category_id     → unified_categories (دخل/مصروف)
+├── person_id       → contacts (اختياري — لربط الشخص)
+├── counterparty_account_id → wallets (للتحويلات)
+├── transfer_group_id (UUID لربط طرفي التحويل)
+├── source_kind, source_id (للروابط: debt/investment/recurring)
+├── description, vendor, notes
+├── attachment_ids[]
+└── meta jsonb     (مرونة للحقول الخاصة)
+```
 
-### 2) قسم "الأدوات" (تحته مباشرة)
+- `unified_categories` بحقل `kind: income | expense` (دمج `categories` + `wallet_tx_categories`).
+- **لا نحذف** الجداول القديمة (`expenses`, `wallet_transactions`, `person_ledger`, `debts`, `investment_transactions`). بدلاً منها:
+  - **Triggers** تُرحّل كل عملية جديدة/معدلة في الجداول القديمة → `transactions` تلقائياً.
+  - **Backfill** لجميع البيانات الموجودة.
+  - **View** `v_account_statement` لكشف الحساب الموحّد (مع رصيد قبل/بعد).
 
-نفس الشكل، روابط مباشرة (Link prefetch):
+### نتائج المرحلة 1
+- جدول واحد يحوي كل العمليات.
+- لا كسر للواجهات الحالية (تستمر بالعمل عبر الجداول القديمة).
+- تقارير جديدة تقرأ من `transactions` فقط.
 
-- **دورية** → /app/recurring
-- **الدخل** (تقارير الدخل) → /app/reports?tab=income
-- **المستشار** (جديد placeholder) → /app/reports
-- **الاستثمارات** → /app/investments
-- **التقارير** → /app/reports
-- **الإعدادات** → /app/settings
+---
 
-### 3) مكوّن جديد `QuickActionCard`
+## المرحلة 2 — الواجهات الموحّدة
 
-`src/components/dashboard/QuickActionCard.tsx` — يستقبل `icon, label, color, onClick|to`، يطبّق tokens من `styles.css` (لا ألوان مباشرة) — accent عبر `bg-{tone}/10 text-{tone}` مع 6 toneات معرّفة.
+### شاشات جديدة / محدّثة
+1. **`/app/transactions`** — شاشة موحّدة لكل العمليات مع فلاتر (نوع/فترة/حساب/شخص/تصنيف) وتصدير PDF/Excel.
+2. **`/app/wallets/$id`** — كشف حساب تفصيلي يعرض: التاريخ | النوع | البيان | المبلغ | الرصيد قبل/بعد.
+3. **نموذج موحّد `TransactionForm`** يحلّ مكان `WalletTxForm` + `PersonTxForm`:
+   - تبويبات: مصروف | دخل | تحويل | دين | استثمار.
+   - تحويل ذكي: عند اختيار "تحويل لشخص" → إنشاء `expense + person_ledger` بحركة واحدة.
+   - تحويل كقرض → إنشاء `withdraw + person_ledger(lend)` تلقائياً.
+4. **تحديث "إجراءات سريعة"** لاستخدام النموذج الموحّد.
 
-### 4) Drawers سريعة
+### تصنيفات الدخل المطلوبة
+راتب، أعمال حرة، استثمارات، هدايا، استرداد دين، تحويل وارد، إيرادات مشروع، أخرى. (موجود معظمها — توحيد فقط).
 
-`src/components/QuickExpenseSheet.tsx` و `src/components/QuickIncomeSheet.tsx` — نماذج مبسطة (مبلغ + محفظة + ملاحظة) تستخدم نفس `WalletTxForm`/expenses logic مع Zod، وعند الحفظ: invalidate `["dashboard"]` + toast.
+---
 
-### 5) انتقالات سريعة
+## المرحلة 3 — التقارير الجديدة
 
-- إضافة `preload="intent"` على روابط Link
-- `PageTransition` خفيف عبر AnimatePresence في `_authenticated/route.tsx` (fade+y=4، 180ms)
-- StaggerGrid على شبكة الإجراءات
+كل التقارير تُعاد كتابتها لتقرأ من `transactions`:
 
-### 6) تحسينات بصرية مطابقة للصور
+1. **التدفقات النقدية** — دخل/مصروف/صافي شهرياً.
+2. **تقرير الحسابات** — رصيد افتتاحي + حركات + رصيد ختامي.
+3. **تقرير الأشخاص** — لي/عليّ/سلف/تحويلات لكل شخص.
+4. **تقرير الديون** — مستحقة لي/عليّ، متأخرات، مدفوعات.
+5. **تقرير التصنيفات** — نسب الإنفاق + Pie chart.
+6. **تقرير الاستثمارات** — رأس المال، القيمة، الربح، العائد %.
 
-- بطاقة "إجمالي السيولة" تأخذ عرضاً كاملاً بخلفية primary gradient ومدمج فيها شارتا "دخل/صرف" صغيرتان (Pill شفافة) — كما في الصورة الأولى
-- باقي KPIs (مستحق لي/علي، أرباح، استثمارات) في شبكة 2×2 تحتها
-- زيادة `rounded` للبطاقات إلى `rounded-3xl` وتقليل padding على الجوال
+### تصنيف الأشخاص
+إضافة حقل `kind` لـ `contacts`: فرد | زوجة | قريب | صديق | موظف | عميل | مورد.
 
-## الملفات
+---
 
-- تعديل: `src/routes/_authenticated/app.index.tsx`, `src/routes/_authenticated/route.tsx`
-- جديد: `src/components/dashboard/QuickActionCard.tsx`, `src/components/dashboard/QuickActionsRow.tsx`, `src/components/QuickExpenseSheet.tsx`, `src/components/QuickIncomeSheet.tsx`, `src/components/motion/PageTransition.tsx`
+## المرحلة 4 — المستشار الذكي (AI Advisor)
 
-## خارج النطاق
+ربط `/app/advisor` بقاعدة البيانات عبر **server function** يستخدم Lovable AI Gateway:
 
-- لا تغييرات على قاعدة البيانات أو RLS
-- لا تعديل على موديولات أخرى غير لوحة التحكم
-- تفعيل الوضع النهاري
+```text
+analyzeUserFinances(question) →
+  1. يجمع آخر 90 يوم من transactions
+  2. يحسب: top categories, unusual spending, recurring, liquidity forecast
+  3. يحسب المؤشرات: savings rate, debt/asset, net worth, expense/income
+  4. يمررها كـ context للنموذج (google/gemini-2.5-pro)
+  5. يُرجع توصيات منظّمة (Output schema)
+```
+
+**أدوات (tools) للنموذج:** `get_transactions`, `get_balances`, `get_debts`, `get_investments`, `forecast_liquidity`.
+
+**مؤشرات تُعرض دائماً:**
+- معدل الادخار، نسبة المصروف/الدخل، الديون/الأصول، صافي الثروة، الرصيد المتوقع بعد 30 يوم.
+
+---
+
+## ما يبقى كما هو
+- `wallets`, `contacts`, `investments`, `debts`, `recurring_expenses` — تبقى كجداول مرجعية.
+- جداول `attachments`, `projects` — بدون تغيير.
+- نظام Auth/RLS/Theme/Animations.
+
+## الترتيب المقترح للتنفيذ
+أقترح أن أبدأ **بالمرحلة 1** الآن (migration + triggers + backfill + view) لأنها الأساس. بعد التحقق من نجاحها وعدم كسر شيء، ننتقل للمرحلة 2.
+
+**هل تريد:**
+- (أ) أبدأ بالمرحلة 1 فوراً، أم
+- (ب) ننفّذ الـ 4 مراحل دفعة واحدة (يستغرق وقتاً أطول وأكبر مخاطرة)، أم
+- (ج) تعديلات على الخطة قبل البدء؟
