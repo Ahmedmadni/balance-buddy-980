@@ -178,7 +178,9 @@ function AppLayout() {
 
       <main className="md:mr-64 pb-24 md:pb-8">
         <div className="container mx-auto max-w-6xl px-4 py-6 md:py-8">
-          <Outlet />
+          <PageTransition>
+            <Outlet />
+          </PageTransition>
         </div>
       </main>
 
