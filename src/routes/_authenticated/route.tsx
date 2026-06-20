@@ -8,6 +8,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import { ThemeToggle } from "@/components/ThemeToggle";
+import { PageTransition } from "@/components/motion/PageTransition";
 import { cn } from "@/lib/utils";
 import { useState } from "react";
 
