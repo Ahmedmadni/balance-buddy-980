@@ -36,6 +36,14 @@ function PeoplePage() {
   const [openNew, setOpenNew] = useState(false);
   const [drawerId, setDrawerId] = useState<string | null>(null);
   const [drawerName, setDrawerName] = useState<string>("");
+  const qs = useSearch({ strict: false }) as { new?: string };
+  const navigate = useNavigate();
+  useEffect(() => {
+    if (qs?.new) {
+      setOpenNew(true);
+      navigate({ to: "/app/people", search: {}, replace: true });
+    }
+  }, [qs?.new, navigate]);
 
   const { data: rows, isLoading } = useQuery({
     queryKey: ["person_ledger"],
