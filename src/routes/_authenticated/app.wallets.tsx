@@ -38,6 +38,13 @@ function WalletsPage() {
   const [editing, setEditing] = useState<any | null>(null);
   const [openTransfer, setOpenTransfer] = useState(false);
   const [showArchived, setShowArchived] = useState(false);
+  const qs = useSearch({ strict: false }) as { new?: string };
+  const navigate = useNavigate();
+  useEffect(() => {
+    if (qs?.new === "transfer") setOpenTransfer(true);
+    else if (qs?.new) setOpen(true);
+    if (qs?.new) navigate({ to: "/app/wallets", search: {}, replace: true });
+  }, [qs?.new, navigate]);
 
   const { data, isLoading } = useQuery({
     queryKey: ["wallets-list"],
