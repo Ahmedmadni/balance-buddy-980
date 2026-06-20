@@ -20,12 +20,14 @@ function Dashboard() {
   const { data, isLoading } = useQuery({
     queryKey: ["dashboard"],
     queryFn: async () => {
-      const [ledgerRes, expensesRes, walletsRes, txRes, allocRes] = await Promise.all([
+      const [ledgerRes, expensesRes, walletsRes, txRes, allocRes, invRes, invTxRes] = await Promise.all([
         supabase.from("person_ledger").select("contact_id,contact_name,kind,amount,currency,due_date,reminder_enabled,settled_at"),
         supabase.from("expenses").select("wallet_id,amount,currency,spent_at,categories(name,color)"),
         supabase.from("wallets").select("id,name,opening_balance,currency,color,type"),
         supabase.from("wallet_transactions").select("wallet_id,kind,amount,currency,happened_at"),
         supabase.from("expense_allocations").select("amount,currency,period"),
+        supabase.from("investments").select("id,principal,current_value,currency,status"),
+        supabase.from("investment_transactions").select("investment_id,kind,amount,currency"),
       ]);
       return {
         ledger: ledgerRes.data ?? [],
@@ -33,6 +35,8 @@ function Dashboard() {
         wallets: walletsRes.data ?? [],
         txs: txRes.data ?? [],
         allocations: allocRes.data ?? [],
+        investments: invRes.data ?? [],
+        invTxs: invTxRes.data ?? [],
       };
     },
   });
