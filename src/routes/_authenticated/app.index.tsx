@@ -2,7 +2,7 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { formatMoney } from "@/lib/format";
-import { ArrowDownRight, ArrowUpRight, Wallet, TrendingUp, BellRing, Plus, Receipt } from "lucide-react";
+import { ArrowDownRight, ArrowUpRight, Wallet, TrendingUp, BellRing, Plus, Receipt, PieChart as PieChartIcon } from "lucide-react";
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from "recharts";
 import { computeWalletBalance } from "@/lib/wallet-balance";
 import { kindSign } from "@/components/PersonTxForm";
@@ -20,12 +20,14 @@ function Dashboard() {
   const { data, isLoading } = useQuery({
     queryKey: ["dashboard"],
     queryFn: async () => {
-      const [ledgerRes, expensesRes, walletsRes, txRes, allocRes] = await Promise.all([
+      const [ledgerRes, expensesRes, walletsRes, txRes, allocRes, invRes, invTxRes] = await Promise.all([
         supabase.from("person_ledger").select("contact_id,contact_name,kind,amount,currency,due_date,reminder_enabled,settled_at"),
         supabase.from("expenses").select("wallet_id,amount,currency,spent_at,categories(name,color)"),
         supabase.from("wallets").select("id,name,opening_balance,currency,color,type"),
         supabase.from("wallet_transactions").select("wallet_id,kind,amount,currency,happened_at"),
         supabase.from("expense_allocations").select("amount,currency,period"),
+        supabase.from("investments").select("id,principal,current_value,currency,status"),
+        supabase.from("investment_transactions").select("investment_id,kind,amount,currency"),
       ]);
       return {
         ledger: ledgerRes.data ?? [],
@@ -33,6 +35,8 @@ function Dashboard() {
         wallets: walletsRes.data ?? [],
         txs: txRes.data ?? [],
         allocations: allocRes.data ?? [],
+        investments: invRes.data ?? [],
+        invTxs: invTxRes.data ?? [],
       };
     },
   });
@@ -92,6 +96,26 @@ function Dashboard() {
   const allCurs = new Set([...Object.keys(monthlyInflow), ...Object.keys(monthlyOutflow)]);
   for (const c of allCurs) monthlyNet[c] = (monthlyInflow[c] ?? 0) - (monthlyOutflow[c] ?? 0);
 
+  // Investments totals by currency
+  const investedByInv = new Map<string, number>();
+  const returnsByInv = new Map<string, number>();
+  for (const tx of d.invTxs as any[]) {
+    if (tx.kind === "capital_add") investedByInv.set(tx.investment_id, (investedByInv.get(tx.investment_id) ?? 0) + Number(tx.amount));
+    else if (tx.kind === "capital_withdraw") investedByInv.set(tx.investment_id, (investedByInv.get(tx.investment_id) ?? 0) - Number(tx.amount));
+    else if (tx.kind === "return" || tx.kind === "profit") returnsByInv.set(tx.investment_id, (returnsByInv.get(tx.investment_id) ?? 0) + Number(tx.amount));
+  }
+  const investmentsTotal: Record<string, number> = {};
+  const investmentsProfit: Record<string, number> = {};
+  for (const inv of d.investments as any[]) {
+    if (inv.status === "closed") continue;
+    const cur = inv.currency;
+    const invested = Number(inv.principal) + (investedByInv.get(inv.id) ?? 0);
+    const value = Number(inv.current_value) || invested;
+    const profit = value - invested + (returnsByInv.get(inv.id) ?? 0);
+    investmentsTotal[cur] = (investmentsTotal[cur] ?? 0) + value;
+    investmentsProfit[cur] = (investmentsProfit[cur] ?? 0) + profit;
+  }
+
   const byCat: Record<string, { name: string; color: string; value: number }> = {};
   const daily: { day: string; value: number }[] = [];
   for (let i = 13; i >= 0; i--) {
@@ -125,19 +149,25 @@ function Dashboard() {
         </div>
       </FadeIn>
 
-      {/* KPIs */}
-      <StaggerGrid className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      {/* KPIs — pairs of two */}
+      <StaggerGrid className="grid grid-cols-2 gap-3 sm:gap-4">
         <StaggerItem>
           <KpiCard icon={Wallet} label="إجمالي السيولة" amounts={liquidity} emptyText="أضف محفظة" accent="primary" />
+        </StaggerItem>
+        <StaggerItem>
+          <KpiCard icon={Receipt} label="مصاريف الشهر" amounts={monthlyExp} emptyText="0" accent="muted" />
+        </StaggerItem>
+        <StaggerItem>
+          <KpiCard icon={PieChartIcon} label="الاستثمارات" amounts={investmentsTotal} emptyText="لا يوجد" accent="primary" />
+        </StaggerItem>
+        <StaggerItem>
+          <KpiCard icon={TrendingUp} label="ربح الاستثمارات" amounts={investmentsProfit} emptyText="0" accent="success" signed />
         </StaggerItem>
         <StaggerItem>
           <KpiCard icon={ArrowDownRight} label="مستحق لي" amounts={owedToMe} emptyText="لا يوجد" accent="success" />
         </StaggerItem>
         <StaggerItem>
           <KpiCard icon={ArrowUpRight} label="مستحق عليّ" amounts={owedByMe} emptyText="لا يوجد" accent="destructive" />
-        </StaggerItem>
-        <StaggerItem>
-          <KpiCard icon={Receipt} label="مصاريف الشهر" amounts={monthlyExp} emptyText="0" accent="muted" />
         </StaggerItem>
       </StaggerGrid>
 
@@ -308,10 +338,10 @@ function Dashboard() {
 }
 
 function KpiCard({
-  icon: Icon, label, amounts, emptyText, accent,
+  icon: Icon, label, amounts, emptyText, accent, signed = false,
 }: {
   icon: any; label: string; amounts: Record<string, number>; emptyText: string;
-  accent: "primary" | "success" | "destructive" | "muted";
+  accent: "primary" | "success" | "destructive" | "muted"; signed?: boolean;
 }) {
   const entries = Object.entries(amounts).filter(([, v]) => Math.abs(v) > 0.001);
   const accentClass = {
@@ -320,28 +350,32 @@ function KpiCard({
     destructive: "text-destructive bg-destructive/10",
     muted: "text-foreground bg-muted",
   }[accent];
-  const valueColor = {
+  const baseValueColor = {
     primary: "text-foreground",
     success: "text-success",
     destructive: "text-destructive",
     muted: "text-foreground",
   }[accent];
   return (
-    <div className="group relative h-full rounded-3xl border border-border bg-card p-5 shadow-[var(--shadow-card)] transition-all duration-300 hover:-translate-y-0.5 hover:shadow-[var(--shadow-elegant)]">
+    <div className="group relative h-full rounded-3xl border border-border bg-card p-4 sm:p-5 shadow-[var(--shadow-card)] transition-all duration-300 hover:-translate-y-0.5 hover:shadow-[var(--shadow-elegant)]">
       <div className="flex items-start justify-between gap-3">
-        <div className={cn("grid h-11 w-11 place-items-center rounded-2xl", accentClass)}>
+        <div className={cn("grid h-10 w-10 sm:h-11 sm:w-11 place-items-center rounded-2xl", accentClass)}>
           <Icon className="h-5 w-5" />
         </div>
       </div>
-      <p className="mt-4 text-xs font-medium text-muted-foreground">{label}</p>
+      <p className="mt-3 sm:mt-4 text-xs font-medium text-muted-foreground">{label}</p>
       <div className="mt-1 space-y-0.5">
         {entries.length === 0 ? (
-          <div className="text-2xl font-bold text-muted-foreground/50">{emptyText}</div>
-        ) : entries.map(([cur, amt]) => (
-          <div key={cur} className={cn("text-2xl font-bold tabular-nums tracking-tight", valueColor)}>
-            {formatMoney(amt, cur)}
-          </div>
-        ))}
+          <div className="text-xl sm:text-2xl font-bold text-muted-foreground/50">{emptyText}</div>
+        ) : entries.map(([cur, amt]) => {
+          const color = signed ? (amt > 0 ? "text-success" : amt < 0 ? "text-destructive" : baseValueColor) : baseValueColor;
+          const prefix = signed ? (amt > 0 ? "+" : amt < 0 ? "−" : "") : "";
+          return (
+            <div key={cur} className={cn("text-xl sm:text-2xl font-bold tabular-nums tracking-tight", color)}>
+              {prefix}{formatMoney(Math.abs(amt), cur)}
+            </div>
+          );
+        })}
       </div>
     </div>
   );
