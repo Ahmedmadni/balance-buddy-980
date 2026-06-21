@@ -166,7 +166,7 @@ function Dashboard() {
           <KpiCard icon={Wallet} label="إجمالي السيولة" amounts={liquidity} emptyText="أضف محفظة" accent="primary" />
         </StaggerItem>
         <StaggerItem>
-          <KpiCard icon={Receipt} label="مصاريف الشهر" amounts={monthlyExp} emptyText="0" accent="muted" />
+          <KpiCard icon={Receipt} label="مصاريف الشهر" amounts={monthlyExp} emptyText="0" accent="muted" changePct={expChangePct} />
         </StaggerItem>
         <StaggerItem>
           <KpiCard icon={PieChartIcon} label="الاستثمارات" amounts={investmentsTotal} emptyText="لا يوجد" accent="primary" />
