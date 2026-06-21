@@ -1,14 +1,14 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import { useMemo, useState } from "react";
+import { useMemo, useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from "@/components/ui/dialog";
-import { Plus, TrendingUp, Trash2, Pencil, Wallet as WalletIcon, ArrowDownCircle, ArrowUpCircle, RefreshCw, PiggyBank } from "lucide-react";
+import { Plus, TrendingUp, Trash2, Pencil, ArrowDownCircle, ArrowUpCircle, RefreshCw, X } from "lucide-react";
 import { CURRENCIES, formatMoney, formatDate, todayISO } from "@/lib/format";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
@@ -19,15 +19,17 @@ export const Route = createFileRoute("/_authenticated/app/investments")({
 });
 
 const INV_TYPES = [
-  { value: "stocks", label: "أسهم" },
-  { value: "real_estate", label: "عقار" },
-  { value: "partnership", label: "شراكة" },
-  { value: "fund", label: "صندوق استثماري" },
-  { value: "crypto", label: "عملات رقمية" },
-  { value: "business", label: "نشاط تجاري" },
-  { value: "other", label: "أخرى" },
+  { value: "stocks", label: "أسهم", icon: "📈" },
+  { value: "gold", label: "ذهب", icon: "🪙" },
+  { value: "crypto", label: "عملات رقمية", icon: "₿" },
+  { value: "real_estate", label: "عقار", icon: "🏠" },
+  { value: "fund", label: "صندوق استثماري", icon: "📊" },
+  { value: "partnership", label: "شراكة", icon: "🤝" },
+  { value: "business", label: "نشاط تجاري", icon: "🏢" },
+  { value: "other", label: "أخرى", icon: "💎" },
 ];
 const typeLabel = (v: string) => INV_TYPES.find((t) => t.value === v)?.label ?? v;
+const typeIcon = (v: string) => INV_TYPES.find((t) => t.value === v)?.icon ?? "💎";
 
 const TX_KINDS = [
   { value: "capital_add", label: "إضافة رأس مال", icon: ArrowDownCircle, color: "text-primary" },
@@ -87,11 +89,11 @@ function InvestmentsPage() {
       <div className="flex items-center justify-between gap-3 flex-wrap">
         <div>
           <h1 className="text-2xl font-bold flex items-center gap-2"><TrendingUp className="h-6 w-6" /> الاستثمارات</h1>
-          <p className="text-sm text-muted-foreground mt-1">تتبّع رؤوس أموالك وعوائدك ونسب ملكيتك</p>
+          <p className="text-sm text-muted-foreground mt-1">تتبّع رؤوس أموالك وعوائدك بحقول مخصصة لكل نوع</p>
         </div>
         <Dialog open={open || !!editing} onOpenChange={(v) => { if (!v) { setOpen(false); setEditing(null); } }}>
           <DialogTrigger asChild><Button onClick={() => { setEditing(null); setOpen(true); }}><Plus className="h-4 w-4" /> استثمار</Button></DialogTrigger>
-          <DialogContent className="max-w-md max-h-[90vh] overflow-y-auto">
+          <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
             <InvestmentForm initial={editing} wallets={data?.wallets ?? []} onDone={() => { setOpen(false); setEditing(null); qc.invalidateQueries({ queryKey: ["investments-list"] }); }} />
           </DialogContent>
         </Dialog>
@@ -136,7 +138,7 @@ function InvestmentsPage() {
             return (
               <div key={inv.id} className="rounded-2xl border bg-card p-4 shadow-[var(--shadow-card)] cursor-pointer hover:-translate-y-0.5 hover:shadow-[var(--shadow-elegant)] transition" onClick={() => setDetail(inv)}>
                 <div className="flex items-start gap-3">
-                  <div className="grid h-11 w-11 place-items-center rounded-xl bg-[image:var(--gradient-primary)] text-white shrink-0"><TrendingUp className="h-5 w-5" /></div>
+                  <div className="grid h-11 w-11 place-items-center rounded-xl bg-[image:var(--gradient-primary)] text-white text-lg shrink-0">{typeIcon(inv.type)}</div>
                   <div className="flex-1 min-w-0">
                     <div className="font-semibold truncate flex items-center gap-2 flex-wrap">
                       {inv.name}
@@ -144,7 +146,11 @@ function InvestmentsPage() {
                       {inv.is_zakatable && <span className="text-[10px] rounded-full bg-amber-500/15 text-amber-700 px-1.5 py-0.5">قابل للزكاة</span>}
                       {inv.status === "closed" && <span className="text-[10px] rounded-full bg-muted px-1.5 py-0.5">مغلق</span>}
                     </div>
-                    <div className="text-[11px] text-muted-foreground mt-0.5">الملكية {inv.ownership_pct}% · بدأ {formatDate(inv.start_date)}</div>
+                    <div className="text-[11px] text-muted-foreground mt-0.5">
+                      الملكية {inv.ownership_pct}% · بدأ {formatDate(inv.start_date)}
+                      {inv.meta?.market && <> · {inv.meta.market}</>}
+                      {inv.meta?.karat && <> · عيار {inv.meta.karat}</>}
+                    </div>
                     <div className="mt-2 grid grid-cols-3 gap-2 text-[11px]">
                       <div><div className="text-muted-foreground">رأس المال</div><div className="font-bold tabular-nums">{formatMoney(net, inv.currency)}</div></div>
                       <div><div className="text-muted-foreground">القيمة</div><div className="font-bold tabular-nums">{formatMoney(inv.current_value || net, inv.currency)}</div></div>
@@ -176,6 +182,14 @@ function InvestmentsPage() {
           {detail && (
             <>
               <DialogHeader><DialogTitle>{detail.name} — سجل الحركات</DialogTitle></DialogHeader>
+              {detail.meta && Object.keys(detail.meta).length > 0 && (
+                <div className="rounded-xl border bg-accent/30 p-3 text-xs space-y-1">
+                  <div className="font-semibold mb-1">تفاصيل {typeLabel(detail.type)}</div>
+                  {Object.entries(detail.meta).map(([k, v]: any) => (
+                    <div key={k} className="flex justify-between"><span className="text-muted-foreground">{k}</span><span className="font-medium">{String(v)}</span></div>
+                  ))}
+                </div>
+              )}
               <div className="space-y-2 mt-2">
                 {(txByInv.get(detail.id) ?? []).length === 0 ? (
                   <div className="text-center text-sm text-muted-foreground py-6">لا توجد حركات بعد</div>
@@ -201,29 +215,81 @@ function InvestmentsPage() {
   );
 }
 
+// =========== Dynamic Investment Form ===========
+
 function InvestmentForm({ initial, wallets, onDone }: any) {
   const isEdit = !!initial;
   const [name, setName] = useState(initial?.name ?? "");
   const [type, setType] = useState(initial?.type ?? "stocks");
   const [walletId, setWalletId] = useState<string>(initial?.wallet_id ?? "none");
-  const [principal, setPrincipal] = useState(initial?.principal?.toString() ?? "0");
-  const [currentValue, setCurrentValue] = useState(initial?.current_value?.toString() ?? "0");
   const [ownership, setOwnership] = useState(initial?.ownership_pct?.toString() ?? "100");
   const [currency, setCurrency] = useState(initial?.currency ?? "SAR");
   const [isZakatable, setIsZakatable] = useState(initial?.is_zakatable ?? true);
   const [startDate, setStartDate] = useState(initial?.start_date ?? todayISO());
   const [status, setStatus] = useState(initial?.status ?? "active");
   const [notes, setNotes] = useState(initial?.notes ?? "");
+  const [meta, setMeta] = useState<Record<string, any>>(initial?.meta ?? {});
+  const [principalOverride, setPrincipalOverride] = useState<string>(initial?.principal?.toString() ?? "");
+  const [customFields, setCustomFields] = useState<Array<{ k: string; v: string }>>(
+    initial?.type === "other" && initial?.meta
+      ? Object.entries(initial.meta).map(([k, v]) => ({ k, v: String(v) }))
+      : [{ k: "", v: "" }]
+  );
+
+  // Reset meta when type changes
+  useEffect(() => {
+    if (!isEdit) setMeta({});
+  }, [type, isEdit]);
+
+  const setM = (k: string, v: any) => setMeta((m) => ({ ...m, [k]: v }));
+
+  // Auto-compute current_value based on type+meta
+  const computedValue = useMemo(() => {
+    if (type === "stocks") {
+      const shares = Number(meta.shares) || 0;
+      const price = Number(meta.price_per_share) || 0;
+      return shares * price;
+    }
+    if (type === "gold") {
+      const grams = Number(meta.grams) || 0;
+      const price = Number(meta.price_per_gram) || 0;
+      const karat = Number(meta.karat) || 24;
+      return grams * price * (karat / 24);
+    }
+    if (type === "crypto") {
+      const units = Number(meta.units) || 0;
+      const price = Number(meta.unit_price) || 0;
+      return units * price;
+    }
+    if (type === "real_estate") {
+      return Number(meta.current_value) || 0;
+    }
+    return Number(principalOverride) || 0;
+  }, [type, meta, principalOverride]);
 
   const mut = useMutation({
     mutationFn: async () => {
       const { data: u } = await supabase.auth.getUser();
       if (!u.user) throw new Error("غير مسجل");
+
+      let finalMeta = meta;
+      if (type === "other") {
+        finalMeta = {};
+        for (const f of customFields) {
+          if (f.k.trim()) finalMeta[f.k.trim()] = f.v;
+        }
+      }
+
+      const principal = parseFloat(principalOverride) || computedValue;
+      const currentValue = computedValue || principal;
+
       const payload: any = {
         user_id: u.user.id, name: name.trim(), type,
+        subtype: type,
+        meta: finalMeta,
         wallet_id: walletId === "none" ? null : walletId,
-        principal: parseFloat(principal) || 0,
-        current_value: parseFloat(currentValue) || 0,
+        principal,
+        current_value: currentValue,
         ownership_pct: parseFloat(ownership) || 100,
         currency, is_zakatable: isZakatable, start_date: startDate, status, notes: notes || null,
       };
@@ -237,39 +303,135 @@ function InvestmentForm({ initial, wallets, onDone }: any) {
   return (
     <form onSubmit={(e) => { e.preventDefault(); mut.mutate(); }} className="space-y-3">
       <DialogHeader><DialogTitle>{isEdit ? "تعديل استثمار" : "استثمار جديد"}</DialogTitle></DialogHeader>
-      <div><Label>الاسم</Label><Input value={name} onChange={(e) => setName(e.target.value)} required placeholder="مثلاً: أسهم أرامكو، شقة الرياض..." /></div>
-      <div className="grid grid-cols-2 gap-3">
-        <div>
-          <Label>النوع</Label>
-          <Select value={type} onValueChange={setType}><SelectTrigger><SelectValue /></SelectTrigger>
-            <SelectContent>{INV_TYPES.map(t => <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>)}</SelectContent></Select>
+
+      <div>
+        <Label>النوع</Label>
+        <div className="grid grid-cols-4 gap-1.5 mt-1.5">
+          {INV_TYPES.map((t) => (
+            <button key={t.value} type="button" onClick={() => setType(t.value)}
+              className={cn("flex flex-col items-center gap-0.5 rounded-xl border p-2 text-[11px] font-medium transition",
+                type === t.value ? "border-primary bg-primary/10 text-primary" : "border-border hover:border-primary/40")}>
+              <span className="text-lg leading-none">{t.icon}</span>
+              <span>{t.label}</span>
+            </button>
+          ))}
         </div>
+      </div>
+
+      <div><Label>الاسم</Label><Input value={name} onChange={(e) => setName(e.target.value)} required placeholder="مثلاً: أسهم أرامكو، شقة الرياض..." /></div>
+
+      {/* Dynamic fields per type */}
+      {type === "stocks" && (
+        <div className="grid grid-cols-2 gap-3 rounded-xl border bg-accent/20 p-3">
+          <div className="col-span-2"><Label>رمز/اسم السهم</Label><Input value={meta.ticker ?? ""} onChange={(e) => setM("ticker", e.target.value)} placeholder="مثلاً: 2222 - أرامكو" /></div>
+          <div><Label>عدد الأسهم</Label><Input type="number" step="1" value={meta.shares ?? ""} onChange={(e) => setM("shares", e.target.value)} dir="ltr" /></div>
+          <div><Label>سعر السهم</Label><Input type="number" step="0.01" value={meta.price_per_share ?? ""} onChange={(e) => setM("price_per_share", e.target.value)} dir="ltr" /></div>
+          <div className="col-span-2"><Label>السوق</Label><Input value={meta.market ?? ""} onChange={(e) => setM("market", e.target.value)} placeholder="تداول السعودية، NASDAQ، NYSE..." /></div>
+        </div>
+      )}
+
+      {type === "gold" && (
+        <div className="grid grid-cols-2 gap-3 rounded-xl border bg-accent/20 p-3">
+          <div>
+            <Label>نوع الذهب</Label>
+            <Select value={meta.gold_type ?? "bullion"} onValueChange={(v) => setM("gold_type", v)}>
+              <SelectTrigger><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="bullion">سبائك</SelectItem>
+                <SelectItem value="coins">عملات</SelectItem>
+                <SelectItem value="jewelry">مجوهرات</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          <div>
+            <Label>العيار</Label>
+            <Select value={meta.karat?.toString() ?? "24"} onValueChange={(v) => setM("karat", parseInt(v))}>
+              <SelectTrigger><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="24">24 (خالص)</SelectItem>
+                <SelectItem value="22">22</SelectItem>
+                <SelectItem value="21">21</SelectItem>
+                <SelectItem value="18">18</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          <div><Label>عدد الجرامات</Label><Input type="number" step="0.01" value={meta.grams ?? ""} onChange={(e) => setM("grams", e.target.value)} dir="ltr" /></div>
+          <div><Label>سعر الجرام (24)</Label><Input type="number" step="0.01" value={meta.price_per_gram ?? ""} onChange={(e) => setM("price_per_gram", e.target.value)} dir="ltr" /></div>
+        </div>
+      )}
+
+      {type === "crypto" && (
+        <div className="grid grid-cols-2 gap-3 rounded-xl border bg-accent/20 p-3">
+          <div className="col-span-2"><Label>اسم/رمز العملة</Label><Input value={meta.symbol ?? ""} onChange={(e) => setM("symbol", e.target.value)} placeholder="BTC, ETH, USDT..." /></div>
+          <div><Label>عدد الوحدات</Label><Input type="number" step="0.00000001" value={meta.units ?? ""} onChange={(e) => setM("units", e.target.value)} dir="ltr" /></div>
+          <div><Label>سعر الوحدة</Label><Input type="number" step="0.01" value={meta.unit_price ?? ""} onChange={(e) => setM("unit_price", e.target.value)} dir="ltr" /></div>
+        </div>
+      )}
+
+      {type === "real_estate" && (
+        <div className="grid grid-cols-2 gap-3 rounded-xl border bg-accent/20 p-3">
+          <div className="col-span-2"><Label>اسم/وصف العقار</Label><Input value={meta.property_name ?? ""} onChange={(e) => setM("property_name", e.target.value)} placeholder="شقة الرياض، أرض جدة..." /></div>
+          <div><Label>القيمة الحالية</Label><Input type="number" step="0.01" value={meta.current_value ?? ""} onChange={(e) => setM("current_value", e.target.value)} dir="ltr" /></div>
+          <div><Label>العائد السنوي %</Label><Input type="number" step="0.01" value={meta.annual_yield ?? ""} onChange={(e) => setM("annual_yield", e.target.value)} dir="ltr" /></div>
+        </div>
+      )}
+
+      {(type === "fund" || type === "partnership" || type === "business") && (
+        <div className="rounded-xl border bg-accent/20 p-3">
+          <Label>القيمة الحالية / رأس المال</Label>
+          <Input type="number" step="0.01" value={principalOverride} onChange={(e) => setPrincipalOverride(e.target.value)} dir="ltr" placeholder="0.00" />
+        </div>
+      )}
+
+      {type === "other" && (
+        <div className="rounded-xl border bg-accent/20 p-3 space-y-2">
+          <div className="flex items-center justify-between">
+            <Label>حقول مخصصة</Label>
+            <Button type="button" size="sm" variant="ghost" onClick={() => setCustomFields((f) => [...f, { k: "", v: "" }])}><Plus className="h-3.5 w-3.5" /> حقل</Button>
+          </div>
+          {customFields.map((f, i) => (
+            <div key={i} className="flex gap-2">
+              <Input placeholder="اسم الحقل" value={f.k} onChange={(e) => setCustomFields((arr) => arr.map((x, idx) => idx === i ? { ...x, k: e.target.value } : x))} />
+              <Input placeholder="القيمة" value={f.v} onChange={(e) => setCustomFields((arr) => arr.map((x, idx) => idx === i ? { ...x, v: e.target.value } : x))} />
+              <Button type="button" size="icon" variant="ghost" onClick={() => setCustomFields((arr) => arr.filter((_, idx) => idx !== i))}><X className="h-4 w-4" /></Button>
+            </div>
+          ))}
+          <div><Label>القيمة الإجمالية</Label><Input type="number" step="0.01" value={principalOverride} onChange={(e) => setPrincipalOverride(e.target.value)} dir="ltr" /></div>
+        </div>
+      )}
+
+      {/* Computed value preview */}
+      {computedValue > 0 && (
+        <div className="rounded-xl bg-primary/5 border border-primary/30 p-3 text-sm flex items-center justify-between">
+          <span className="text-muted-foreground">القيمة الإجمالية المحسوبة</span>
+          <span className="font-extrabold tabular-nums text-primary">{formatMoney(computedValue, currency)}</span>
+        </div>
+      )}
+
+      <div className="grid grid-cols-2 gap-3">
         <div><Label>نسبة الملكية %</Label><Input type="number" step="0.01" value={ownership} onChange={(e) => setOwnership(e.target.value)} dir="ltr" /></div>
-      </div>
-      <div className="grid grid-cols-2 gap-3">
-        <div><Label>رأس المال</Label><Input type="number" step="0.01" value={principal} onChange={(e) => setPrincipal(e.target.value)} required dir="ltr" /></div>
-        <div><Label>القيمة الحالية</Label><Input type="number" step="0.01" value={currentValue} onChange={(e) => setCurrentValue(e.target.value)} dir="ltr" /></div>
-      </div>
-      <div className="grid grid-cols-2 gap-3">
         <div>
           <Label>العملة</Label>
           <Select value={currency} onValueChange={setCurrency}><SelectTrigger><SelectValue /></SelectTrigger>
             <SelectContent>{CURRENCIES.map(c => <SelectItem key={c.code} value={c.code}>{c.name}</SelectItem>)}</SelectContent></Select>
         </div>
+      </div>
+
+      <div className="grid grid-cols-2 gap-3">
+        <div><Label>تاريخ البدء</Label><Input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} dir="ltr" /></div>
         <div>
           <Label>المحفظة المرتبطة</Label>
           <Select value={walletId} onValueChange={setWalletId}><SelectTrigger><SelectValue /></SelectTrigger>
             <SelectContent><SelectItem value="none">—</SelectItem>{wallets.map((w: any) => <SelectItem key={w.id} value={w.id}>{w.name}</SelectItem>)}</SelectContent></Select>
         </div>
       </div>
-      <div className="grid grid-cols-2 gap-3">
-        <div><Label>تاريخ البدء</Label><Input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} dir="ltr" /></div>
-        <div>
-          <Label>الحالة</Label>
-          <Select value={status} onValueChange={setStatus}><SelectTrigger><SelectValue /></SelectTrigger>
-            <SelectContent><SelectItem value="active">نشط</SelectItem><SelectItem value="closed">مغلق</SelectItem></SelectContent></Select>
-        </div>
+
+      <div>
+        <Label>الحالة</Label>
+        <Select value={status} onValueChange={setStatus}><SelectTrigger><SelectValue /></SelectTrigger>
+          <SelectContent><SelectItem value="active">نشط</SelectItem><SelectItem value="closed">مغلق</SelectItem></SelectContent></Select>
       </div>
+
       <div className="flex items-center justify-between rounded-xl border bg-accent/30 p-3">
         <div>
           <div className="text-sm font-medium">قابل للزكاة</div>
@@ -304,7 +466,6 @@ function InvestmentTxForm({ investment, wallets, onDone }: any) {
       });
       if (error) throw error;
 
-      // Update investment current value based on kind
       if (updateValue) {
         const cur = Number(investment.current_value) || 0;
         let newVal = cur;
@@ -316,7 +477,6 @@ function InvestmentTxForm({ investment, wallets, onDone }: any) {
         }
       }
 
-      // Wallet effect: capital_add → outflow ('send'), return/withdraw → inflow ('receive')
       if (walletId && walletId !== "none") {
         let txKind: string | null = null;
         if (kind === "capital_add") txKind = "send";

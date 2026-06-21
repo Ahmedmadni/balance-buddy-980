@@ -73,9 +73,20 @@ function Dashboard() {
     walletBalances.push({ id: w.id, name: w.name, color: w.color ?? "#0ea5e9", type: w.type, balance: bal, currency: w.currency });
   }
 
+  const prevMonthDate = new Date(); prevMonthDate.setDate(1); prevMonthDate.setMonth(prevMonthDate.getMonth() - 1);
+  const prevMonth = prevMonthDate.toISOString().slice(0, 7);
+
   const monthlyExp: Record<string, number> = {};
+  const prevMonthExp: Record<string, number> = {};
   for (const a of d.allocations as any[]) {
-    if ((a.period as string).slice(0, 7) === currentMonth) monthlyExp[a.currency] = (monthlyExp[a.currency] ?? 0) + Number(a.amount);
+    const p = (a.period as string).slice(0, 7);
+    if (p === currentMonth) monthlyExp[a.currency] = (monthlyExp[a.currency] ?? 0) + Number(a.amount);
+    else if (p === prevMonth) prevMonthExp[a.currency] = (prevMonthExp[a.currency] ?? 0) + Number(a.amount);
+  }
+  const expChangePct: Record<string, number> = {};
+  for (const c of Object.keys(monthlyExp)) {
+    const prev = prevMonthExp[c] ?? 0;
+    if (prev > 0) expChangePct[c] = ((monthlyExp[c] - prev) / prev) * 100;
   }
 
   const monthlyInflow: Record<string, number> = {};
@@ -155,7 +166,7 @@ function Dashboard() {
           <KpiCard icon={Wallet} label="إجمالي السيولة" amounts={liquidity} emptyText="أضف محفظة" accent="primary" />
         </StaggerItem>
         <StaggerItem>
-          <KpiCard icon={Receipt} label="مصاريف الشهر" amounts={monthlyExp} emptyText="0" accent="muted" />
+          <KpiCard icon={Receipt} label="مصاريف الشهر" amounts={monthlyExp} emptyText="0" accent="muted" changePct={expChangePct} />
         </StaggerItem>
         <StaggerItem>
           <KpiCard icon={PieChartIcon} label="الاستثمارات" amounts={investmentsTotal} emptyText="لا يوجد" accent="primary" />
@@ -338,10 +349,11 @@ function Dashboard() {
 }
 
 function KpiCard({
-  icon: Icon, label, amounts, emptyText, accent, signed = false,
+  icon: Icon, label, amounts, emptyText, accent, signed = false, changePct,
 }: {
   icon: any; label: string; amounts: Record<string, number>; emptyText: string;
   accent: "primary" | "success" | "destructive" | "muted"; signed?: boolean;
+  changePct?: Record<string, number>;
 }) {
   const entries = Object.entries(amounts).filter(([, v]) => Math.abs(v) > 0.001);
   const accentClass = {
@@ -370,9 +382,18 @@ function KpiCard({
         ) : entries.map(([cur, amt]) => {
           const color = signed ? (amt > 0 ? "text-success" : amt < 0 ? "text-destructive" : baseValueColor) : baseValueColor;
           const prefix = signed ? (amt > 0 ? "+" : amt < 0 ? "−" : "") : "";
+          const pct = changePct?.[cur];
           return (
-            <div key={cur} className={cn("text-xl sm:text-2xl font-bold tabular-nums tracking-tight", color)}>
-              {prefix}{formatMoney(Math.abs(amt), cur)}
+            <div key={cur} className="space-y-0.5">
+              <div className={cn("text-xl sm:text-2xl font-bold tabular-nums tracking-tight", color)}>
+                {prefix}{formatMoney(Math.abs(amt), cur)}
+              </div>
+              {pct !== undefined && Math.abs(pct) >= 0.1 && (
+                <div className={cn("text-[10px] font-semibold tabular-nums inline-flex items-center gap-0.5",
+                  pct > 0 ? "text-destructive" : "text-success")}>
+                  {pct > 0 ? "▲" : "▼"} {Math.abs(pct).toFixed(1)}% عن الشهر السابق
+                </div>
+              )}
             </div>
           );
         })}

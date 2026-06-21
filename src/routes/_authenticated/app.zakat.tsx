@@ -7,9 +7,10 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
-import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { HandCoins, CheckCircle2, Save, Calculator, Info } from "lucide-react";
-import { formatMoney, formatDate, todayISO } from "@/lib/format";
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { HandCoins, CheckCircle2, Save, Calculator, Info, Coins, Wheat, Mountain } from "lucide-react";
+import { CURRENCIES, formatMoney, formatDate, todayISO } from "@/lib/format";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { computeWalletBalance } from "@/lib/wallet-balance";
@@ -19,32 +20,42 @@ export const Route = createFileRoute("/_authenticated/app/zakat")({
   component: ZakatPage,
 });
 
-// النصاب الشرعي: 85 جرام ذهب خالص (24 قيراط) أو 595 جرام فضة خالصة
 const GOLD_NISAB_GRAMS = 85;
 const SILVER_NISAB_GRAMS = 595;
 
-// أسعار افتراضية بالريال السعودي للجرام (يجب تحديثها من السوق)
-const DEFAULT_GOLD_PRICE_SAR = 380; // ريال/جرام (تقديري — يحدّثه المستخدم)
-const DEFAULT_SILVER_PRICE_SAR = 4.5; // ريال/جرام (تقديري — يحدّثه المستخدم)
+const DEFAULT_GOLD_PRICE_SAR = 380;
+const DEFAULT_SILVER_PRICE_SAR = 4.5;
 
-// أسعار صرف تقريبية مقابل الريال السعودي (1 SAR = X من العملة)
-// تستخدم لتحويل النصاب من الريال إلى عملات أخرى بشكل تقديري
-const SAR_RATES: Record<string, number> = {
-  SAR: 1,
-  AED: 0.98,
-  EGP: 13.0,
-  USD: 0.266,
-  EUR: 0.245,
-  KWD: 0.082,
-  QAR: 0.97,
-  BHD: 0.1,
-  OMR: 0.102,
-  JOD: 0.189,
-  TRY: 9.0,
-  GBP: 0.21,
+// أسعار صرف تقريبية مقابل الريال السعودي (1 SAR = X)
+const DEFAULT_RATES: Record<string, number> = {
+  SAR: 1, AED: 0.98, EGP: 13.0, USD: 0.266, EUR: 0.245,
+  KWD: 0.082, QAR: 0.97, BHD: 0.1, OMR: 0.102, JOD: 0.189, TRY: 9.0, GBP: 0.21,
 };
 
 function ZakatPage() {
+  return (
+    <div className="space-y-5">
+      <div>
+        <h1 className="text-2xl font-bold flex items-center gap-2"><HandCoins className="h-6 w-6" /> حاسبة الزكاة</h1>
+        <p className="text-sm text-muted-foreground mt-1">حساب دقيق للزكاة وفق النصاب الشرعي مع دعم تعدد العملات</p>
+      </div>
+
+      <Tabs defaultValue="money" className="space-y-4">
+        <TabsList className="grid w-full grid-cols-2 h-auto">
+          <TabsTrigger value="money" className="flex items-center gap-1.5"><Coins className="h-4 w-4" /> زكاة المال</TabsTrigger>
+          <TabsTrigger value="livestock" className="flex items-center gap-1.5"><Wheat className="h-4 w-4" /> الأنعام والثمار</TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="money" className="space-y-4 mt-4"><MoneyZakat /></TabsContent>
+        <TabsContent value="livestock" className="space-y-4 mt-4"><LivestockZakat /></TabsContent>
+      </Tabs>
+    </div>
+  );
+}
+
+// ============== MONEY ZAKAT (multi-currency unified) ==============
+
+function MoneyZakat() {
   const qc = useQueryClient();
   const [includeBank, setIncludeBank] = useState(true);
   const [includeCash, setIncludeCash] = useState(true);
@@ -56,20 +67,28 @@ function ZakatPage() {
   const [silverPrice, setSilverPrice] = useState(DEFAULT_SILVER_PRICE_SAR.toString());
   const [rate, setRate] = useState("2.5");
   const [hijriYear, setHijriYear] = useState("");
-  const [saveOpen, setSaveOpen] = useState<string | null>(null);
+  const [baseCurrency, setBaseCurrency] = useState("SAR");
+  const [rates, setRates] = useState<Record<string, number>>(DEFAULT_RATES);
+  const [editRates, setEditRates] = useState(false);
+  const [saveOpen, setSaveOpen] = useState(false);
 
-  // حساب النصاب الدقيق بالريال السعودي
+  // النصاب بالريال السعودي ثم محوّل للعملة الأساسية
   const nisabSAR = useMemo(() => {
     const gp = parseFloat(goldPrice) || 0;
     const sp = parseFloat(silverPrice) || 0;
     return nisabMethod === "gold" ? gp * GOLD_NISAB_GRAMS : sp * SILVER_NISAB_GRAMS;
   }, [nisabMethod, goldPrice, silverPrice]);
 
-  // تحويل النصاب لكل عملة
-  const nisabFor = (currency: string) => {
-    const r = SAR_RATES[currency] ?? 1;
-    return nisabSAR * r;
+  // تحويل من عملة → العملة الأساسية: amount_base = amount_cur / rate_cur * rate_base
+  // rates[cur] = كم من العملة `cur` يساوي 1 SAR. لذا 1 cur = 1/rates[cur] SAR، و1 SAR = rates[base] base
+  const toBase = (amount: number, fromCur: string) => {
+    const fr = rates[fromCur] ?? DEFAULT_RATES[fromCur] ?? 1;
+    const br = rates[baseCurrency] ?? DEFAULT_RATES[baseCurrency] ?? 1;
+    if (!fr) return 0;
+    return (amount / fr) * br;
   };
+
+  const nisabBase = toBase(nisabSAR, "SAR");
 
   const { data, isLoading } = useQuery({
     queryKey: ["zakat-data"],
@@ -120,42 +139,47 @@ function ZakatPage() {
       else if (r.kind === "repay") slot.payables -= Number(r.amount);
     }
 
-    const rateN = (parseFloat(rate) || 2.5) / 100;
-    const computed: Record<string, any> = {};
+    // Per-currency raw + per-currency converted to base
+    const perCurrency: Record<string, { base: number; baseConverted: number; breakdown: any }> = {};
+    let unifiedBase = 0;
     for (const [cur, s] of Object.entries(byCur)) {
-      const base = (includeBank ? s.bank : 0) + (includeCash ? s.cash : 0)
+      const baseRaw = (includeBank ? s.bank : 0) + (includeCash ? s.cash : 0)
         + (includeInvestments ? s.investments : 0)
         + (includeReceivables ? Math.max(0, s.receivables) : 0)
         - (deductPayables ? Math.max(0, s.payables) : 0);
-      const baseClamped = Math.max(0, base);
-      const nisabCur = nisabFor(cur);
-      const reaches = baseClamped >= nisabCur;
-      computed[cur] = {
-        breakdown: s,
-        base: baseClamped,
-        nisab: nisabCur,
-        zakat: reaches ? baseClamped * rateN : 0,
-        reachesNisab: reaches,
-        progress: nisabCur > 0 ? Math.min(100, (baseClamped / nisabCur) * 100) : 0,
-      };
+      const baseClamped = Math.max(0, baseRaw);
+      const converted = toBase(baseClamped, cur);
+      perCurrency[cur] = { base: baseClamped, baseConverted: converted, breakdown: s };
+      unifiedBase += converted;
     }
-    return computed;
-  }, [data, includeBank, includeCash, includeInvestments, includeReceivables, deductPayables, rate, nisabSAR]);
+
+    const rateN = (parseFloat(rate) || 2.5) / 100;
+    const reaches = unifiedBase >= nisabBase;
+    const zakat = reaches ? unifiedBase * rateN : 0;
+    return {
+      perCurrency,
+      unifiedBase,
+      nisabBase,
+      reachesNisab: reaches,
+      zakat,
+      progress: nisabBase > 0 ? Math.min(100, (unifiedBase / nisabBase) * 100) : 0,
+    };
+  }, [data, includeBank, includeCash, includeInvestments, includeReceivables, deductPayables, rate, nisabBase, baseCurrency, rates]);
 
   const saveMut = useMutation({
-    mutationFn: async (cur: string) => {
+    mutationFn: async () => {
       const { data: u } = await supabase.auth.getUser();
       if (!u.user) throw new Error("غير مسجل");
-      const r = result![cur];
+      if (!result) return;
       const { error } = await supabase.from("zakat_records").insert({
-        user_id: u.user.id, currency: cur, hijri_year: hijriYear || null,
-        calculated_at: todayISO(), base_amount: r.base, rate: (parseFloat(rate) || 2.5) / 100,
-        zakat_amount: r.zakat,
-        breakdown: { ...r.breakdown, nisab: r.nisab, nisab_method: nisabMethod, gold_price: parseFloat(goldPrice) || 0, silver_price: parseFloat(silverPrice) || 0 },
+        user_id: u.user.id, currency: baseCurrency, hijri_year: hijriYear || null,
+        calculated_at: todayISO(), base_amount: result.unifiedBase, rate: (parseFloat(rate) || 2.5) / 100,
+        zakat_amount: result.zakat,
+        breakdown: { per_currency: result.perCurrency, nisab: result.nisabBase, nisab_method: nisabMethod, gold_price: parseFloat(goldPrice) || 0, silver_price: parseFloat(silverPrice) || 0, base_currency: baseCurrency, rates },
       });
       if (error) throw error;
     },
-    onSuccess: () => { toast.success("تم حفظ الحساب"); qc.invalidateQueries({ queryKey: ["zakat-data"] }); setSaveOpen(null); },
+    onSuccess: () => { toast.success("تم حفظ الحساب"); qc.invalidateQueries({ queryKey: ["zakat-data"] }); setSaveOpen(false); },
     onError: (e: any) => toast.error("خطأ", { description: e.message }),
   });
 
@@ -168,13 +192,39 @@ function ZakatPage() {
   });
 
   return (
-    <div className="space-y-5">
-      <div>
-        <h1 className="text-2xl font-bold flex items-center gap-2"><HandCoins className="h-6 w-6" /> حاسبة الزكاة</h1>
-        <p className="text-sm text-muted-foreground mt-1">حساب دقيق للزكاة وفق النصاب الشرعي (85 جم ذهب أو 595 جم فضة)</p>
+    <div className="space-y-4">
+      {/* العملة الأساسية */}
+      <div className="rounded-2xl border bg-card p-4 space-y-3">
+        <div className="flex items-center justify-between gap-2 flex-wrap">
+          <div className="font-semibold text-sm flex items-center gap-2"><Info className="h-4 w-4 text-primary" /> العملة الأساسية</div>
+          <Select value={baseCurrency} onValueChange={setBaseCurrency}>
+            <SelectTrigger className="w-44 h-9"><SelectValue /></SelectTrigger>
+            <SelectContent>{CURRENCIES.map(c => <SelectItem key={c.code} value={c.code}>{c.name}</SelectItem>)}</SelectContent>
+          </Select>
+        </div>
+        <div className="text-[11px] text-muted-foreground">سيتم تحويل جميع أرصدتك بمختلف العملات إلى {baseCurrency} لحساب وعاء الزكاة الموحّد.</div>
+        <div className="flex items-center justify-between">
+          <button type="button" className="text-xs text-primary hover:underline" onClick={() => setEditRates((s) => !s)}>
+            {editRates ? "إخفاء أسعار الصرف" : "تعديل أسعار الصرف"}
+          </button>
+        </div>
+        {editRates && (
+          <div className="grid grid-cols-3 gap-2 pt-2 border-t">
+            {CURRENCIES.map((c) => (
+              <div key={c.code}>
+                <Label className="text-[10px]">{c.code} لكل 1 ر.س</Label>
+                <Input type="number" step="0.0001" dir="ltr" className="h-8 text-xs" value={rates[c.code] ?? DEFAULT_RATES[c.code] ?? 1}
+                  onChange={(e) => setRates((r) => ({ ...r, [c.code]: parseFloat(e.target.value) || 0 }))} />
+              </div>
+            ))}
+            <div className="col-span-3 text-[10px] text-muted-foreground">
+              تنبيه: الأسعار يدوية — حدّثها وقت الحساب من مصدر موثوق.
+            </div>
+          </div>
+        )}
       </div>
 
-      {/* بطاقة النصاب الشرعي */}
+      {/* النصاب */}
       <div className="rounded-2xl border bg-gradient-to-br from-amber-50 to-yellow-50 dark:from-amber-950/20 dark:to-yellow-950/20 p-4 space-y-3">
         <div className="flex items-center justify-between flex-wrap gap-2">
           <div className="font-semibold text-sm flex items-center gap-2">
@@ -191,26 +241,19 @@ function ZakatPage() {
           <div>
             <Label className="text-xs">سعر جرام الذهب (24ق) — ر.س</Label>
             <Input value={goldPrice} onChange={(e) => setGoldPrice(e.target.value)} type="number" step="0.01" dir="ltr" className="h-9" />
-            <div className="text-[10px] text-muted-foreground mt-1">نصاب الذهب = {(parseFloat(goldPrice) || 0) * GOLD_NISAB_GRAMS} ر.س (85 جم)</div>
           </div>
           <div>
             <Label className="text-xs">سعر جرام الفضة — ر.س</Label>
             <Input value={silverPrice} onChange={(e) => setSilverPrice(e.target.value)} type="number" step="0.01" dir="ltr" className="h-9" />
-            <div className="text-[10px] text-muted-foreground mt-1">نصاب الفضة = {(parseFloat(silverPrice) || 0) * SILVER_NISAB_GRAMS} ر.س (595 جم)</div>
           </div>
         </div>
         <div className="rounded-xl bg-amber-100 dark:bg-amber-950/40 p-3 text-center">
-          <div className="text-[11px] text-amber-900 dark:text-amber-200">النصاب المعتمد ({nisabMethod === "gold" ? "ذهب" : "فضة"})</div>
-          <div className="text-xl font-extrabold tabular-nums text-amber-900 dark:text-amber-100">{formatMoney(nisabSAR, "SAR")}</div>
-          <div className="text-[10px] text-amber-700 dark:text-amber-300 mt-1">
-            ✓ جمهور الفقهاء يرجّحون نصاب الفضة لأنه أنفع للفقراء
-          </div>
-        </div>
-        <div className="text-[10px] text-muted-foreground text-center">
-          ⓘ يجب أن يحول الحول الهجري (سنة قمرية كاملة) على بلوغ المال للنصاب — حدّث الأسعار يدوياً وفق سعر السوق وقت الحساب
+          <div className="text-[11px] text-amber-900 dark:text-amber-200">النصاب المعتمد بالعملة الأساسية</div>
+          <div className="text-xl font-extrabold tabular-nums text-amber-900 dark:text-amber-100">{formatMoney(nisabBase, baseCurrency)}</div>
         </div>
       </div>
 
+      {/* الإعدادات */}
       <div className="grid gap-3 sm:grid-cols-2">
         <div className="rounded-2xl border bg-card p-4 space-y-3">
           <div className="font-semibold text-sm flex items-center gap-2"><Calculator className="h-4 w-4" /> مكوّنات الوعاء</div>
@@ -221,7 +264,7 @@ function ZakatPage() {
           <ToggleRow label="خصم الديون المستحقّة (عليّ)" checked={deductPayables} onChange={setDeductPayables} />
         </div>
         <div className="rounded-2xl border bg-card p-4 space-y-3">
-          <div className="font-semibold text-sm">الإعدادات</div>
+          <div className="font-semibold text-sm">إعدادات الحساب</div>
           <div><Label>نسبة الزكاة %</Label><Input value={rate} onChange={(e) => setRate(e.target.value)} type="number" step="0.1" dir="ltr" />
             <div className="text-[10px] text-muted-foreground mt-1">2.5% للنقد والعروض (ربع العشر)</div>
           </div>
@@ -229,74 +272,77 @@ function ZakatPage() {
         </div>
       </div>
 
+      {/* النتيجة الموحّدة */}
       {isLoading ? (
         <div className="h-32 animate-pulse rounded-2xl bg-muted" />
-      ) : !result || Object.keys(result).length === 0 ? (
-        <div className="rounded-2xl border bg-card p-10 text-center text-muted-foreground">لا توجد أصول لحسابها</div>
-      ) : (
-        <div className="space-y-3">
-          {Object.entries(result).map(([cur, r]: [string, any]) => (
-            <div key={cur} className="rounded-2xl border bg-card p-5 shadow-[var(--shadow-card)]">
-              <div className="flex items-start justify-between gap-3 flex-wrap">
-                <div>
-                  <div className="text-xs text-muted-foreground">وعاء الزكاة بالـ {cur}</div>
-                  <div className="text-3xl font-extrabold tabular-nums">{formatMoney(r.base, cur)}</div>
-                  <div className="text-[11px] text-muted-foreground mt-1">
-                    النصاب: <span className="font-semibold">{formatMoney(r.nisab, cur)}</span>
-                  </div>
-                </div>
-                <div className="text-left">
-                  <div className="text-xs text-muted-foreground">الزكاة المستحقّة ({rate}%)</div>
-                  <div className={cn("text-2xl font-extrabold tabular-nums", r.reachesNisab && r.zakat > 0 ? "text-success" : "text-muted-foreground")}>{formatMoney(r.zakat, cur)}</div>
-                  <Button size="sm" className="mt-2" onClick={() => setSaveOpen(cur)} disabled={r.zakat <= 0}>
-                    <Save className="h-3.5 w-3.5" /> حفظ
-                  </Button>
-                </div>
+      ) : !result ? null : (
+        <div className="rounded-2xl border bg-card p-5 shadow-[var(--shadow-card)] space-y-4">
+          <div className="flex items-start justify-between gap-3 flex-wrap">
+            <div>
+              <div className="text-xs text-muted-foreground">إجمالي وعاء الزكاة الموحّد ({baseCurrency})</div>
+              <div className="text-3xl font-extrabold tabular-nums">{formatMoney(result.unifiedBase, baseCurrency)}</div>
+              <div className="text-[11px] text-muted-foreground mt-1">
+                النصاب: <span className="font-semibold">{formatMoney(result.nisabBase, baseCurrency)}</span>
               </div>
-
-              {/* شريط التقدم نحو النصاب */}
-              <div className="mt-3">
-                <div className="flex items-center justify-between text-[11px] mb-1">
-                  <span className="text-muted-foreground">التقدم نحو النصاب</span>
-                  <span className={cn("font-semibold tabular-nums", r.reachesNisab ? "text-success" : "text-amber-600")}>{r.progress.toFixed(1)}%</span>
-                </div>
-                <div className="h-2 rounded-full bg-muted overflow-hidden">
-                  <div className={cn("h-full transition-all", r.reachesNisab ? "bg-success" : "bg-amber-500")} style={{ width: `${r.progress}%` }} />
-                </div>
-                {!r.reachesNisab && (
-                  <div className="text-[11px] text-amber-600 mt-2">
-                    ⚠ الوعاء أقل من النصاب بـ {formatMoney(r.nisab - r.base, cur)} — لا تجب الزكاة
-                  </div>
-                )}
-                {r.reachesNisab && (
-                  <div className="text-[11px] text-success mt-2">
-                    ✓ بلغ المال النصاب — تجب الزكاة (بشرط حولان الحول)
-                  </div>
-                )}
-              </div>
-
-              <div className="mt-4 grid grid-cols-2 sm:grid-cols-5 gap-2 text-[11px]">
-                <Stat label="بنوك" value={r.breakdown.bank} cur={cur} on={includeBank} />
-                <Stat label="نقد" value={r.breakdown.cash} cur={cur} on={includeCash} />
-                <Stat label="استثمارات" value={r.breakdown.investments} cur={cur} on={includeInvestments} />
-                <Stat label="ديون لي" value={r.breakdown.receivables} cur={cur} on={includeReceivables} />
-                <Stat label="ديون عليّ" value={r.breakdown.payables} cur={cur} on={deductPayables} negative />
-              </div>
-
-              <Dialog open={saveOpen === cur} onOpenChange={(o) => setSaveOpen(o ? cur : null)}>
-                <DialogContent className="max-w-sm">
-                  <DialogHeader><DialogTitle>حفظ سجل الزكاة ({cur})</DialogTitle></DialogHeader>
-                  <div className="space-y-2 text-sm">
-                    <div className="flex justify-between"><span className="text-muted-foreground">الوعاء</span><span className="font-bold tabular-nums">{formatMoney(r.base, cur)}</span></div>
-                    <div className="flex justify-between"><span className="text-muted-foreground">النصاب</span><span className="font-bold tabular-nums">{formatMoney(r.nisab, cur)}</span></div>
-                    <div className="flex justify-between"><span className="text-muted-foreground">الزكاة</span><span className="font-bold tabular-nums text-success">{formatMoney(r.zakat, cur)}</span></div>
-                    {hijriYear && <div className="flex justify-between"><span className="text-muted-foreground">السنة</span><span>{hijriYear} هـ</span></div>}
-                  </div>
-                  <DialogFooter><Button className="w-full" onClick={() => saveMut.mutate(cur)} disabled={saveMut.isPending}>تأكيد الحفظ</Button></DialogFooter>
-                </DialogContent>
-              </Dialog>
             </div>
-          ))}
+            <div className="text-left">
+              <div className="text-xs text-muted-foreground">الزكاة المستحقّة ({rate}%)</div>
+              <div className={cn("text-2xl font-extrabold tabular-nums", result.reachesNisab && result.zakat > 0 ? "text-success" : "text-muted-foreground")}>{formatMoney(result.zakat, baseCurrency)}</div>
+              <Button size="sm" className="mt-2" onClick={() => setSaveOpen(true)} disabled={result.zakat <= 0}>
+                <Save className="h-3.5 w-3.5" /> حفظ
+              </Button>
+            </div>
+          </div>
+
+          <div>
+            <div className="flex items-center justify-between text-[11px] mb-1">
+              <span className="text-muted-foreground">التقدم نحو النصاب</span>
+              <span className={cn("font-semibold tabular-nums", result.reachesNisab ? "text-success" : "text-amber-600")}>{result.progress.toFixed(1)}%</span>
+            </div>
+            <div className="h-2 rounded-full bg-muted overflow-hidden">
+              <div className={cn("h-full transition-all", result.reachesNisab ? "bg-success" : "bg-amber-500")} style={{ width: `${result.progress}%` }} />
+            </div>
+            {!result.reachesNisab ? (
+              <div className="text-[11px] text-amber-600 mt-2">⚠ الوعاء أقل من النصاب بـ {formatMoney(result.nisabBase - result.unifiedBase, baseCurrency)} — لا تجب الزكاة</div>
+            ) : (
+              <div className="text-[11px] text-success mt-2">✓ بلغ المال النصاب — تجب الزكاة (بشرط حولان الحول الهجري)</div>
+            )}
+          </div>
+
+          {/* تفصيل لكل عملة */}
+          {Object.keys(result.perCurrency).length > 0 && (
+            <div className="space-y-2 pt-3 border-t">
+              <div className="text-xs font-semibold text-muted-foreground">التفصيل حسب العملة</div>
+              <div className="space-y-2">
+                {Object.entries(result.perCurrency).map(([cur, r]: [string, any]) => (
+                  <div key={cur} className="rounded-xl bg-accent/30 p-3 text-xs flex items-center justify-between flex-wrap gap-2">
+                    <div>
+                      <div className="font-bold">{cur}</div>
+                      <div className="text-muted-foreground text-[10px]">
+                        بنوك {formatMoney(r.breakdown.bank, cur)} · نقد {formatMoney(r.breakdown.cash, cur)} · استثمار {formatMoney(r.breakdown.investments, cur)}
+                      </div>
+                    </div>
+                    <div className="text-left">
+                      <div className="font-bold tabular-nums">{formatMoney(r.base, cur)}</div>
+                      <div className="text-primary text-[10px] tabular-nums">≈ {formatMoney(r.baseConverted, baseCurrency)}</div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          <Dialog open={saveOpen} onOpenChange={setSaveOpen}>
+            <DialogContent className="max-w-sm">
+              <DialogHeader><DialogTitle>حفظ سجل الزكاة ({baseCurrency})</DialogTitle></DialogHeader>
+              <div className="space-y-2 text-sm">
+                <div className="flex justify-between"><span className="text-muted-foreground">الوعاء الموحّد</span><span className="font-bold tabular-nums">{formatMoney(result.unifiedBase, baseCurrency)}</span></div>
+                <div className="flex justify-between"><span className="text-muted-foreground">النصاب</span><span className="font-bold tabular-nums">{formatMoney(result.nisabBase, baseCurrency)}</span></div>
+                <div className="flex justify-between"><span className="text-muted-foreground">الزكاة</span><span className="font-bold tabular-nums text-success">{formatMoney(result.zakat, baseCurrency)}</span></div>
+              </div>
+              <DialogFooter><Button className="w-full" onClick={() => saveMut.mutate()} disabled={saveMut.isPending}>تأكيد الحفظ</Button></DialogFooter>
+            </DialogContent>
+          </Dialog>
         </div>
       )}
 
@@ -308,12 +354,12 @@ function ZakatPage() {
               <HandCoins className="h-4 w-4 text-amber-600 shrink-0" />
               <div className="flex-1 min-w-0">
                 <div className="text-sm font-medium">{formatDate(rec.calculated_at)}{rec.hijri_year ? ` · ${rec.hijri_year} هـ` : ""}</div>
-                <div className="text-[11px] text-muted-foreground">الوعاء: {formatMoney(rec.base_amount, rec.currency)}{rec.breakdown?.nisab ? ` · النصاب: ${formatMoney(rec.breakdown.nisab, rec.currency)}` : ""}</div>
+                <div className="text-[11px] text-muted-foreground">الوعاء: {formatMoney(rec.base_amount, rec.currency)}</div>
               </div>
               <div className="text-left">
                 <div className="font-bold tabular-nums text-success">{formatMoney(rec.zakat_amount, rec.currency)}</div>
                 {rec.paid ? (
-                  <div className="text-[10px] text-success inline-flex items-center gap-1"><CheckCircle2 className="h-3 w-3" /> مدفوعة {rec.paid_at ? `· ${formatDate(rec.paid_at)}` : ""}</div>
+                  <div className="text-[10px] text-success inline-flex items-center gap-1"><CheckCircle2 className="h-3 w-3" /> مدفوعة</div>
                 ) : (
                   <Button size="sm" variant="outline" className="mt-1 h-6 text-[10px]" onClick={() => markPaid.mutate(rec.id)}>تأشير مدفوعة</Button>
                 )}
@@ -326,20 +372,202 @@ function ZakatPage() {
   );
 }
 
+// ============== LIVESTOCK & CROPS (independent unit) ==============
+
+function LivestockZakat() {
+  return (
+    <div className="space-y-4">
+      <div className="rounded-2xl border bg-amber-50 dark:bg-amber-950/20 p-4 text-xs text-amber-900 dark:text-amber-200">
+        <div className="font-semibold flex items-center gap-1.5 mb-1"><Info className="h-3.5 w-3.5" /> وحدة شرعية مستقلة</div>
+        هذه الحاسبات تطبّق الأنصبة الشرعية المعروفة لزكاة الأنعام والثمار والمعادن. النتائج هنا لا ترتبط بالمحافظ ولا تؤثر على التقارير المالية.
+      </div>
+
+      <Tabs defaultValue="camels" className="space-y-3">
+        <TabsList className="w-full grid grid-cols-5 h-auto">
+          <TabsTrigger value="camels" className="text-xs">إبل</TabsTrigger>
+          <TabsTrigger value="cattle" className="text-xs">بقر</TabsTrigger>
+          <TabsTrigger value="sheep" className="text-xs">غنم</TabsTrigger>
+          <TabsTrigger value="crops" className="text-xs">حبوب وثمار</TabsTrigger>
+          <TabsTrigger value="treasure" className="text-xs">ركاز ومعادن</TabsTrigger>
+        </TabsList>
+        <TabsContent value="camels"><CamelsCalc /></TabsContent>
+        <TabsContent value="cattle"><CattleCalc /></TabsContent>
+        <TabsContent value="sheep"><SheepCalc /></TabsContent>
+        <TabsContent value="crops"><CropsCalc /></TabsContent>
+        <TabsContent value="treasure"><TreasureCalc /></TabsContent>
+      </Tabs>
+    </div>
+  );
+}
+
+function camelDue(n: number): string {
+  if (n < 5) return "لا زكاة (دون النصاب)";
+  if (n <= 9) return "شاة واحدة";
+  if (n <= 14) return "شاتان";
+  if (n <= 19) return "ثلاث شياه";
+  if (n <= 24) return "أربع شياه";
+  if (n <= 35) return "بنت مخاض (أنثى من الإبل عمرها سنة)";
+  if (n <= 45) return "بنت لبون (أنثى عمرها سنتان)";
+  if (n <= 60) return "حِقّة (أنثى عمرها ثلاث سنوات)";
+  if (n <= 75) return "جَذَعة (أنثى عمرها أربع سنوات)";
+  if (n <= 90) return "بنتا لبون";
+  if (n <= 120) return "حِقّتان";
+  // بعد 120: في كل 40 بنت لبون، وفي كل 50 حقة
+  const hiqqa = Math.floor(n / 50);
+  const bint = Math.floor((n % 50) / 40);
+  const parts: string[] = [];
+  if (hiqqa) parts.push(`${hiqqa} حِقّة`);
+  if (bint) parts.push(`${bint} بنت لبون`);
+  return parts.join(" + ") || `حِقّتان + ${Math.floor((n - 120) / 40)} بنت لبون`;
+}
+
+function cattleDue(n: number): string {
+  if (n < 30) return "لا زكاة (دون النصاب)";
+  // في كل 30: تبيع، وفي كل 40: مسنة
+  const musinna = Math.floor(n / 40);
+  let remaining = n - musinna * 40;
+  const tabi = Math.floor(remaining / 30);
+  // معالجة بسيطة
+  if (n < 40) return "تبيع أو تبيعة (عمر سنة)";
+  if (n < 60) return "مسنة (عمر سنتين)";
+  if (n < 70) return "تبيعان";
+  const parts: string[] = [];
+  if (musinna) parts.push(`${musinna} مسنة`);
+  if (tabi) parts.push(`${tabi} تبيع`);
+  return parts.join(" + ");
+}
+
+function sheepDue(n: number): string {
+  if (n < 40) return "لا زكاة (دون النصاب)";
+  if (n <= 120) return "شاة واحدة";
+  if (n <= 200) return "شاتان";
+  if (n <= 399) return "ثلاث شياه";
+  // ثم في كل 100: شاة
+  const sheep = Math.floor(n / 100);
+  return `${sheep} شياه`;
+}
+
+function SimpleCalc({ title, icon, label, suffix, compute, hint }: { title: string; icon: any; label: string; suffix: string; compute: (n: number) => string; hint?: string }) {
+  const Icon = icon;
+  const [n, setN] = useState("");
+  const result = useMemo(() => compute(parseInt(n) || 0), [n, compute]);
+  return (
+    <div className="rounded-2xl border bg-card p-5 space-y-3">
+      <div className="font-semibold flex items-center gap-2"><Icon className="h-4 w-4 text-amber-600" /> {title}</div>
+      <div>
+        <Label>{label}</Label>
+        <div className="flex gap-2 items-center">
+          <Input type="number" min="0" value={n} onChange={(e) => setN(e.target.value)} dir="ltr" placeholder="0" />
+          <span className="text-xs text-muted-foreground shrink-0">{suffix}</span>
+        </div>
+      </div>
+      {n && (
+        <div className="rounded-xl bg-amber-100 dark:bg-amber-950/40 p-3">
+          <div className="text-[11px] text-amber-900 dark:text-amber-200">الواجب الشرعي</div>
+          <div className="text-base font-bold text-amber-900 dark:text-amber-100">{result}</div>
+        </div>
+      )}
+      {hint && <div className="text-[10px] text-muted-foreground">{hint}</div>}
+    </div>
+  );
+}
+
+function CamelsCalc() {
+  return <SimpleCalc title="زكاة الإبل" icon={Coins} label="عدد الإبل" suffix="رأس" compute={camelDue}
+    hint="النصاب 5 إبل. الواجب يختلف حسب العدد. (في الأعداد الكبيرة قد تتعدد الفتاوى — استشر أهل العلم)" />;
+}
+function CattleCalc() {
+  return <SimpleCalc title="زكاة البقر" icon={Coins} label="عدد الأبقار" suffix="رأس" compute={cattleDue}
+    hint="النصاب 30 بقرة. في كل 30: تبيع، وفي كل 40: مسنة." />;
+}
+function SheepCalc() {
+  return <SimpleCalc title="زكاة الغنم" icon={Coins} label="عدد الأغنام" suffix="رأس" compute={sheepDue}
+    hint="النصاب 40 شاة. 40-120: شاة، 121-200: شاتان، 201-399: ثلاث، ثم في كل 100: شاة." />;
+}
+
+function CropsCalc() {
+  const [qty, setQty] = useState("");
+  const [irrigation, setIrrigation] = useState<"rainfed" | "irrigated" | "mixed">("rainfed");
+  const NISAB_KG = 612; // الخمسة أوسق ≈ 612 كجم تقريباً (ويُذكر 653)
+  const qtyN = parseFloat(qty) || 0;
+  const reaches = qtyN >= NISAB_KG;
+  const rate = irrigation === "rainfed" ? 0.10 : irrigation === "irrigated" ? 0.05 : 0.075;
+  const due = reaches ? qtyN * rate : 0;
+  return (
+    <div className="rounded-2xl border bg-card p-5 space-y-3">
+      <div className="font-semibold flex items-center gap-2"><Wheat className="h-4 w-4 text-amber-600" /> زكاة الحبوب والثمار</div>
+      <div>
+        <Label>كمية المحصول</Label>
+        <div className="flex gap-2 items-center">
+          <Input type="number" min="0" value={qty} onChange={(e) => setQty(e.target.value)} dir="ltr" placeholder="0" />
+          <span className="text-xs text-muted-foreground shrink-0">كجم</span>
+        </div>
+      </div>
+      <div>
+        <Label>طريقة الري</Label>
+        <Select value={irrigation} onValueChange={(v: any) => setIrrigation(v)}>
+          <SelectTrigger><SelectValue /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value="rainfed">بَعْلي (مطر/سيول) — 10%</SelectItem>
+            <SelectItem value="irrigated">بمؤونة (سقي بآلة) — 5%</SelectItem>
+            <SelectItem value="mixed">مختلط — 7.5%</SelectItem>
+          </SelectContent>
+        </Select>
+      </div>
+      <div className="rounded-xl bg-amber-100 dark:bg-amber-950/40 p-3 space-y-1">
+        <div className="text-[11px] text-amber-900 dark:text-amber-200">النصاب: {NISAB_KG} كجم (خمسة أوسق)</div>
+        {!qty ? null : reaches ? (
+          <>
+            <div className="text-[11px] text-success">✓ بلغ النصاب</div>
+            <div className="text-base font-bold text-amber-900 dark:text-amber-100">الواجب: {due.toFixed(2)} كجم ({(rate * 100)}%)</div>
+          </>
+        ) : (
+          <div className="text-[11px] text-amber-700">⚠ لم يبلغ النصاب — لا تجب الزكاة</div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function TreasureCalc() {
+  const [val, setVal] = useState("");
+  const [kind, setKind] = useState<"rikaz" | "metals">("rikaz");
+  const valN = parseFloat(val) || 0;
+  const rate = kind === "rikaz" ? 0.20 : 0.025;
+  const due = valN * rate;
+  return (
+    <div className="rounded-2xl border bg-card p-5 space-y-3">
+      <div className="font-semibold flex items-center gap-2"><Mountain className="h-4 w-4 text-amber-600" /> زكاة الركاز والمعادن</div>
+      <div>
+        <Label>النوع</Label>
+        <Select value={kind} onValueChange={(v: any) => setKind(v)}>
+          <SelectTrigger><SelectValue /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value="rikaz">ركاز (دفين الجاهلية) — الخُمس 20%</SelectItem>
+            <SelectItem value="metals">معادن مستخرجة — 2.5%</SelectItem>
+          </SelectContent>
+        </Select>
+      </div>
+      <div>
+        <Label>قيمة المستخرَج</Label>
+        <Input type="number" min="0" value={val} onChange={(e) => setVal(e.target.value)} dir="ltr" placeholder="0.00" />
+      </div>
+      {val && (
+        <div className="rounded-xl bg-amber-100 dark:bg-amber-950/40 p-3">
+          <div className="text-[11px] text-amber-900 dark:text-amber-200">الواجب ({rate * 100}%)</div>
+          <div className="text-base font-bold tabular-nums text-amber-900 dark:text-amber-100">{due.toFixed(2)}</div>
+        </div>
+      )}
+      <div className="text-[10px] text-muted-foreground">الركاز يجب فيه الخُمس بلا اشتراط نصاب أو حول، أما المعادن فتُزكّى ربع العشر عند بلوغها النصاب.</div>
+    </div>
+  );
+}
+
 function ToggleRow({ label, checked, onChange }: { label: string; checked: boolean; onChange: (v: boolean) => void }) {
   return (
     <div className="flex items-center justify-between text-sm">
       <span>{label}</span>
       <Switch checked={checked} onCheckedChange={onChange} />
-    </div>
-  );
-}
-
-function Stat({ label, value, cur, on, negative }: { label: string; value: number; cur: string; on: boolean; negative?: boolean }) {
-  return (
-    <div className={cn("rounded-lg border bg-accent/30 p-2", !on && "opacity-40")}>
-      <div className="text-muted-foreground">{label}</div>
-      <div className={cn("font-bold tabular-nums", negative && "text-destructive")}>{negative && value > 0 ? "-" : ""}{formatMoney(Math.abs(value), cur)}</div>
     </div>
   );
 }

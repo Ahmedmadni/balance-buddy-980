@@ -13,6 +13,7 @@ import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { computeWalletBalance } from "@/lib/wallet-balance";
 import { WalletTransferForm } from "@/components/WalletTxForm";
+import { IncomeForm } from "@/components/IncomeForm";
 
 export const Route = createFileRoute("/_authenticated/app/wallets")({
   head: () => ({ meta: [{ title: "المحافظ — رصد" }] }),
@@ -37,11 +38,13 @@ function WalletsPage() {
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<any | null>(null);
   const [openTransfer, setOpenTransfer] = useState(false);
+  const [openIncome, setOpenIncome] = useState(false);
   const [showArchived, setShowArchived] = useState(false);
   const qs = useSearch({ strict: false }) as { new?: string };
   const navigate = useNavigate();
   useEffect(() => {
     if (qs?.new === "transfer") setOpenTransfer(true);
+    else if (qs?.new === "income") setOpenIncome(true);
     else if (qs?.new) setOpen(true);
     if (qs?.new) navigate({ to: "/app/wallets", search: {}, replace: true });
   }, [qs?.new, navigate]);
@@ -97,6 +100,16 @@ function WalletsPage() {
               {showArchived ? "إخفاء المؤرشف" : `عرض المؤرشف (${archivedCount})`}
             </Button>
           )}
+          <Dialog open={openIncome} onOpenChange={setOpenIncome}>
+            <DialogTrigger asChild>
+              <Button variant="outline" className="border-emerald-500/40 text-emerald-600 hover:text-emerald-700">
+                <TrendingUp className="h-4 w-4" /> دخل
+              </Button>
+            </DialogTrigger>
+            <DialogContent className="max-w-md">
+              <IncomeForm onDone={() => { setOpenIncome(false); qc.invalidateQueries({ queryKey: ["wallets-list"] }); qc.invalidateQueries({ queryKey: ["dashboard"] }); }} />
+            </DialogContent>
+          </Dialog>
           {wallets.length >= 2 && (
             <Dialog open={openTransfer} onOpenChange={setOpenTransfer}>
               <DialogTrigger asChild>
