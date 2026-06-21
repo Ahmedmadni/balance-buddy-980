@@ -100,6 +100,16 @@ function WalletsPage() {
               {showArchived ? "إخفاء المؤرشف" : `عرض المؤرشف (${archivedCount})`}
             </Button>
           )}
+          <Dialog open={openIncome} onOpenChange={setOpenIncome}>
+            <DialogTrigger asChild>
+              <Button variant="outline" className="border-emerald-500/40 text-emerald-600 hover:text-emerald-700">
+                <TrendingUp className="h-4 w-4" /> دخل
+              </Button>
+            </DialogTrigger>
+            <DialogContent className="max-w-md">
+              <IncomeForm onDone={() => { setOpenIncome(false); qc.invalidateQueries({ queryKey: ["wallets-list"] }); qc.invalidateQueries({ queryKey: ["dashboard"] }); }} />
+            </DialogContent>
+          </Dialog>
           {wallets.length >= 2 && (
             <Dialog open={openTransfer} onOpenChange={setOpenTransfer}>
               <DialogTrigger asChild>
