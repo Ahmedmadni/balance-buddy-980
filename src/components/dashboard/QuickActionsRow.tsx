@@ -2,7 +2,7 @@ import { Link } from "@tanstack/react-router";
 import { motion } from "framer-motion";
 import {
   TrendingDown, TrendingUp, ArrowLeftRight, HandCoins, PieChart, BadgePercent,
-  Repeat, FileBarChart, Settings, Sparkles, Receipt, Wallet, Sliders, Check,
+  Repeat, FileBarChart, Settings, Sparkles, Receipt, Wallet, Sliders, Check, ListOrdered,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useEffect, useMemo, useState, type ComponentType } from "react";
@@ -41,6 +41,7 @@ const QUICK: Action[] = [
 ];
 
 const TOOLS: Action[] = [
+  { id: "transactions", label: "العمليات", icon: ListOrdered, tone: "teal", to: "/app/transactions" },
   { id: "recurring", label: "دورية", icon: Repeat, tone: "sky", to: "/app/recurring" },
   { id: "expenses", label: "المصاريف", icon: Receipt, tone: "rose", to: "/app/expenses" },
   { id: "wallets", label: "المحافظ", icon: Wallet, tone: "indigo", to: "/app/wallets" },

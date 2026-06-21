@@ -22,7 +22,7 @@ function ReportsPage() {
   const monthStart = new Date(today.getFullYear(), today.getMonth(), 1).toISOString().slice(0, 10);
   const [from, setFrom] = useState(monthStart);
   const [to, setTo] = useState(todayISO());
-  const [type, setType] = useState<"expenses" | "people">("expenses");
+  const [type, setType] = useState<"expenses" | "people" | "transactions">("transactions");
   const [projectId, setProjectId] = useState<string>("all");
 
   const { data: projects } = useQuery({
@@ -33,8 +33,15 @@ function ReportsPage() {
   const { data, refetch, isFetching } = useQuery({
     queryKey: ["report", type, from, to, projectId],
     queryFn: async () => {
-      if (type === "expenses") {
-        // Use allocations within range, joined with expense + category/project
+      if (type === "transactions") {
+        const { data, error } = await supabase.from("transactions")
+          .select("id,type,direction,amount,currency,happened_at,description,person_name,account_id,counterparty_account_id")
+          .gte("happened_at", from).lte("happened_at", to)
+          .order("happened_at", { ascending: false })
+          .limit(5000);
+        if (error) throw error;
+        return { rows: data ?? [] };
+      } else if (type === "expenses") {
         let q = supabase.from("expense_allocations")
           .select("amount,currency,period,expenses(id,note,category_id,project_id,wallet_id,categories(name),projects(name),wallets(name))")
           .gte("period", from.slice(0, 7) + "-01")
@@ -59,14 +66,19 @@ function ReportsPage() {
   const rows = data?.rows ?? [];
 
   function exportExcel() {
-    const sheetData = type === "expenses"
+    const TYPE_LABEL: Record<string, string> = {
+      income: "دخل", expense: "مصروف", transfer: "تحويل", debt: "دين", investment: "استثمار", adjustment: "تسوية",
+    };
+    const sheetData = type === "transactions"
+      ? (rows as any[]).map((r) => ({ "التاريخ": r.happened_at, "النوع": TYPE_LABEL[r.type] ?? r.type, "الاتجاه": r.direction, "الوصف": r.description ?? "", "الشخص": r.person_name ?? "", "المبلغ": Number(r.amount), "العملة": r.currency }))
+      : type === "expenses"
       ? rows.map((r: any) => ({ "الشهر": (r.period as string).slice(0, 7), "الفئة": r.expenses?.categories?.name ?? "", "المشروع": r.expenses?.projects?.name ?? "", "المحفظة": r.expenses?.wallets?.name ?? "", "المبلغ": Number(r.amount), "العملة": r.currency, "ملاحظة": r.expenses?.note ?? "" }))
       : rows.map((r: any) => ({ "التاريخ": r.happened_at, "الشخص": r.contact_name, "النوع": kindMeta(r.kind).label, "المبلغ": Number(r.amount), "العملة": r.currency, "الاستحقاق": r.due_date ?? "", "مسدد": r.settled_at ? "نعم" : "لا", "ملاحظات": r.notes ?? "" }));
     if (sheetData.length === 0) return;
     const ws = XLSX.utils.json_to_sheet(sheetData);
     ws["!cols"] = Object.keys(sheetData[0]).map(() => ({ wch: 18 }));
     const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, type === "expenses" ? "المصاريف" : "الأشخاص");
+    XLSX.utils.book_append_sheet(wb, ws, type === "expenses" ? "المصاريف" : type === "people" ? "الأشخاص" : "العمليات");
     XLSX.writeFile(wb, `تقرير-${type}-${from}_${to}.xlsx`);
   }
 
@@ -75,6 +87,16 @@ function ReportsPage() {
   if (type === "expenses") for (const r of rows as any[]) totalsByCur[r.currency] = (totalsByCur[r.currency] ?? 0) + Number(r.amount);
   const peopleNet: Record<string, number> = {};
   if (type === "people") for (const r of rows as any[]) peopleNet[r.currency] = (peopleNet[r.currency] ?? 0) + kindSign(r.kind) * Number(r.amount);
+
+  // Income/expense totals for transactions view
+  const txIncome: Record<string, number> = {};
+  const txExpense: Record<string, number> = {};
+  if (type === "transactions") {
+    for (const r of rows as any[]) {
+      if (r.type === "income") txIncome[r.currency] = (txIncome[r.currency] ?? 0) + Number(r.amount);
+      else if (r.type === "expense") txExpense[r.currency] = (txExpense[r.currency] ?? 0) + Number(r.amount);
+    }
+  }
 
   return (
     <div className="space-y-5">
@@ -85,7 +107,8 @@ function ReportsPage() {
 
       <div className="rounded-2xl border bg-card p-4 space-y-4 no-print">
         <Tabs value={type} onValueChange={(v) => setType(v as any)}>
-          <TabsList className="grid grid-cols-2 w-full">
+          <TabsList className="grid grid-cols-3 w-full">
+            <TabsTrigger value="transactions">العمليات</TabsTrigger>
             <TabsTrigger value="expenses">مصاريف</TabsTrigger>
             <TabsTrigger value="people">أشخاص</TabsTrigger>
           </TabsList>
@@ -118,11 +141,54 @@ function ReportsPage() {
 
       <div className="rounded-2xl border bg-card p-6">
         <div className="text-center mb-4 pb-4 border-b">
-          <h2 className="text-xl font-bold">تقرير {type === "expenses" ? "المصاريف" : "الأشخاص"}</h2>
+          <h2 className="text-xl font-bold">تقرير {type === "expenses" ? "المصاريف" : type === "people" ? "الأشخاص" : "العمليات"}</h2>
           <div className="text-sm text-muted-foreground mt-1">من {formatDate(from)} إلى {formatDate(to)}</div>
         </div>
 
-        {type === "expenses" ? (
+        {type === "transactions" ? (
+          <>
+            <div className="grid grid-cols-3 gap-3 mb-4">
+              <div className="rounded-xl bg-emerald-500/10 p-3">
+                <div className="text-xs text-muted-foreground">إجمالي الدخل</div>
+                {Object.entries(txIncome).map(([c, v]) => <div key={c} className="font-bold tabular-nums text-emerald-600">{formatMoney(v, c)}</div>)}
+                {Object.keys(txIncome).length === 0 && <div className="text-muted-foreground">—</div>}
+              </div>
+              <div className="rounded-xl bg-rose-500/10 p-3">
+                <div className="text-xs text-muted-foreground">إجمالي المصروف</div>
+                {Object.entries(txExpense).map(([c, v]) => <div key={c} className="font-bold tabular-nums text-rose-600">{formatMoney(v, c)}</div>)}
+                {Object.keys(txExpense).length === 0 && <div className="text-muted-foreground">—</div>}
+              </div>
+              <div className="rounded-xl bg-sky-500/10 p-3">
+                <div className="text-xs text-muted-foreground">الصافي</div>
+                {Array.from(new Set([...Object.keys(txIncome), ...Object.keys(txExpense)])).map((c) => {
+                  const v = (txIncome[c] ?? 0) - (txExpense[c] ?? 0);
+                  return <div key={c} className={`font-bold tabular-nums ${v >= 0 ? "text-emerald-600" : "text-rose-600"}`}>{v >= 0 ? "+" : "−"}{formatMoney(Math.abs(v), c)}</div>;
+                })}
+              </div>
+            </div>
+            <table className="w-full text-sm">
+              <thead className="text-right text-xs text-muted-foreground border-b">
+                <tr><th className="py-2">التاريخ</th><th>النوع</th><th>الوصف</th><th>الشخص</th><th className="text-left">المبلغ</th></tr>
+              </thead>
+              <tbody>
+                {(rows as any[]).map((r) => {
+                  const TL: Record<string, string> = { income: "دخل", expense: "مصروف", transfer: "تحويل", debt: "دين", investment: "استثمار", adjustment: "تسوية" };
+                  const sign = r.direction === "in" ? "+" : r.direction === "out" ? "−" : "";
+                  const cls = r.direction === "in" ? "text-emerald-600" : r.direction === "out" ? "text-rose-600" : "";
+                  return (
+                    <tr key={r.id} className="border-b last:border-0">
+                      <td className="py-2">{formatDate(r.happened_at)}</td>
+                      <td>{TL[r.type] ?? r.type}</td>
+                      <td className="truncate max-w-[160px]">{r.description ?? "—"}</td>
+                      <td>{r.person_name ?? "—"}</td>
+                      <td className={`text-left tabular-nums ${cls}`}>{sign}{formatMoney(r.amount, r.currency)}</td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </>
+        ) : type === "expenses" ? (
           <>
             <div className="grid sm:grid-cols-2 gap-3 mb-4">
               <div className="rounded-xl bg-accent/40 p-3"><div className="text-xs text-muted-foreground">عدد التوزيعات</div><div className="text-lg font-bold">{rows.length}</div></div>
