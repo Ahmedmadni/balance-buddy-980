@@ -66,14 +66,19 @@ function ReportsPage() {
   const rows = data?.rows ?? [];
 
   function exportExcel() {
-    const sheetData = type === "expenses"
+    const TYPE_LABEL: Record<string, string> = {
+      income: "دخل", expense: "مصروف", transfer: "تحويل", debt: "دين", investment: "استثمار", adjustment: "تسوية",
+    };
+    const sheetData = type === "transactions"
+      ? (rows as any[]).map((r) => ({ "التاريخ": r.happened_at, "النوع": TYPE_LABEL[r.type] ?? r.type, "الاتجاه": r.direction, "الوصف": r.description ?? "", "الشخص": r.person_name ?? "", "المبلغ": Number(r.amount), "العملة": r.currency }))
+      : type === "expenses"
       ? rows.map((r: any) => ({ "الشهر": (r.period as string).slice(0, 7), "الفئة": r.expenses?.categories?.name ?? "", "المشروع": r.expenses?.projects?.name ?? "", "المحفظة": r.expenses?.wallets?.name ?? "", "المبلغ": Number(r.amount), "العملة": r.currency, "ملاحظة": r.expenses?.note ?? "" }))
       : rows.map((r: any) => ({ "التاريخ": r.happened_at, "الشخص": r.contact_name, "النوع": kindMeta(r.kind).label, "المبلغ": Number(r.amount), "العملة": r.currency, "الاستحقاق": r.due_date ?? "", "مسدد": r.settled_at ? "نعم" : "لا", "ملاحظات": r.notes ?? "" }));
     if (sheetData.length === 0) return;
     const ws = XLSX.utils.json_to_sheet(sheetData);
     ws["!cols"] = Object.keys(sheetData[0]).map(() => ({ wch: 18 }));
     const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, type === "expenses" ? "المصاريف" : "الأشخاص");
+    XLSX.utils.book_append_sheet(wb, ws, type === "expenses" ? "المصاريف" : type === "people" ? "الأشخاص" : "العمليات");
     XLSX.writeFile(wb, `تقرير-${type}-${from}_${to}.xlsx`);
   }
 
@@ -82,6 +87,16 @@ function ReportsPage() {
   if (type === "expenses") for (const r of rows as any[]) totalsByCur[r.currency] = (totalsByCur[r.currency] ?? 0) + Number(r.amount);
   const peopleNet: Record<string, number> = {};
   if (type === "people") for (const r of rows as any[]) peopleNet[r.currency] = (peopleNet[r.currency] ?? 0) + kindSign(r.kind) * Number(r.amount);
+
+  // Income/expense totals for transactions view
+  const txIncome: Record<string, number> = {};
+  const txExpense: Record<string, number> = {};
+  if (type === "transactions") {
+    for (const r of rows as any[]) {
+      if (r.type === "income") txIncome[r.currency] = (txIncome[r.currency] ?? 0) + Number(r.amount);
+      else if (r.type === "expense") txExpense[r.currency] = (txExpense[r.currency] ?? 0) + Number(r.amount);
+    }
+  }
 
   return (
     <div className="space-y-5">
