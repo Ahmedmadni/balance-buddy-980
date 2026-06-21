@@ -22,7 +22,7 @@ function ReportsPage() {
   const monthStart = new Date(today.getFullYear(), today.getMonth(), 1).toISOString().slice(0, 10);
   const [from, setFrom] = useState(monthStart);
   const [to, setTo] = useState(todayISO());
-  const [type, setType] = useState<"expenses" | "people">("expenses");
+  const [type, setType] = useState<"expenses" | "people" | "transactions">("transactions");
   const [projectId, setProjectId] = useState<string>("all");
 
   const { data: projects } = useQuery({
