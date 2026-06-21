@@ -33,8 +33,15 @@ function ReportsPage() {
   const { data, refetch, isFetching } = useQuery({
     queryKey: ["report", type, from, to, projectId],
     queryFn: async () => {
-      if (type === "expenses") {
-        // Use allocations within range, joined with expense + category/project
+      if (type === "transactions") {
+        const { data, error } = await supabase.from("transactions")
+          .select("id,type,direction,amount,currency,happened_at,description,person_name,account_id,counterparty_account_id")
+          .gte("happened_at", from).lte("happened_at", to)
+          .order("happened_at", { ascending: false })
+          .limit(5000);
+        if (error) throw error;
+        return { rows: data ?? [] };
+      } else if (type === "expenses") {
         let q = supabase.from("expense_allocations")
           .select("amount,currency,period,expenses(id,note,category_id,project_id,wallet_id,categories(name),projects(name),wallets(name))")
           .gte("period", from.slice(0, 7) + "-01")
