@@ -349,10 +349,11 @@ function Dashboard() {
 }
 
 function KpiCard({
-  icon: Icon, label, amounts, emptyText, accent, signed = false,
+  icon: Icon, label, amounts, emptyText, accent, signed = false, changePct,
 }: {
   icon: any; label: string; amounts: Record<string, number>; emptyText: string;
   accent: "primary" | "success" | "destructive" | "muted"; signed?: boolean;
+  changePct?: Record<string, number>;
 }) {
   const entries = Object.entries(amounts).filter(([, v]) => Math.abs(v) > 0.001);
   const accentClass = {
