@@ -16,6 +16,7 @@ import { Route as AuthenticatedAppRouteImport } from './routes/_authenticated/ap
 import { Route as AuthenticatedAppIndexRouteImport } from './routes/_authenticated/app.index'
 import { Route as AuthenticatedAppZakatRouteImport } from './routes/_authenticated/app.zakat'
 import { Route as AuthenticatedAppWalletsRouteImport } from './routes/_authenticated/app.wallets'
+import { Route as AuthenticatedAppTransactionsRouteImport } from './routes/_authenticated/app.transactions'
 import { Route as AuthenticatedAppSettingsRouteImport } from './routes/_authenticated/app.settings'
 import { Route as AuthenticatedAppReportsRouteImport } from './routes/_authenticated/app.reports'
 import { Route as AuthenticatedAppRecurringRouteImport } from './routes/_authenticated/app.recurring'
@@ -64,6 +65,12 @@ const AuthenticatedAppWalletsRoute = AuthenticatedAppWalletsRouteImport.update({
   path: '/wallets',
   getParentRoute: () => AuthenticatedAppRoute,
 } as any)
+const AuthenticatedAppTransactionsRoute =
+  AuthenticatedAppTransactionsRouteImport.update({
+    id: '/transactions',
+    path: '/transactions',
+    getParentRoute: () => AuthenticatedAppRoute,
+  } as any)
 const AuthenticatedAppSettingsRoute =
   AuthenticatedAppSettingsRouteImport.update({
     id: '/settings',
@@ -152,6 +159,7 @@ export interface FileRoutesByFullPath {
   '/app/recurring': typeof AuthenticatedAppRecurringRoute
   '/app/reports': typeof AuthenticatedAppReportsRoute
   '/app/settings': typeof AuthenticatedAppSettingsRoute
+  '/app/transactions': typeof AuthenticatedAppTransactionsRoute
   '/app/wallets': typeof AuthenticatedAppWalletsRouteWithChildren
   '/app/zakat': typeof AuthenticatedAppZakatRoute
   '/app/': typeof AuthenticatedAppIndexRoute
@@ -172,6 +180,7 @@ export interface FileRoutesByTo {
   '/app/recurring': typeof AuthenticatedAppRecurringRoute
   '/app/reports': typeof AuthenticatedAppReportsRoute
   '/app/settings': typeof AuthenticatedAppSettingsRoute
+  '/app/transactions': typeof AuthenticatedAppTransactionsRoute
   '/app/wallets': typeof AuthenticatedAppWalletsRouteWithChildren
   '/app/zakat': typeof AuthenticatedAppZakatRoute
   '/app': typeof AuthenticatedAppIndexRoute
@@ -195,6 +204,7 @@ export interface FileRoutesById {
   '/_authenticated/app/recurring': typeof AuthenticatedAppRecurringRoute
   '/_authenticated/app/reports': typeof AuthenticatedAppReportsRoute
   '/_authenticated/app/settings': typeof AuthenticatedAppSettingsRoute
+  '/_authenticated/app/transactions': typeof AuthenticatedAppTransactionsRoute
   '/_authenticated/app/wallets': typeof AuthenticatedAppWalletsRouteWithChildren
   '/_authenticated/app/zakat': typeof AuthenticatedAppZakatRoute
   '/_authenticated/app/': typeof AuthenticatedAppIndexRoute
@@ -218,6 +228,7 @@ export interface FileRouteTypes {
     | '/app/recurring'
     | '/app/reports'
     | '/app/settings'
+    | '/app/transactions'
     | '/app/wallets'
     | '/app/zakat'
     | '/app/'
@@ -238,6 +249,7 @@ export interface FileRouteTypes {
     | '/app/recurring'
     | '/app/reports'
     | '/app/settings'
+    | '/app/transactions'
     | '/app/wallets'
     | '/app/zakat'
     | '/app'
@@ -260,6 +272,7 @@ export interface FileRouteTypes {
     | '/_authenticated/app/recurring'
     | '/_authenticated/app/reports'
     | '/_authenticated/app/settings'
+    | '/_authenticated/app/transactions'
     | '/_authenticated/app/wallets'
     | '/_authenticated/app/zakat'
     | '/_authenticated/app/'
@@ -324,6 +337,13 @@ declare module '@tanstack/react-router' {
       path: '/wallets'
       fullPath: '/app/wallets'
       preLoaderRoute: typeof AuthenticatedAppWalletsRouteImport
+      parentRoute: typeof AuthenticatedAppRoute
+    }
+    '/_authenticated/app/transactions': {
+      id: '/_authenticated/app/transactions'
+      path: '/transactions'
+      fullPath: '/app/transactions'
+      preLoaderRoute: typeof AuthenticatedAppTransactionsRouteImport
       parentRoute: typeof AuthenticatedAppRoute
     }
     '/_authenticated/app/settings': {
@@ -485,6 +505,7 @@ interface AuthenticatedAppRouteChildren {
   AuthenticatedAppRecurringRoute: typeof AuthenticatedAppRecurringRoute
   AuthenticatedAppReportsRoute: typeof AuthenticatedAppReportsRoute
   AuthenticatedAppSettingsRoute: typeof AuthenticatedAppSettingsRoute
+  AuthenticatedAppTransactionsRoute: typeof AuthenticatedAppTransactionsRoute
   AuthenticatedAppWalletsRoute: typeof AuthenticatedAppWalletsRouteWithChildren
   AuthenticatedAppZakatRoute: typeof AuthenticatedAppZakatRoute
   AuthenticatedAppIndexRoute: typeof AuthenticatedAppIndexRoute
@@ -500,6 +521,7 @@ const AuthenticatedAppRouteChildren: AuthenticatedAppRouteChildren = {
   AuthenticatedAppRecurringRoute: AuthenticatedAppRecurringRoute,
   AuthenticatedAppReportsRoute: AuthenticatedAppReportsRoute,
   AuthenticatedAppSettingsRoute: AuthenticatedAppSettingsRoute,
+  AuthenticatedAppTransactionsRoute: AuthenticatedAppTransactionsRoute,
   AuthenticatedAppWalletsRoute: AuthenticatedAppWalletsRouteWithChildren,
   AuthenticatedAppZakatRoute: AuthenticatedAppZakatRoute,
   AuthenticatedAppIndexRoute: AuthenticatedAppIndexRoute,
@@ -527,13 +549,3 @@ const rootRouteChildren: RootRouteChildren = {
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
-
-import type { getRouter } from './router.tsx'
-import type { startInstance } from './start.ts'
-declare module '@tanstack/react-start' {
-  interface Register {
-    ssr: true
-    router: Awaited<ReturnType<typeof getRouter>>
-    config: Awaited<ReturnType<typeof startInstance.getOptions>>
-  }
-}
