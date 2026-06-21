@@ -382,9 +382,18 @@ function KpiCard({
         ) : entries.map(([cur, amt]) => {
           const color = signed ? (amt > 0 ? "text-success" : amt < 0 ? "text-destructive" : baseValueColor) : baseValueColor;
           const prefix = signed ? (amt > 0 ? "+" : amt < 0 ? "−" : "") : "";
+          const pct = changePct?.[cur];
           return (
-            <div key={cur} className={cn("text-xl sm:text-2xl font-bold tabular-nums tracking-tight", color)}>
-              {prefix}{formatMoney(Math.abs(amt), cur)}
+            <div key={cur} className="space-y-0.5">
+              <div className={cn("text-xl sm:text-2xl font-bold tabular-nums tracking-tight", color)}>
+                {prefix}{formatMoney(Math.abs(amt), cur)}
+              </div>
+              {pct !== undefined && Math.abs(pct) >= 0.1 && (
+                <div className={cn("text-[10px] font-semibold tabular-nums inline-flex items-center gap-0.5",
+                  pct > 0 ? "text-destructive" : "text-success")}>
+                  {pct > 0 ? "▲" : "▼"} {Math.abs(pct).toFixed(1)}% عن الشهر السابق
+                </div>
+              )}
             </div>
           );
         })}
