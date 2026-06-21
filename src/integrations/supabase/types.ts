@@ -379,12 +379,14 @@ export type Database = {
           current_value: number
           id: string
           is_zakatable: boolean
+          meta: Json
           name: string
           notes: string | null
           ownership_pct: number
           principal: number
           start_date: string
           status: string
+          subtype: string | null
           type: string
           updated_at: string
           user_id: string
@@ -396,12 +398,14 @@ export type Database = {
           current_value?: number
           id?: string
           is_zakatable?: boolean
+          meta?: Json
           name: string
           notes?: string | null
           ownership_pct?: number
           principal?: number
           start_date?: string
           status?: string
+          subtype?: string | null
           type?: string
           updated_at?: string
           user_id: string
@@ -413,12 +417,14 @@ export type Database = {
           current_value?: number
           id?: string
           is_zakatable?: boolean
+          meta?: Json
           name?: string
           notes?: string | null
           ownership_pct?: number
           principal?: number
           start_date?: string
           status?: string
+          subtype?: string | null
           type?: string
           updated_at?: string
           user_id?: string
