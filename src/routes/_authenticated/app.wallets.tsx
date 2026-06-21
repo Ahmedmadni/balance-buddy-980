@@ -13,6 +13,7 @@ import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { computeWalletBalance } from "@/lib/wallet-balance";
 import { WalletTransferForm } from "@/components/WalletTxForm";
+import { IncomeForm } from "@/components/IncomeForm";
 
 export const Route = createFileRoute("/_authenticated/app/wallets")({
   head: () => ({ meta: [{ title: "المحافظ — رصد" }] }),
