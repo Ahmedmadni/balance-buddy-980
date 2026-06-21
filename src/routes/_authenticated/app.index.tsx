@@ -73,9 +73,20 @@ function Dashboard() {
     walletBalances.push({ id: w.id, name: w.name, color: w.color ?? "#0ea5e9", type: w.type, balance: bal, currency: w.currency });
   }
 
+  const prevMonthDate = new Date(); prevMonthDate.setDate(1); prevMonthDate.setMonth(prevMonthDate.getMonth() - 1);
+  const prevMonth = prevMonthDate.toISOString().slice(0, 7);
+
   const monthlyExp: Record<string, number> = {};
+  const prevMonthExp: Record<string, number> = {};
   for (const a of d.allocations as any[]) {
-    if ((a.period as string).slice(0, 7) === currentMonth) monthlyExp[a.currency] = (monthlyExp[a.currency] ?? 0) + Number(a.amount);
+    const p = (a.period as string).slice(0, 7);
+    if (p === currentMonth) monthlyExp[a.currency] = (monthlyExp[a.currency] ?? 0) + Number(a.amount);
+    else if (p === prevMonth) prevMonthExp[a.currency] = (prevMonthExp[a.currency] ?? 0) + Number(a.amount);
+  }
+  const expChangePct: Record<string, number> = {};
+  for (const c of Object.keys(monthlyExp)) {
+    const prev = prevMonthExp[c] ?? 0;
+    if (prev > 0) expChangePct[c] = ((monthlyExp[c] - prev) / prev) * 100;
   }
 
   const monthlyInflow: Record<string, number> = {};
