@@ -141,11 +141,54 @@ function ReportsPage() {
 
       <div className="rounded-2xl border bg-card p-6">
         <div className="text-center mb-4 pb-4 border-b">
-          <h2 className="text-xl font-bold">تقرير {type === "expenses" ? "المصاريف" : "الأشخاص"}</h2>
+          <h2 className="text-xl font-bold">تقرير {type === "expenses" ? "المصاريف" : type === "people" ? "الأشخاص" : "العمليات"}</h2>
           <div className="text-sm text-muted-foreground mt-1">من {formatDate(from)} إلى {formatDate(to)}</div>
         </div>
 
-        {type === "expenses" ? (
+        {type === "transactions" ? (
+          <>
+            <div className="grid grid-cols-3 gap-3 mb-4">
+              <div className="rounded-xl bg-emerald-500/10 p-3">
+                <div className="text-xs text-muted-foreground">إجمالي الدخل</div>
+                {Object.entries(txIncome).map(([c, v]) => <div key={c} className="font-bold tabular-nums text-emerald-600">{formatMoney(v, c)}</div>)}
+                {Object.keys(txIncome).length === 0 && <div className="text-muted-foreground">—</div>}
+              </div>
+              <div className="rounded-xl bg-rose-500/10 p-3">
+                <div className="text-xs text-muted-foreground">إجمالي المصروف</div>
+                {Object.entries(txExpense).map(([c, v]) => <div key={c} className="font-bold tabular-nums text-rose-600">{formatMoney(v, c)}</div>)}
+                {Object.keys(txExpense).length === 0 && <div className="text-muted-foreground">—</div>}
+              </div>
+              <div className="rounded-xl bg-sky-500/10 p-3">
+                <div className="text-xs text-muted-foreground">الصافي</div>
+                {Array.from(new Set([...Object.keys(txIncome), ...Object.keys(txExpense)])).map((c) => {
+                  const v = (txIncome[c] ?? 0) - (txExpense[c] ?? 0);
+                  return <div key={c} className={`font-bold tabular-nums ${v >= 0 ? "text-emerald-600" : "text-rose-600"}`}>{v >= 0 ? "+" : "−"}{formatMoney(Math.abs(v), c)}</div>;
+                })}
+              </div>
+            </div>
+            <table className="w-full text-sm">
+              <thead className="text-right text-xs text-muted-foreground border-b">
+                <tr><th className="py-2">التاريخ</th><th>النوع</th><th>الوصف</th><th>الشخص</th><th className="text-left">المبلغ</th></tr>
+              </thead>
+              <tbody>
+                {(rows as any[]).map((r) => {
+                  const TL: Record<string, string> = { income: "دخل", expense: "مصروف", transfer: "تحويل", debt: "دين", investment: "استثمار", adjustment: "تسوية" };
+                  const sign = r.direction === "in" ? "+" : r.direction === "out" ? "−" : "";
+                  const cls = r.direction === "in" ? "text-emerald-600" : r.direction === "out" ? "text-rose-600" : "";
+                  return (
+                    <tr key={r.id} className="border-b last:border-0">
+                      <td className="py-2">{formatDate(r.happened_at)}</td>
+                      <td>{TL[r.type] ?? r.type}</td>
+                      <td className="truncate max-w-[160px]">{r.description ?? "—"}</td>
+                      <td>{r.person_name ?? "—"}</td>
+                      <td className={`text-left tabular-nums ${cls}`}>{sign}{formatMoney(r.amount, r.currency)}</td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </>
+        ) : type === "expenses" ? (
           <>
             <div className="grid sm:grid-cols-2 gap-3 mb-4">
               <div className="rounded-xl bg-accent/40 p-3"><div className="text-xs text-muted-foreground">عدد التوزيعات</div><div className="text-lg font-bold">{rows.length}</div></div>
