@@ -9,11 +9,12 @@ import { Switch } from "@/components/ui/switch";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { HandCoins, CheckCircle2, Save, Calculator, Info, Coins, Wheat, Mountain } from "lucide-react";
+import { HandCoins, CheckCircle2, Save, Calculator, Info, Coins, Wheat, Mountain, Settings as SettingsIcon, AlertTriangle, CalendarClock } from "lucide-react";
 import { CURRENCIES, formatMoney, formatDate, todayISO } from "@/lib/format";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { computeWalletBalance } from "@/lib/wallet-balance";
+import { computeHaulStatus, validateBeforeCompute, classifyAsset, type ZakatSettings } from "@/lib/zakat/engine";
 
 export const Route = createFileRoute("/_authenticated/app/zakat")({
   head: () => ({ meta: [{ title: "حاسبة الزكاة — رصد" }] }),
