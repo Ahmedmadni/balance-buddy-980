@@ -42,12 +42,14 @@ function ZakatPage() {
       </div>
 
       <Tabs defaultValue="money" className="space-y-4">
-        <TabsList className="grid w-full grid-cols-2 h-auto">
+        <TabsList className="grid w-full grid-cols-3 h-auto">
           <TabsTrigger value="money" className="flex items-center gap-1.5"><Coins className="h-4 w-4" /> زكاة المال</TabsTrigger>
+          <TabsTrigger value="settings" className="flex items-center gap-1.5"><SettingsIcon className="h-4 w-4" /> الإعدادات</TabsTrigger>
           <TabsTrigger value="livestock" className="flex items-center gap-1.5"><Wheat className="h-4 w-4" /> الأنعام والثمار</TabsTrigger>
         </TabsList>
 
         <TabsContent value="money" className="space-y-4 mt-4"><MoneyZakat /></TabsContent>
+        <TabsContent value="settings" className="space-y-4 mt-4"><ZakatSettingsTab /></TabsContent>
         <TabsContent value="livestock" className="space-y-4 mt-4"><LivestockZakat /></TabsContent>
       </Tabs>
     </div>
