@@ -690,11 +690,11 @@ function ZakatSettingsTab() {
   useEffect(() => {
     if (!data?.settings) return;
     const s = data.settings;
-    setAnnualType(s.annual_date_type);
+    setAnnualType(s.annual_date_type as "hijri" | "gregorian");
     setAnnualValue(s.annual_date_value);
     setBaseCurrency(s.base_currency);
-    setNisabMethod(s.nisab_method);
-    setJewelry(s.gold_jewelry_opinion);
+    setNisabMethod(s.nisab_method as "gold" | "silver");
+    setJewelry(s.gold_jewelry_opinion as "zakat" | "no_zakat");
     if (s.gold_gram_price) setGoldPrice(String(s.gold_gram_price));
     if (s.silver_gram_price) setSilverPrice(String(s.silver_gram_price));
     if (s.last_haul_start_date) setHaulStart(s.last_haul_start_date);
