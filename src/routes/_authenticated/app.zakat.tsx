@@ -1,7 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import { useMemo, useState } from "react";
+import { useMemo, useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -9,11 +9,12 @@ import { Switch } from "@/components/ui/switch";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { HandCoins, CheckCircle2, Save, Calculator, Info, Coins, Wheat, Mountain } from "lucide-react";
+import { HandCoins, CheckCircle2, Save, Calculator, Info, Coins, Wheat, Mountain, Settings as SettingsIcon, AlertTriangle, CalendarClock } from "lucide-react";
 import { CURRENCIES, formatMoney, formatDate, todayISO } from "@/lib/format";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { computeWalletBalance } from "@/lib/wallet-balance";
+import { computeHaulStatus, validateBeforeCompute, classifyAsset, type ZakatSettings } from "@/lib/zakat/engine";
 
 export const Route = createFileRoute("/_authenticated/app/zakat")({
   head: () => ({ meta: [{ title: "حاسبة الزكاة — رصد" }] }),
@@ -41,12 +42,14 @@ function ZakatPage() {
       </div>
 
       <Tabs defaultValue="money" className="space-y-4">
-        <TabsList className="grid w-full grid-cols-2 h-auto">
+        <TabsList className="grid w-full grid-cols-3 h-auto">
           <TabsTrigger value="money" className="flex items-center gap-1.5"><Coins className="h-4 w-4" /> زكاة المال</TabsTrigger>
+          <TabsTrigger value="settings" className="flex items-center gap-1.5"><SettingsIcon className="h-4 w-4" /> الإعدادات</TabsTrigger>
           <TabsTrigger value="livestock" className="flex items-center gap-1.5"><Wheat className="h-4 w-4" /> الأنعام والثمار</TabsTrigger>
         </TabsList>
 
         <TabsContent value="money" className="space-y-4 mt-4"><MoneyZakat /></TabsContent>
+        <TabsContent value="settings" className="space-y-4 mt-4"><ZakatSettingsTab /></TabsContent>
         <TabsContent value="livestock" className="space-y-4 mt-4"><LivestockZakat /></TabsContent>
       </Tabs>
     </div>
@@ -93,17 +96,44 @@ function MoneyZakat() {
   const { data, isLoading } = useQuery({
     queryKey: ["zakat-data"],
     queryFn: async () => {
-      const [wRes, eRes, tRes, iRes, pRes, rRes] = await Promise.all([
+      const [wRes, eRes, tRes, iRes, pRes, rRes, sRes, xRes] = await Promise.all([
         supabase.from("wallets").select("*").eq("is_archived", false),
         supabase.from("expenses").select("wallet_id,amount,currency"),
         supabase.from("wallet_transactions").select("wallet_id,kind,amount"),
-        supabase.from("investments").select("*").eq("status", "active").eq("is_zakatable", true),
+        supabase.from("investments").select("*").eq("status", "active"),
         supabase.from("person_ledger").select("kind,amount,currency,settled_at"),
         supabase.from("zakat_records").select("*").order("calculated_at", { ascending: false }),
+        supabase.from("zakat_settings").select("*").maybeSingle(),
+        supabase.from("exchange_rates").select("*"),
       ]);
-      return { wallets: wRes.data ?? [], expenses: eRes.data ?? [], txs: tRes.data ?? [], investments: iRes.data ?? [], ledger: pRes.data ?? [], records: rRes.data ?? [] };
+      return {
+        wallets: wRes.data ?? [], expenses: eRes.data ?? [], txs: tRes.data ?? [],
+        investments: iRes.data ?? [], ledger: pRes.data ?? [], records: rRes.data ?? [],
+        settings: (sRes.data ?? null) as ZakatSettings | null,
+        savedRates: xRes.data ?? [],
+      };
     },
   });
+
+  // Apply saved settings/rates from DB once loaded
+  useEffect(() => {
+    if (!data) return;
+    if (data.settings) {
+      setBaseCurrency(data.settings.base_currency || "SAR");
+      setNisabMethod(data.settings.nisab_method as any);
+      if (data.settings.gold_gram_price) setGoldPrice(String(data.settings.gold_gram_price));
+      if (data.settings.silver_gram_price) setSilverPrice(String(data.settings.silver_gram_price));
+    }
+    if (data.savedRates && data.savedRates.length > 0) {
+      setRates((prev) => {
+        const next = { ...prev };
+        for (const r of data.savedRates as any[]) next[r.currency] = Number(r.rate_to_base);
+        return next;
+      });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [data]);
+
 
   const result = useMemo(() => {
     if (!data) return null;
@@ -125,7 +155,12 @@ function MoneyZakat() {
       else if (w.type === "investment") slot.investments += bal;
     }
 
+    const jewelryOpinion = (data.settings?.gold_jewelry_opinion ?? "no_zakat") as "zakat" | "no_zakat";
     for (const inv of data.investments) {
+      // Smart classification (purpose + type) overrides legacy is_zakatable when purpose set
+      const cls = classifyAsset(inv as any, { gold_jewelry_opinion: jewelryOpinion });
+      const eligible = inv.purpose ? cls.isZakatable : (inv.is_zakatable !== false);
+      if (!eligible) continue;
       const v = Number(inv.current_value) * (Number(inv.ownership_pct) / 100);
       if (v > 0) ensure(inv.currency).investments += v;
     }
@@ -271,6 +306,61 @@ function MoneyZakat() {
           <div><Label>السنة الهجرية</Label><Input value={hijriYear} onChange={(e) => setHijriYear(e.target.value)} placeholder="مثلاً 1447" /></div>
         </div>
       </div>
+
+      {/* تنبيهات التدقيق + حالة الحول */}
+      {data && (() => {
+        const usedCurs = Array.from(new Set([
+          ...data.wallets.map((w: any) => w.currency),
+          ...data.investments.map((i: any) => i.currency),
+        ]));
+        const missing = validateBeforeCompute({
+          settings: data.settings,
+          assets: data.investments as any,
+          usedCurrencies: usedCurs,
+          rates: Object.fromEntries(usedCurs.map((c) => [c, c === baseCurrency ? 1 : (rates[c] ?? 0)])),
+        });
+        const haul = data.settings ? computeHaulStatus({
+          settings: data.settings,
+          currentWealthBase: result?.unifiedBase ?? 0,
+          nisabBase: result?.nisabBase ?? 0,
+        }) : null;
+        return (
+          <>
+            {missing.length > 0 && (
+              <div className="rounded-2xl border border-destructive/40 bg-destructive/5 p-4 space-y-2">
+                <div className="font-semibold text-sm flex items-center gap-2 text-destructive">
+                  <AlertTriangle className="h-4 w-4" /> بيانات ناقصة قبل الحساب الدقيق
+                </div>
+                <ul className="text-xs space-y-1 list-disc pr-5">
+                  {missing.slice(0, 6).map((m, i) => <li key={i}>{m}</li>)}
+                  {missing.length > 6 && <li>... و {missing.length - 6} تنبيهات أخرى</li>}
+                </ul>
+                <div className="text-[10px] text-muted-foreground">أكمل البيانات من تبويب «الإعدادات» وصفحة الاستثمارات لضمان دقة الحساب.</div>
+              </div>
+            )}
+            {haul && data.settings && (
+              <div className="rounded-2xl border bg-card p-4 grid sm:grid-cols-3 gap-3 text-center">
+                <div>
+                  <div className="text-[11px] text-muted-foreground flex items-center justify-center gap-1"><CalendarClock className="h-3.5 w-3.5" /> تاريخ الزكاة القادم</div>
+                  <div className="font-bold text-sm mt-1">{formatDate(haul.nextZakatDate)}</div>
+                </div>
+                <div>
+                  <div className="text-[11px] text-muted-foreground">حالة بلوغ النصاب</div>
+                  <div className={cn("font-bold text-sm mt-1", haul.reachesNisab ? "text-success" : "text-amber-600")}>
+                    {haul.reachesNisab ? "✓ بلغ النصاب" : "⚠ دون النصاب"}
+                  </div>
+                </div>
+                <div>
+                  <div className="text-[11px] text-muted-foreground">الحول الشرعي</div>
+                  <div className="font-bold text-sm mt-1">
+                    {haul.haulStart ? (haul.haulComplete ? "✓ اكتمل" : `${haul.daysRemaining} يوماً متبقية`) : "لم يبدأ بعد"}
+                  </div>
+                </div>
+              </div>
+            )}
+          </>
+        );
+      })()}
 
       {/* النتيجة الموحّدة */}
       {isLoading ? (
@@ -568,6 +658,191 @@ function ToggleRow({ label, checked, onChange }: { label: string; checked: boole
     <div className="flex items-center justify-between text-sm">
       <span>{label}</span>
       <Switch checked={checked} onCheckedChange={onChange} />
+    </div>
+  );
+}
+
+// ============== ZAKAT SETTINGS TAB ==============
+function ZakatSettingsTab() {
+  const qc = useQueryClient();
+  const { data, isLoading } = useQuery({
+    queryKey: ["zakat-settings"],
+    queryFn: async () => {
+      const [s, r] = await Promise.all([
+        supabase.from("zakat_settings").select("*").maybeSingle(),
+        supabase.from("exchange_rates").select("*"),
+      ]);
+      return { settings: s.data, rates: r.data ?? [] };
+    },
+  });
+
+  const [annualType, setAnnualType] = useState<"hijri" | "gregorian">("hijri");
+  const [annualValue, setAnnualValue] = useState("01-09");
+  const [baseCurrency, setBaseCurrency] = useState("SAR");
+  const [nisabMethod, setNisabMethod] = useState<"gold" | "silver">("silver");
+  const [jewelry, setJewelry] = useState<"zakat" | "no_zakat">("no_zakat");
+  const [goldPrice, setGoldPrice] = useState("380");
+  const [silverPrice, setSilverPrice] = useState("4.5");
+  const [haulStart, setHaulStart] = useState("");
+  const [firstNisab, setFirstNisab] = useState("");
+  const [ratesMap, setRatesMap] = useState<Record<string, string>>({});
+
+  useEffect(() => {
+    if (!data?.settings) return;
+    const s = data.settings;
+    setAnnualType(s.annual_date_type as "hijri" | "gregorian");
+    setAnnualValue(s.annual_date_value);
+    setBaseCurrency(s.base_currency);
+    setNisabMethod(s.nisab_method as "gold" | "silver");
+    setJewelry(s.gold_jewelry_opinion as "zakat" | "no_zakat");
+    if (s.gold_gram_price) setGoldPrice(String(s.gold_gram_price));
+    if (s.silver_gram_price) setSilverPrice(String(s.silver_gram_price));
+    if (s.last_haul_start_date) setHaulStart(s.last_haul_start_date);
+    if (s.first_nisab_reached_at) setFirstNisab(s.first_nisab_reached_at);
+    const rm: Record<string, string> = {};
+    for (const r of data.rates as any[]) rm[r.currency] = String(r.rate_to_base);
+    setRatesMap(rm);
+  }, [data]);
+
+  const save = useMutation({
+    mutationFn: async () => {
+      const { data: u } = await supabase.auth.getUser();
+      if (!u.user) throw new Error("غير مسجل");
+      const payload = {
+        user_id: u.user.id,
+        annual_date_type: annualType,
+        annual_date_value: annualValue,
+        base_currency: baseCurrency,
+        nisab_method: nisabMethod,
+        gold_jewelry_opinion: jewelry,
+        gold_gram_price: parseFloat(goldPrice) || null,
+        silver_gram_price: parseFloat(silverPrice) || null,
+        last_haul_start_date: haulStart || null,
+        first_nisab_reached_at: firstNisab || null,
+      };
+      const { error } = await supabase.from("zakat_settings").upsert(payload, { onConflict: "user_id" });
+      if (error) throw error;
+
+      // Save exchange rates (upsert each)
+      const rows = Object.entries(ratesMap)
+        .filter(([c, v]) => c !== baseCurrency && parseFloat(v) > 0)
+        .map(([currency, v]) => ({
+          user_id: u.user!.id, currency, rate_to_base: parseFloat(v), base_currency: baseCurrency,
+        }));
+      if (rows.length) {
+        const { error: e2 } = await supabase.from("exchange_rates").upsert(rows, { onConflict: "user_id,currency,base_currency" });
+        if (e2) throw e2;
+      }
+    },
+    onSuccess: () => {
+      toast.success("تم حفظ إعدادات الزكاة");
+      qc.invalidateQueries({ queryKey: ["zakat-settings"] });
+      qc.invalidateQueries({ queryKey: ["zakat-data"] });
+    },
+    onError: (e: any) => toast.error("خطأ", { description: e.message }),
+  });
+
+  if (isLoading) return <div className="h-32 animate-pulse rounded-2xl bg-muted" />;
+
+  return (
+    <div className="space-y-4">
+      <div className="rounded-2xl border bg-card p-4 space-y-3">
+        <div className="font-semibold text-sm flex items-center gap-2"><CalendarClock className="h-4 w-4 text-primary" /> تاريخ الزكاة السنوي</div>
+        <div className="grid grid-cols-2 gap-3">
+          <div>
+            <Label>التقويم</Label>
+            <Select value={annualType} onValueChange={(v: any) => setAnnualType(v)}>
+              <SelectTrigger><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="hijri">هجري</SelectItem>
+                <SelectItem value="gregorian">ميلادي</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          <div>
+            <Label>اليوم-الشهر (DD-MM)</Label>
+            <Input value={annualValue} onChange={(e) => setAnnualValue(e.target.value)} dir="ltr" placeholder="01-09" />
+            <div className="text-[10px] text-muted-foreground mt-1">مثال: 01-09 = 1 رمضان (هجري) أو 1 سبتمبر (ميلادي)</div>
+          </div>
+        </div>
+      </div>
+
+      <div className="rounded-2xl border bg-card p-4 space-y-3">
+        <div className="font-semibold text-sm">العملة والنصاب</div>
+        <div className="grid grid-cols-2 gap-3">
+          <div>
+            <Label>العملة الأساسية</Label>
+            <Select value={baseCurrency} onValueChange={setBaseCurrency}>
+              <SelectTrigger><SelectValue /></SelectTrigger>
+              <SelectContent>{CURRENCIES.map((c) => <SelectItem key={c.code} value={c.code}>{c.name}</SelectItem>)}</SelectContent>
+            </Select>
+          </div>
+          <div>
+            <Label>طريقة النصاب</Label>
+            <Select value={nisabMethod} onValueChange={(v: any) => setNisabMethod(v)}>
+              <SelectTrigger><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="silver">الفضة (أحوط)</SelectItem>
+                <SelectItem value="gold">الذهب</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          <div>
+            <Label>سعر جرام الذهب 24ق ({baseCurrency})</Label>
+            <Input type="number" step="0.01" value={goldPrice} onChange={(e) => setGoldPrice(e.target.value)} dir="ltr" />
+          </div>
+          <div>
+            <Label>سعر جرام الفضة ({baseCurrency})</Label>
+            <Input type="number" step="0.01" value={silverPrice} onChange={(e) => setSilverPrice(e.target.value)} dir="ltr" />
+          </div>
+        </div>
+      </div>
+
+      <div className="rounded-2xl border bg-card p-4 space-y-3">
+        <div className="font-semibold text-sm">الذهب الملبوس (الرأي الفقهي)</div>
+        <Select value={jewelry} onValueChange={(v: any) => setJewelry(v)}>
+          <SelectTrigger><SelectValue /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value="no_zakat">لا زكاة على الذهب المُعدّ للزينة (الجمهور)</SelectItem>
+            <SelectItem value="zakat">تجب الزكاة على الذهب الملبوس (الحنفية ورأي معاصر)</SelectItem>
+          </SelectContent>
+        </Select>
+      </div>
+
+      <div className="rounded-2xl border bg-card p-4 space-y-3">
+        <div className="font-semibold text-sm">الحول الشرعي</div>
+        <div className="grid grid-cols-2 gap-3">
+          <div>
+            <Label>أول مرة بلغ النصاب</Label>
+            <Input type="date" value={firstNisab} onChange={(e) => setFirstNisab(e.target.value)} dir="ltr" />
+          </div>
+          <div>
+            <Label>بداية الحول الحالي</Label>
+            <Input type="date" value={haulStart} onChange={(e) => setHaulStart(e.target.value)} dir="ltr" />
+          </div>
+        </div>
+        <div className="text-[10px] text-muted-foreground">عند بلوغ النصاب لأول مرة يبدأ الحول. الأصول الجديدة المُضافة خلال العام تنضم تلقائياً للوعاء.</div>
+      </div>
+
+      <div className="rounded-2xl border bg-card p-4 space-y-3">
+        <div className="font-semibold text-sm">أسعار صرف العملات (مقابل {baseCurrency})</div>
+        <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+          {CURRENCIES.filter((c) => c.code !== baseCurrency).map((c) => (
+            <div key={c.code}>
+              <Label className="text-[10px]">1 {c.code} =</Label>
+              <Input type="number" step="0.0001" dir="ltr" className="h-8 text-xs"
+                value={ratesMap[c.code] ?? ""}
+                onChange={(e) => setRatesMap((m) => ({ ...m, [c.code]: e.target.value }))}
+                placeholder="—" />
+            </div>
+          ))}
+        </div>
+        <div className="text-[10px] text-muted-foreground">حدّث الأسعار يدوياً وقت احتساب الزكاة من مصدر موثوق.</div>
+      </div>
+
+      <Button className="w-full" onClick={() => save.mutate()} disabled={save.isPending}>
+        <Save className="h-4 w-4" /> حفظ الإعدادات
+      </Button>
     </div>
   );
 }

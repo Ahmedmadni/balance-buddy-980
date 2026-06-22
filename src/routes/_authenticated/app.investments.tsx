@@ -217,6 +217,25 @@ function InvestmentsPage() {
 
 // =========== Dynamic Investment Form ===========
 
+const PURPOSE_OPTIONS: Record<string, Array<{ value: string; label: string }>> = {
+  gold: [
+    { value: "personal_use", label: "زينة شخصية" },
+    { value: "savings", label: "ادخار" },
+    { value: "investment", label: "استثمار" },
+    { value: "trade", label: "تجارة" },
+  ],
+  real_estate: [
+    { value: "personal_use", label: "سكن شخصي" },
+    { value: "rental", label: "تأجير" },
+    { value: "resale", label: "للبيع / تجارة" },
+  ],
+  stocks: [
+    { value: "long_term", label: "استثمار طويل الأجل" },
+    { value: "speculation", label: "مضاربة" },
+    { value: "trade", label: "تجارة" },
+  ],
+};
+
 function InvestmentForm({ initial, wallets, onDone }: any) {
   const isEdit = !!initial;
   const [name, setName] = useState(initial?.name ?? "");
@@ -226,6 +245,8 @@ function InvestmentForm({ initial, wallets, onDone }: any) {
   const [currency, setCurrency] = useState(initial?.currency ?? "SAR");
   const [isZakatable, setIsZakatable] = useState(initial?.is_zakatable ?? true);
   const [startDate, setStartDate] = useState(initial?.start_date ?? todayISO());
+  const [acquiredAt, setAcquiredAt] = useState(initial?.acquired_at ?? initial?.start_date ?? todayISO());
+  const [purpose, setPurpose] = useState<string>(initial?.purpose ?? "");
   const [status, setStatus] = useState(initial?.status ?? "active");
   const [notes, setNotes] = useState(initial?.notes ?? "");
   const [meta, setMeta] = useState<Record<string, any>>(initial?.meta ?? {});
@@ -292,6 +313,8 @@ function InvestmentForm({ initial, wallets, onDone }: any) {
         current_value: currentValue,
         ownership_pct: parseFloat(ownership) || 100,
         currency, is_zakatable: isZakatable, start_date: startDate, status, notes: notes || null,
+        purpose: purpose || null,
+        acquired_at: acquiredAt || null,
       };
       if (isEdit) { const { error } = await supabase.from("investments").update(payload).eq("id", initial.id); if (error) throw error; }
       else { const { error } = await supabase.from("investments").insert(payload); if (error) throw error; }
@@ -408,22 +431,37 @@ function InvestmentForm({ initial, wallets, onDone }: any) {
         </div>
       )}
 
+      {/* Purpose & acquisition date — drives zakat eligibility */}
+      {PURPOSE_OPTIONS[type] && (
+        <div className="rounded-xl border border-amber-500/30 bg-amber-500/5 p-3 space-y-2">
+          <Label className="text-xs flex items-center gap-1">🕌 الغرض من التملك (للزكاة)</Label>
+          <Select value={purpose} onValueChange={setPurpose}>
+            <SelectTrigger><SelectValue placeholder="اختر الغرض..." /></SelectTrigger>
+            <SelectContent>
+              {PURPOSE_OPTIONS[type].map((p) => <SelectItem key={p.value} value={p.value}>{p.label}</SelectItem>)}
+            </SelectContent>
+          </Select>
+          <div className="text-[10px] text-muted-foreground">يحدد هذا الخيار ما إذا كان الأصل يدخل في وعاء الزكاة.</div>
+        </div>
+      )}
+
       <div className="grid grid-cols-2 gap-3">
+        <div><Label>تاريخ التملك</Label><Input type="date" value={acquiredAt} onChange={(e) => setAcquiredAt(e.target.value)} dir="ltr" /></div>
         <div><Label>نسبة الملكية %</Label><Input type="number" step="0.01" value={ownership} onChange={(e) => setOwnership(e.target.value)} dir="ltr" /></div>
+      </div>
+
+      <div className="grid grid-cols-2 gap-3">
         <div>
           <Label>العملة</Label>
           <Select value={currency} onValueChange={setCurrency}><SelectTrigger><SelectValue /></SelectTrigger>
             <SelectContent>{CURRENCIES.map(c => <SelectItem key={c.code} value={c.code}>{c.name}</SelectItem>)}</SelectContent></Select>
         </div>
-      </div>
-
-      <div className="grid grid-cols-2 gap-3">
         <div><Label>تاريخ البدء</Label><Input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} dir="ltr" /></div>
-        <div>
-          <Label>المحفظة المرتبطة</Label>
-          <Select value={walletId} onValueChange={setWalletId}><SelectTrigger><SelectValue /></SelectTrigger>
-            <SelectContent><SelectItem value="none">—</SelectItem>{wallets.map((w: any) => <SelectItem key={w.id} value={w.id}>{w.name}</SelectItem>)}</SelectContent></Select>
-        </div>
+      </div>
+      <div>
+        <Label>المحفظة المرتبطة</Label>
+        <Select value={walletId} onValueChange={setWalletId}><SelectTrigger><SelectValue /></SelectTrigger>
+          <SelectContent><SelectItem value="none">—</SelectItem>{wallets.map((w: any) => <SelectItem key={w.id} value={w.id}>{w.name}</SelectItem>)}</SelectContent></Select>
       </div>
 
       <div>
