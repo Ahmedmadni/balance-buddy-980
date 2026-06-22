@@ -307,6 +307,61 @@ function MoneyZakat() {
         </div>
       </div>
 
+      {/* تنبيهات التدقيق + حالة الحول */}
+      {data && (() => {
+        const usedCurs = Array.from(new Set([
+          ...data.wallets.map((w: any) => w.currency),
+          ...data.investments.map((i: any) => i.currency),
+        ]));
+        const missing = validateBeforeCompute({
+          settings: data.settings,
+          assets: data.investments as any,
+          usedCurrencies: usedCurs,
+          rates: Object.fromEntries(usedCurs.map((c) => [c, c === baseCurrency ? 1 : (rates[c] ?? 0)])),
+        });
+        const haul = data.settings ? computeHaulStatus({
+          settings: data.settings,
+          currentWealthBase: result?.unifiedBase ?? 0,
+          nisabBase: result?.nisabBase ?? 0,
+        }) : null;
+        return (
+          <>
+            {missing.length > 0 && (
+              <div className="rounded-2xl border border-destructive/40 bg-destructive/5 p-4 space-y-2">
+                <div className="font-semibold text-sm flex items-center gap-2 text-destructive">
+                  <AlertTriangle className="h-4 w-4" /> بيانات ناقصة قبل الحساب الدقيق
+                </div>
+                <ul className="text-xs space-y-1 list-disc pr-5">
+                  {missing.slice(0, 6).map((m, i) => <li key={i}>{m}</li>)}
+                  {missing.length > 6 && <li>... و {missing.length - 6} تنبيهات أخرى</li>}
+                </ul>
+                <div className="text-[10px] text-muted-foreground">أكمل البيانات من تبويب «الإعدادات» وصفحة الاستثمارات لضمان دقة الحساب.</div>
+              </div>
+            )}
+            {haul && data.settings && (
+              <div className="rounded-2xl border bg-card p-4 grid sm:grid-cols-3 gap-3 text-center">
+                <div>
+                  <div className="text-[11px] text-muted-foreground flex items-center justify-center gap-1"><CalendarClock className="h-3.5 w-3.5" /> تاريخ الزكاة القادم</div>
+                  <div className="font-bold text-sm mt-1">{formatDate(haul.nextZakatDate)}</div>
+                </div>
+                <div>
+                  <div className="text-[11px] text-muted-foreground">حالة بلوغ النصاب</div>
+                  <div className={cn("font-bold text-sm mt-1", haul.reachesNisab ? "text-success" : "text-amber-600")}>
+                    {haul.reachesNisab ? "✓ بلغ النصاب" : "⚠ دون النصاب"}
+                  </div>
+                </div>
+                <div>
+                  <div className="text-[11px] text-muted-foreground">الحول الشرعي</div>
+                  <div className="font-bold text-sm mt-1">
+                    {haul.haulStart ? (haul.haulComplete ? "✓ اكتمل" : `${haul.daysRemaining} يوماً متبقية`) : "لم يبدأ بعد"}
+                  </div>
+                </div>
+              </div>
+            )}
+          </>
+        );
+      })()}
+
       {/* النتيجة الموحّدة */}
       {isLoading ? (
         <div className="h-32 animate-pulse rounded-2xl bg-muted" />
