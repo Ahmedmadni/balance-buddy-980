@@ -313,6 +313,8 @@ function InvestmentForm({ initial, wallets, onDone }: any) {
         current_value: currentValue,
         ownership_pct: parseFloat(ownership) || 100,
         currency, is_zakatable: isZakatable, start_date: startDate, status, notes: notes || null,
+        purpose: purpose || null,
+        acquired_at: acquiredAt || null,
       };
       if (isEdit) { const { error } = await supabase.from("investments").update(payload).eq("id", initial.id); if (error) throw error; }
       else { const { error } = await supabase.from("investments").insert(payload); if (error) throw error; }
