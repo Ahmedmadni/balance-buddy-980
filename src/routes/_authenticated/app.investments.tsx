@@ -217,6 +217,25 @@ function InvestmentsPage() {
 
 // =========== Dynamic Investment Form ===========
 
+const PURPOSE_OPTIONS: Record<string, Array<{ value: string; label: string }>> = {
+  gold: [
+    { value: "personal_use", label: "زينة شخصية" },
+    { value: "savings", label: "ادخار" },
+    { value: "investment", label: "استثمار" },
+    { value: "trade", label: "تجارة" },
+  ],
+  real_estate: [
+    { value: "personal_use", label: "سكن شخصي" },
+    { value: "rental", label: "تأجير" },
+    { value: "resale", label: "للبيع / تجارة" },
+  ],
+  stocks: [
+    { value: "long_term", label: "استثمار طويل الأجل" },
+    { value: "speculation", label: "مضاربة" },
+    { value: "trade", label: "تجارة" },
+  ],
+};
+
 function InvestmentForm({ initial, wallets, onDone }: any) {
   const isEdit = !!initial;
   const [name, setName] = useState(initial?.name ?? "");
@@ -226,6 +245,8 @@ function InvestmentForm({ initial, wallets, onDone }: any) {
   const [currency, setCurrency] = useState(initial?.currency ?? "SAR");
   const [isZakatable, setIsZakatable] = useState(initial?.is_zakatable ?? true);
   const [startDate, setStartDate] = useState(initial?.start_date ?? todayISO());
+  const [acquiredAt, setAcquiredAt] = useState(initial?.acquired_at ?? initial?.start_date ?? todayISO());
+  const [purpose, setPurpose] = useState<string>(initial?.purpose ?? "");
   const [status, setStatus] = useState(initial?.status ?? "active");
   const [notes, setNotes] = useState(initial?.notes ?? "");
   const [meta, setMeta] = useState<Record<string, any>>(initial?.meta ?? {});
