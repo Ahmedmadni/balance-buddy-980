@@ -155,7 +155,12 @@ function MoneyZakat() {
       else if (w.type === "investment") slot.investments += bal;
     }
 
+    const jewelryOpinion = (data.settings?.gold_jewelry_opinion ?? "no_zakat") as "zakat" | "no_zakat";
     for (const inv of data.investments) {
+      // Smart classification (purpose + type) overrides legacy is_zakatable when purpose set
+      const cls = classifyAsset(inv as any, { gold_jewelry_opinion: jewelryOpinion });
+      const eligible = inv.purpose ? cls.isZakatable : (inv.is_zakatable !== false);
+      if (!eligible) continue;
       const v = Number(inv.current_value) * (Number(inv.ownership_pct) / 100);
       if (v > 0) ensure(inv.currency).investments += v;
     }
