@@ -210,6 +210,36 @@ export type Database = {
           },
         ]
       }
+      exchange_rates: {
+        Row: {
+          base_currency: string
+          created_at: string
+          currency: string
+          id: string
+          rate_to_base: number
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          base_currency?: string
+          created_at?: string
+          currency: string
+          id?: string
+          rate_to_base: number
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          base_currency?: string
+          created_at?: string
+          currency?: string
+          id?: string
+          rate_to_base?: number
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       expense_allocations: {
         Row: {
           amount: number
@@ -374,6 +404,7 @@ export type Database = {
       }
       investments: {
         Row: {
+          acquired_at: string | null
           created_at: string
           currency: string
           current_value: number
@@ -381,9 +412,11 @@ export type Database = {
           is_zakatable: boolean
           meta: Json
           name: string
+          nisab_reached_at: string | null
           notes: string | null
           ownership_pct: number
           principal: number
+          purpose: string | null
           start_date: string
           status: string
           subtype: string | null
@@ -393,6 +426,7 @@ export type Database = {
           wallet_id: string | null
         }
         Insert: {
+          acquired_at?: string | null
           created_at?: string
           currency?: string
           current_value?: number
@@ -400,9 +434,11 @@ export type Database = {
           is_zakatable?: boolean
           meta?: Json
           name: string
+          nisab_reached_at?: string | null
           notes?: string | null
           ownership_pct?: number
           principal?: number
+          purpose?: string | null
           start_date?: string
           status?: string
           subtype?: string | null
@@ -412,6 +448,7 @@ export type Database = {
           wallet_id?: string | null
         }
         Update: {
+          acquired_at?: string | null
           created_at?: string
           currency?: string
           current_value?: number
@@ -419,9 +456,11 @@ export type Database = {
           is_zakatable?: boolean
           meta?: Json
           name?: string
+          nisab_reached_at?: string | null
           notes?: string | null
           ownership_pct?: number
           principal?: number
+          purpose?: string | null
           start_date?: string
           status?: string
           subtype?: string | null
@@ -931,51 +970,135 @@ export type Database = {
       zakat_records: {
         Row: {
           base_amount: number
+          base_currency: string | null
           breakdown: Json | null
+          breakdown_json: Json | null
           calculated_at: string
           created_at: string
           currency: string
+          haul_end: string | null
+          haul_start: string | null
           hijri_year: string | null
           id: string
+          nisab_value: number | null
           notes: string | null
           paid: boolean
           paid_at: string | null
           rate: number
+          total_cash: number | null
+          total_gold: number | null
+          total_investments: number | null
+          total_stocks: number | null
+          total_trade: number | null
           updated_at: string
           user_id: string
           zakat_amount: number
         }
         Insert: {
           base_amount: number
+          base_currency?: string | null
           breakdown?: Json | null
+          breakdown_json?: Json | null
           calculated_at?: string
           created_at?: string
           currency?: string
+          haul_end?: string | null
+          haul_start?: string | null
           hijri_year?: string | null
           id?: string
+          nisab_value?: number | null
           notes?: string | null
           paid?: boolean
           paid_at?: string | null
           rate?: number
+          total_cash?: number | null
+          total_gold?: number | null
+          total_investments?: number | null
+          total_stocks?: number | null
+          total_trade?: number | null
           updated_at?: string
           user_id: string
           zakat_amount: number
         }
         Update: {
           base_amount?: number
+          base_currency?: string | null
           breakdown?: Json | null
+          breakdown_json?: Json | null
           calculated_at?: string
           created_at?: string
           currency?: string
+          haul_end?: string | null
+          haul_start?: string | null
           hijri_year?: string | null
           id?: string
+          nisab_value?: number | null
           notes?: string | null
           paid?: boolean
           paid_at?: string | null
           rate?: number
+          total_cash?: number | null
+          total_gold?: number | null
+          total_investments?: number | null
+          total_stocks?: number | null
+          total_trade?: number | null
           updated_at?: string
           user_id?: string
           zakat_amount?: number
+        }
+        Relationships: []
+      }
+      zakat_settings: {
+        Row: {
+          annual_date_type: string
+          annual_date_value: string
+          base_currency: string
+          created_at: string
+          first_nisab_reached_at: string | null
+          gold_gram_price: number | null
+          gold_jewelry_opinion: string
+          id: string
+          last_haul_start_date: string | null
+          nisab_gold_grams: number
+          nisab_method: string
+          nisab_silver_grams: number
+          silver_gram_price: number | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          annual_date_type?: string
+          annual_date_value?: string
+          base_currency?: string
+          created_at?: string
+          first_nisab_reached_at?: string | null
+          gold_gram_price?: number | null
+          gold_jewelry_opinion?: string
+          id?: string
+          last_haul_start_date?: string | null
+          nisab_gold_grams?: number
+          nisab_method?: string
+          nisab_silver_grams?: number
+          silver_gram_price?: number | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          annual_date_type?: string
+          annual_date_value?: string
+          base_currency?: string
+          created_at?: string
+          first_nisab_reached_at?: string | null
+          gold_gram_price?: number | null
+          gold_jewelry_opinion?: string
+          id?: string
+          last_haul_start_date?: string | null
+          nisab_gold_grams?: number
+          nisab_method?: string
+          nisab_silver_grams?: number
+          silver_gram_price?: number | null
+          updated_at?: string
+          user_id?: string
         }
         Relationships: []
       }
