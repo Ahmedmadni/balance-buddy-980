@@ -96,17 +96,44 @@ function MoneyZakat() {
   const { data, isLoading } = useQuery({
     queryKey: ["zakat-data"],
     queryFn: async () => {
-      const [wRes, eRes, tRes, iRes, pRes, rRes] = await Promise.all([
+      const [wRes, eRes, tRes, iRes, pRes, rRes, sRes, xRes] = await Promise.all([
         supabase.from("wallets").select("*").eq("is_archived", false),
         supabase.from("expenses").select("wallet_id,amount,currency"),
         supabase.from("wallet_transactions").select("wallet_id,kind,amount"),
-        supabase.from("investments").select("*").eq("status", "active").eq("is_zakatable", true),
+        supabase.from("investments").select("*").eq("status", "active"),
         supabase.from("person_ledger").select("kind,amount,currency,settled_at"),
         supabase.from("zakat_records").select("*").order("calculated_at", { ascending: false }),
+        supabase.from("zakat_settings").select("*").maybeSingle(),
+        supabase.from("exchange_rates").select("*"),
       ]);
-      return { wallets: wRes.data ?? [], expenses: eRes.data ?? [], txs: tRes.data ?? [], investments: iRes.data ?? [], ledger: pRes.data ?? [], records: rRes.data ?? [] };
+      return {
+        wallets: wRes.data ?? [], expenses: eRes.data ?? [], txs: tRes.data ?? [],
+        investments: iRes.data ?? [], ledger: pRes.data ?? [], records: rRes.data ?? [],
+        settings: (sRes.data ?? null) as ZakatSettings | null,
+        savedRates: xRes.data ?? [],
+      };
     },
   });
+
+  // Apply saved settings/rates from DB once loaded
+  useEffect(() => {
+    if (!data) return;
+    if (data.settings) {
+      setBaseCurrency(data.settings.base_currency || "SAR");
+      setNisabMethod(data.settings.nisab_method as any);
+      if (data.settings.gold_gram_price) setGoldPrice(String(data.settings.gold_gram_price));
+      if (data.settings.silver_gram_price) setSilverPrice(String(data.settings.silver_gram_price));
+    }
+    if (data.savedRates && data.savedRates.length > 0) {
+      setRates((prev) => {
+        const next = { ...prev };
+        for (const r of data.savedRates as any[]) next[r.currency] = Number(r.rate_to_base);
+        return next;
+      });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [data]);
+
 
   const result = useMemo(() => {
     if (!data) return null;
