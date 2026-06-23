@@ -408,6 +408,15 @@ function InvestmentForm({ initial, wallets, onDone }: any) {
         </div>
       )}
 
+      {type === "car" && (
+        <div className="grid grid-cols-2 gap-3 rounded-xl border bg-accent/20 p-3">
+          <div className="col-span-2"><Label>الموديل / الوصف</Label><Input value={meta.model ?? ""} onChange={(e) => setM("model", e.target.value)} placeholder="تويوتا كامري 2022..." /></div>
+          <div><Label>رقم اللوحة</Label><Input value={meta.plate ?? ""} onChange={(e) => setM("plate", e.target.value)} /></div>
+          <div><Label>سنة الصنع</Label><Input type="number" value={meta.year ?? ""} onChange={(e) => setM("year", e.target.value)} dir="ltr" /></div>
+          <div className="col-span-2"><Label>سعر الشراء / القيمة الحالية</Label><Input type="number" step="0.01" value={principalOverride} onChange={(e) => setPrincipalOverride(e.target.value)} dir="ltr" placeholder="0.00" /></div>
+        </div>
+      )}
+
       {(type === "fund" || type === "partnership" || type === "business") && (
         <div className="rounded-xl border bg-accent/20 p-3">
           <Label>القيمة الحالية / رأس المال</Label>
