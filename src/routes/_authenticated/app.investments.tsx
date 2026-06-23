@@ -104,14 +104,15 @@ function InvestmentsPage() {
       {Object.keys(totals).length > 0 && (
         <div className="grid gap-3 sm:grid-cols-3">
           {Object.entries(totals).map(([cur, t]) => {
-            const pnl = t.value - t.invested + t.returns;
+            const pnl = t.pnl;
             return (
               <div key={cur} className="rounded-2xl border bg-card p-4 shadow-[var(--shadow-card)]">
                 <div className="text-[11px] text-muted-foreground">إجمالي رأس المال ({cur})</div>
                 <div className="text-xl font-extrabold tabular-nums">{formatMoney(t.invested, cur)}</div>
-                <div className="mt-2 grid grid-cols-2 gap-2 text-[11px]">
-                  <div><div className="text-muted-foreground">القيمة الحالية</div><div className="font-bold tabular-nums">{formatMoney(t.value, cur)}</div></div>
-                  <div><div className="text-muted-foreground">الأرباح</div><div className={cn("font-bold tabular-nums", pnl >= 0 ? "text-success" : "text-destructive")}>{formatMoney(pnl, cur)}</div></div>
+                <div className="mt-2 grid grid-cols-3 gap-2 text-[11px]">
+                  <div><div className="text-muted-foreground">القيمة</div><div className="font-bold tabular-nums">{formatMoney(t.value, cur)}</div></div>
+                  <div><div className="text-muted-foreground">إيرادات</div><div className="font-bold tabular-nums text-success">{formatMoney(t.income, cur)}</div></div>
+                  <div><div className="text-muted-foreground">صافي ربح</div><div className={cn("font-bold tabular-nums", pnl >= 0 ? "text-success" : "text-destructive")}>{formatMoney(pnl, cur)}</div></div>
                 </div>
               </div>
             );
