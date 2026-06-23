@@ -58,6 +58,11 @@ export function classifyAsset(asset: {
     return { isZakatable: false, reason: p === "rental" ? "عقار مؤجر — الإيجارات فقط زكوية" : "عقار شخصي" };
   }
 
+  if (asset.type === "car") {
+    if (p === "resale" || p === "trade") return { isZakatable: true, reason: "سيارة للبيع/التجارة" };
+    return { isZakatable: false, reason: p === "rental" ? "سيارة مؤجرة — الإيجارات فقط زكوية" : "سيارة للاستخدام الشخصي" };
+  }
+
   if (asset.type === "stocks" || asset.type === "crypto" || asset.type === "fund" || asset.type === "trade") {
     return { isZakatable: true, reason: "أصل زكوي" };
   }
