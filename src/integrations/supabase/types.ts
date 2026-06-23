@@ -350,7 +350,9 @@ export type Database = {
       }
       investment_transactions: {
         Row: {
+          affects_wallet: boolean
           amount: number
+          category_id: string | null
           created_at: string
           currency: string
           happened_at: string
@@ -358,11 +360,14 @@ export type Database = {
           investment_id: string
           kind: string
           notes: string | null
+          tx_class: string | null
           user_id: string
           wallet_id: string | null
         }
         Insert: {
+          affects_wallet?: boolean
           amount: number
+          category_id?: string | null
           created_at?: string
           currency?: string
           happened_at?: string
@@ -370,11 +375,14 @@ export type Database = {
           investment_id: string
           kind: string
           notes?: string | null
+          tx_class?: string | null
           user_id: string
           wallet_id?: string | null
         }
         Update: {
+          affects_wallet?: boolean
           amount?: number
+          category_id?: string | null
           created_at?: string
           currency?: string
           happened_at?: string
@@ -382,6 +390,7 @@ export type Database = {
           investment_id?: string
           kind?: string
           notes?: string | null
+          tx_class?: string | null
           user_id?: string
           wallet_id?: string | null
         }
@@ -405,6 +414,8 @@ export type Database = {
       investments: {
         Row: {
           acquired_at: string | null
+          asset_kind: string | null
+          base_value: number | null
           created_at: string
           currency: string
           current_value: number
@@ -417,6 +428,9 @@ export type Database = {
           ownership_pct: number
           principal: number
           purpose: string | null
+          realized_pnl: number | null
+          sold_amount: number | null
+          sold_at: string | null
           start_date: string
           status: string
           subtype: string | null
@@ -427,6 +441,8 @@ export type Database = {
         }
         Insert: {
           acquired_at?: string | null
+          asset_kind?: string | null
+          base_value?: number | null
           created_at?: string
           currency?: string
           current_value?: number
@@ -439,6 +455,9 @@ export type Database = {
           ownership_pct?: number
           principal?: number
           purpose?: string | null
+          realized_pnl?: number | null
+          sold_amount?: number | null
+          sold_at?: string | null
           start_date?: string
           status?: string
           subtype?: string | null
@@ -449,6 +468,8 @@ export type Database = {
         }
         Update: {
           acquired_at?: string | null
+          asset_kind?: string | null
+          base_value?: number | null
           created_at?: string
           currency?: string
           current_value?: number
@@ -461,6 +482,9 @@ export type Database = {
           ownership_pct?: number
           principal?: number
           purpose?: string | null
+          realized_pnl?: number | null
+          sold_amount?: number | null
+          sold_at?: string | null
           start_date?: string
           status?: string
           subtype?: string | null
