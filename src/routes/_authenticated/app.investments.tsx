@@ -493,12 +493,14 @@ function InvestmentForm({ initial, wallets, onDone }: any) {
 }
 
 function InvestmentTxForm({ investment, wallets, onDone }: any) {
-  const [kind, setKind] = useState("capital_add");
+  const [txClass, setTxClass] = useState<AssetTxClass>("capex");
   const [amount, setAmount] = useState("");
   const [walletId, setWalletId] = useState<string>(investment.wallet_id ?? "none");
   const [happenedAt, setHappenedAt] = useState(todayISO());
   const [notes, setNotes] = useState("");
   const [updateValue, setUpdateValue] = useState(true);
+
+  const meta = TX_CLASS_META[txClass];
 
   const mut = useMutation({
     mutationFn: async () => {
@@ -506,33 +508,67 @@ function InvestmentTxForm({ investment, wallets, onDone }: any) {
       if (!u.user) throw new Error("غير مسجل");
       const amt = parseFloat(amount);
       if (!amt) throw new Error("أدخل المبلغ");
+
+      // Map tx_class → legacy kind for compatibility with old reports/triggers
+      const legacyKind =
+        txClass === "capex" ? "capital_add" :
+        txClass === "income" ? "return" :
+        txClass === "sale" ? "withdraw" :
+        txClass === "adjustment" ? "revaluation" :
+        txClass === "opex" ? "capital_add" : // OpEx not in old enum — fallback
+        "capital_add";
+
+      const affectsWallet = txClass !== "personal_benefit" && txClass !== "adjustment";
+      const useWallet = affectsWallet && walletId !== "none";
+
       const { error } = await supabase.from("investment_transactions").insert({
-        user_id: u.user.id, investment_id: investment.id, kind, amount: amt,
-        currency: investment.currency, wallet_id: walletId === "none" ? null : walletId,
-        happened_at: happenedAt, notes: notes || null,
-      });
+        user_id: u.user.id,
+        investment_id: investment.id,
+        kind: legacyKind,
+        tx_class: txClass,
+        amount: amt,
+        currency: investment.currency,
+        wallet_id: useWallet ? walletId : null,
+        affects_wallet: affectsWallet,
+        happened_at: happenedAt,
+        notes: notes || null,
+      } as any);
       if (error) throw error;
 
+      // Update asset value based on class
       if (updateValue) {
         const cur = Number(investment.current_value) || 0;
-        let newVal = cur;
-        if (kind === "capital_add") newVal = cur + amt;
-        else if (kind === "withdraw") newVal = Math.max(0, cur - amt);
-        else if (kind === "revaluation") newVal = amt;
-        if (kind !== "return") {
-          await supabase.from("investments").update({ current_value: newVal }).eq("id", investment.id);
+        const base = Number(investment.base_value ?? investment.principal) || 0;
+        const updates: any = {};
+        if (txClass === "capex") {
+          updates.current_value = cur + amt;
+        } else if (txClass === "adjustment") {
+          updates.current_value = amt; // amount = new market value
+        } else if (txClass === "sale") {
+          updates.status = "sold";
+          updates.sold_at = happenedAt;
+          updates.sold_amount = amt;
+          updates.realized_pnl = amt - (base);
+        }
+        if (Object.keys(updates).length) {
+          await supabase.from("investments").update(updates).eq("id", investment.id);
         }
       }
 
-      if (walletId && walletId !== "none") {
-        let txKind: string | null = null;
-        if (kind === "capital_add") txKind = "send";
-        else if (kind === "return" || kind === "withdraw") txKind = "receive";
-        if (txKind) {
+      // Sync wallet — CapEx/OpEx leave wallet, Income/Sale enter wallet
+      if (useWallet) {
+        const walletKind =
+          txClass === "capex" || txClass === "opex" ? "send" :
+          txClass === "income" || txClass === "sale" ? "receive" : null;
+        if (walletKind) {
           await supabase.from("wallet_transactions").insert({
-            user_id: u.user.id, wallet_id: walletId, kind: txKind,
-            amount: amt, currency: investment.currency, happened_at: happenedAt,
-            notes: `${kindMeta(kind).label} — ${investment.name}`,
+            user_id: u.user.id,
+            wallet_id: walletId,
+            kind: walletKind,
+            amount: amt,
+            currency: investment.currency,
+            happened_at: happenedAt,
+            notes: `${meta.label} — ${investment.name}`,
           });
         }
       }
@@ -543,26 +579,60 @@ function InvestmentTxForm({ investment, wallets, onDone }: any) {
 
   return (
     <form onSubmit={(e) => { e.preventDefault(); mut.mutate(); }} className="space-y-3">
-      <DialogHeader><DialogTitle>حركة على: {investment.name}</DialogTitle></DialogHeader>
+      <DialogHeader><DialogTitle>حركة مالية على: {investment.name}</DialogTitle></DialogHeader>
+
       <div>
-        <Label>النوع</Label>
-        <Select value={kind} onValueChange={setKind}><SelectTrigger><SelectValue /></SelectTrigger>
-          <SelectContent>{TX_KINDS.map(k => <SelectItem key={k.value} value={k.value}>{k.label}</SelectItem>)}</SelectContent></Select>
+        <Label>نوع الحركة</Label>
+        <div className="grid grid-cols-5 gap-1.5 mt-1.5">
+          {TX_CLASSES.map((t) => (
+            <button key={t.value} type="button" onClick={() => setTxClass(t.value)}
+              className={cn("flex flex-col items-center gap-0.5 rounded-xl border p-2 text-[10px] font-medium transition",
+                txClass === t.value ? "border-primary bg-primary/10 text-primary" : "border-border hover:border-primary/40")}>
+              <span className="text-base leading-none">{t.emoji}</span>
+              <span>{t.label}</span>
+            </button>
+          ))}
+        </div>
+        <div className="text-[10px] text-muted-foreground mt-1.5">{meta.description}</div>
       </div>
+
       <div className="grid grid-cols-2 gap-3">
-        <div><Label>{kind === "revaluation" ? "القيمة الجديدة" : "المبلغ"}</Label><Input type="number" step="0.01" value={amount} onChange={(e) => setAmount(e.target.value)} required dir="ltr" /></div>
+        <div>
+          <Label>{txClass === "adjustment" ? "القيمة السوقية الجديدة" : "المبلغ"}</Label>
+          <Input type="number" step="0.01" value={amount} onChange={(e) => setAmount(e.target.value)} required dir="ltr" />
+        </div>
         <div><Label>التاريخ</Label><Input type="date" value={happenedAt} onChange={(e) => setHappenedAt(e.target.value)} dir="ltr" /></div>
       </div>
-      <div>
-        <Label>المحفظة المتأثرة (اختياري)</Label>
-        <Select value={walletId} onValueChange={setWalletId}><SelectTrigger><SelectValue /></SelectTrigger>
-          <SelectContent><SelectItem value="none">— بدون تأثير على المحافظ</SelectItem>{wallets.map((w: any) => <SelectItem key={w.id} value={w.id}>{w.name}</SelectItem>)}</SelectContent></Select>
-      </div>
+
+      {txClass !== "adjustment" && txClass !== "personal_benefit" && (
+        <div>
+          <Label className="flex items-center gap-1"><WalletIcon className="h-3.5 w-3.5" /> المحفظة المتأثرة</Label>
+          <Select value={walletId} onValueChange={setWalletId}>
+            <SelectTrigger><SelectValue /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="none">— بدون تأثير على المحافظ</SelectItem>
+              {wallets.map((w: any) => <SelectItem key={w.id} value={w.id}>{w.name}</SelectItem>)}
+            </SelectContent>
+          </Select>
+          <div className="text-[10px] text-muted-foreground mt-1">
+            {txClass === "capex" || txClass === "opex" ? "سيُخصم المبلغ من المحفظة" : "سيُضاف المبلغ إلى المحفظة"}
+          </div>
+        </div>
+      )}
+
       <div><Label>ملاحظة</Label><Input value={notes} onChange={(e) => setNotes(e.target.value)} maxLength={200} /></div>
-      <div className="flex items-center justify-between rounded-xl border bg-accent/30 p-3">
-        <div className="text-xs text-muted-foreground">تحديث القيمة الحالية للاستثمار تلقائياً</div>
-        <Switch checked={updateValue} onCheckedChange={setUpdateValue} />
-      </div>
+
+      {(txClass === "capex" || txClass === "adjustment" || txClass === "sale") && (
+        <div className="flex items-center justify-between rounded-xl border bg-accent/30 p-3">
+          <div className="text-xs text-muted-foreground">
+            {txClass === "capex" ? "إضافة المبلغ لقيمة الأصل" :
+             txClass === "adjustment" ? "تحديث القيمة السوقية" :
+             "تسجيل البيع وإغلاق الأصل"}
+          </div>
+          <Switch checked={updateValue} onCheckedChange={setUpdateValue} />
+        </div>
+      )}
+
       <DialogFooter><Button type="submit" className="w-full" disabled={mut.isPending}>حفظ</Button></DialogFooter>
     </form>
   );
