@@ -90,8 +90,8 @@ function InvestmentsPage() {
     <div className="space-y-5">
       <div className="flex items-center justify-between gap-3 flex-wrap">
         <div>
-          <h1 className="text-2xl font-bold flex items-center gap-2"><TrendingUp className="h-6 w-6" /> الاستثمارات</h1>
-          <p className="text-sm text-muted-foreground mt-1">تتبّع رؤوس أموالك وعوائدك بحقول مخصصة لكل نوع</p>
+          <h1 className="text-2xl font-bold flex items-center gap-2"><TrendingUp className="h-6 w-6" /> الأصول والاستثمارات</h1>
+          <p className="text-sm text-muted-foreground mt-1">إدارة موحّدة لجميع ممتلكاتك مع تتبّع الإيرادات والمصاريف الرأسمالية والتشغيلية</p>
         </div>
         <Dialog open={open || !!editing} onOpenChange={(v) => { if (!v) { setOpen(false); setEditing(null); } }}>
           <DialogTrigger asChild><Button onClick={() => { setEditing(null); setOpen(true); }}><Plus className="h-4 w-4" /> استثمار</Button></DialogTrigger>
