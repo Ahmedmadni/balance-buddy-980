@@ -238,6 +238,11 @@ const PURPOSE_OPTIONS: Record<string, Array<{ value: string; label: string }>> =
     { value: "speculation", label: "مضاربة" },
     { value: "trade", label: "تجارة" },
   ],
+  car: [
+    { value: "personal_use", label: "استخدام شخصي" },
+    { value: "rental", label: "تأجير / تشغيل" },
+    { value: "resale", label: "للبيع / تجارة" },
+  ],
 };
 
 function InvestmentForm({ initial, wallets, onDone }: any) {
