@@ -315,10 +315,12 @@ function InvestmentForm({ initial, wallets, onDone }: any) {
 
       const payload: any = {
         user_id: u.user.id, name: name.trim(), type,
+        asset_kind: type,
         subtype: type,
         meta: finalMeta,
         wallet_id: walletId === "none" ? null : walletId,
         principal,
+        base_value: principal,
         current_value: currentValue,
         ownership_pct: parseFloat(ownership) || 100,
         currency, is_zakatable: isZakatable, start_date: startDate, status, notes: notes || null,
