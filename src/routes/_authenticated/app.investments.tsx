@@ -8,13 +8,14 @@ import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from "@/components/ui/dialog";
-import { Plus, TrendingUp, Trash2, Pencil, ArrowDownCircle, ArrowUpCircle, RefreshCw, X } from "lucide-react";
+import { Plus, TrendingUp, Trash2, Pencil, X, Wallet as WalletIcon } from "lucide-react";
 import { CURRENCIES, formatMoney, formatDate, todayISO } from "@/lib/format";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
+import { computeAssetMetrics, TX_CLASS_META, type AssetTxClass } from "@/lib/assets/calculator";
 
 export const Route = createFileRoute("/_authenticated/app/investments")({
-  head: () => ({ meta: [{ title: "الاستثمارات — رصد" }] }),
+  head: () => ({ meta: [{ title: "الأصول والاستثمارات — رصد" }] }),
   component: InvestmentsPage,
 });
 
@@ -23,21 +24,22 @@ const INV_TYPES = [
   { value: "gold", label: "ذهب", icon: "🪙" },
   { value: "crypto", label: "عملات رقمية", icon: "₿" },
   { value: "real_estate", label: "عقار", icon: "🏠" },
-  { value: "fund", label: "صندوق استثماري", icon: "📊" },
-  { value: "partnership", label: "شراكة", icon: "🤝" },
-  { value: "business", label: "نشاط تجاري", icon: "🏢" },
+  { value: "car", label: "سيارة", icon: "🚗" },
+  { value: "fund", label: "صندوق", icon: "📊" },
+  { value: "business", label: "نشاط", icon: "🏢" },
   { value: "other", label: "أخرى", icon: "💎" },
 ];
 const typeLabel = (v: string) => INV_TYPES.find((t) => t.value === v)?.label ?? v;
 const typeIcon = (v: string) => INV_TYPES.find((t) => t.value === v)?.icon ?? "💎";
 
-const TX_KINDS = [
-  { value: "capital_add", label: "إضافة رأس مال", icon: ArrowDownCircle, color: "text-primary" },
-  { value: "return", label: "عائد/ربح", icon: TrendingUp, color: "text-success" },
-  { value: "withdraw", label: "سحب", icon: ArrowUpCircle, color: "text-destructive" },
-  { value: "revaluation", label: "إعادة تقييم", icon: RefreshCw, color: "text-amber-600" },
+// Asset transaction classes (CapEx / OpEx / Income / Adjustment / Sale)
+const TX_CLASSES: { value: AssetTxClass; label: string; emoji: string }[] = [
+  { value: "capex", label: "مصروف رأسمالي", emoji: "🔧" },
+  { value: "opex", label: "مصروف تشغيلي", emoji: "⛽" },
+  { value: "income", label: "دخل / إيراد", emoji: "💰" },
+  { value: "adjustment", label: "تعديل قيمة", emoji: "📊" },
+  { value: "sale", label: "بيع الأصل", emoji: "🏁" },
 ];
-const kindMeta = (v: string) => TX_KINDS.find((k) => k.value === v) ?? TX_KINDS[0];
 
 function InvestmentsPage() {
   const qc = useQueryClient();
