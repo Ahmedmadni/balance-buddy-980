@@ -197,15 +197,16 @@ function InvestmentsPage() {
                 {(txByInv.get(detail.id) ?? []).length === 0 ? (
                   <div className="text-center text-sm text-muted-foreground py-6">لا توجد حركات بعد</div>
                 ) : (txByInv.get(detail.id) ?? []).map((t: any) => {
-                  const m = kindMeta(t.kind); const Icon = m.icon;
+                  const cls = (t.tx_class || "capex") as AssetTxClass;
+                  const m = TX_CLASS_META[cls] ?? TX_CLASS_META.capex;
                   return (
                     <div key={t.id} className="flex items-center gap-3 rounded-xl border bg-card p-3">
-                      <Icon className={cn("h-4 w-4", m.color)} />
+                      <span className={cn("text-lg leading-none", m.color)}>{m.sign}</span>
                       <div className="flex-1 min-w-0">
                         <div className="text-sm font-medium">{m.label}</div>
                         <div className="text-[11px] text-muted-foreground">{formatDate(t.happened_at)}{t.notes ? ` · ${t.notes}` : ""}</div>
                       </div>
-                      <div className={cn("font-bold tabular-nums", m.color)}>{formatMoney(t.amount, t.currency)}</div>
+                      <div className={cn("font-bold tabular-nums", m.color)}>{m.sign === "−" ? "−" : m.sign === "+" ? "+" : ""}{formatMoney(t.amount, t.currency)}</div>
                     </div>
                   );
                 })}
