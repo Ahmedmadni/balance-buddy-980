@@ -71,17 +71,17 @@ function InvestmentsPage() {
   }
 
   const totals = useMemo(() => {
-    const byCur: Record<string, { invested: number; value: number; returns: number }> = {};
+    const byCur: Record<string, { invested: number; value: number; income: number; opex: number; pnl: number }> = {};
     for (const inv of data?.items ?? []) {
       const cur = inv.currency;
-      const t = (byCur[cur] ??= { invested: 0, value: 0, returns: 0 });
+      const t = (byCur[cur] ??= { invested: 0, value: 0, income: 0, opex: 0, pnl: 0 });
       const txs = txByInv.get(inv.id) ?? [];
-      const invested = txs.filter(x => x.kind === "capital_add").reduce((s, x) => s + Number(x.amount), 0) + Number(inv.principal);
-      const returns = txs.filter(x => x.kind === "return").reduce((s, x) => s + Number(x.amount), 0);
-      const withdraws = txs.filter(x => x.kind === "withdraw").reduce((s, x) => s + Number(x.amount), 0);
-      t.invested += invested - withdraws;
-      t.value += Number(inv.current_value || invested);
-      t.returns += returns;
+      const m = computeAssetMetrics(inv, txs);
+      t.invested += m.bookValue;
+      t.value += m.marketValue;
+      t.income += m.income;
+      t.opex += m.opex;
+      t.pnl += m.totalPnl;
     }
     return byCur;
   }, [data, txByInv]);
