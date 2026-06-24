@@ -8,7 +8,7 @@ import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from "@/components/ui/dialog";
-import { Plus, Trash2, Wallet, CalendarRange, Paperclip } from "lucide-react";
+import { Plus, Trash2, Wallet, CalendarRange, Paperclip, Package } from "lucide-react";
 import { CURRENCIES, formatMoney, formatDate, todayISO } from "@/lib/format";
 import { toast } from "sonner";
 import { AttachmentUploader } from "@/components/AttachmentUploader";
@@ -21,6 +21,7 @@ export const Route = createFileRoute("/_authenticated/app/expenses")({
 function ExpensesPage() {
   const qc = useQueryClient();
   const [open, setOpen] = useState(false);
+  const [assetFilter, setAssetFilter] = useState<"all" | "regular" | "asset_opex">("all");
   const search = useSearch({ strict: false }) as { new?: string };
   const navigate = useNavigate();
   useEffect(() => {
@@ -33,13 +34,22 @@ function ExpensesPage() {
   const { data, isLoading } = useQuery({
     queryKey: ["expenses-list"],
     queryFn: async () => {
-      const [eRes, cRes, pRes, wRes] = await Promise.all([
+      const [eRes, cRes, pRes, wRes, opexRes, invRes] = await Promise.all([
         supabase.from("expenses").select("*, categories(name,color), projects(name,color), wallets(name,color)").order("spent_at", { ascending: false }).limit(200),
         supabase.from("categories").select("*").order("name"),
         supabase.from("projects").select("*").eq("status", "active").order("name"),
         supabase.from("wallets").select("*").order("created_at"),
+        supabase.from("investment_transactions").select("id,investment_id,amount,currency,happened_at,notes,wallet_id,tx_class").eq("tx_class", "opex").order("happened_at", { ascending: false }).limit(200),
+        supabase.from("investments").select("id,name,asset_kind,type"),
       ]);
-      return { expenses: eRes.data ?? [], categories: cRes.data ?? [], projects: pRes.data ?? [], wallets: wRes.data ?? [] };
+      return {
+        expenses: eRes.data ?? [],
+        categories: cRes.data ?? [],
+        projects: pRes.data ?? [],
+        wallets: wRes.data ?? [],
+        opex: opexRes.data ?? [],
+        investments: invRes.data ?? [],
+      };
     },
   });
 
@@ -64,6 +74,25 @@ function ExpensesPage() {
   });
 
   const noWallets = (data?.wallets ?? []).length === 0;
+  const invMap = useMemo(() => {
+    const m = new Map<string, any>();
+    for (const i of data?.investments ?? []) m.set(i.id, i);
+    return m;
+  }, [data?.investments]);
+
+  // Merge regular expenses + asset OpEx into a unified list, sorted by date
+  const merged = useMemo(() => {
+    const reg = (data?.expenses ?? []).map((e: any) => ({ ...e, _kind: "regular" as const, _date: e.spent_at }));
+    const ox = (data?.opex ?? []).map((t: any) => {
+      const w = (data?.wallets ?? []).find((x: any) => x.id === t.wallet_id);
+      const inv = invMap.get(t.investment_id);
+      return { ...t, _kind: "asset_opex" as const, _date: t.happened_at, wallets: w, investment: inv };
+    });
+    const list = [...reg, ...ox].filter((row) => assetFilter === "all" ? true : row._kind === assetFilter);
+    list.sort((a, b) => (a._date < b._date ? 1 : -1));
+    return list;
+  }, [data, invMap, assetFilter]);
+
 
   return (
     <div className="space-y-5">
@@ -106,13 +135,46 @@ function ExpensesPage() {
         </div>
       </div>
 
+      <div className="flex items-center gap-2 flex-wrap text-xs">
+        <span className="text-muted-foreground">عرض:</span>
+        {([
+          ["all", "الكل"],
+          ["regular", "مصاريف عامة"],
+          ["asset_opex", "مصاريف أصول (تشغيلية)"],
+        ] as const).map(([k, lbl]) => (
+          <button
+            key={k}
+            type="button"
+            onClick={() => setAssetFilter(k)}
+            className={cnFilter(assetFilter === k)}
+          >{lbl}</button>
+        ))}
+      </div>
+
       {isLoading ? (
         <div className="space-y-2">{[1,2,3].map(i => <div key={i} className="h-16 animate-pulse rounded-xl bg-muted" />)}</div>
-      ) : (data?.expenses ?? []).length === 0 ? (
+      ) : merged.length === 0 ? (
         <div className="rounded-2xl border bg-card p-10 text-center text-muted-foreground">لا توجد مصاريف بعد</div>
       ) : (
         <div className="space-y-2">
-          {data!.expenses.map((e: any) => (
+          {merged.map((e: any) => e._kind === "asset_opex" ? (
+            <div key={`ox-${e.id}`} className="flex items-center gap-3 rounded-xl border bg-card p-3 shadow-[var(--shadow-card)]">
+              <div className="h-10 w-10 rounded-xl shrink-0 grid place-items-center bg-amber-500/15 border border-amber-500/40 text-amber-700 dark:text-amber-300"><Package className="h-5 w-5" /></div>
+              <div className="flex-1 min-w-0">
+                <div className="font-medium flex items-center gap-2 flex-wrap">
+                  <span>مصروف تشغيلي</span>
+                  {e.investment && (
+                    <span className="text-[10px] rounded-full px-2 py-0.5 bg-amber-500/15 text-amber-700 dark:text-amber-300 inline-flex items-center gap-1">
+                      <Package className="h-3 w-3" /> من أصل: {e.investment.name}
+                    </span>
+                  )}
+                  {e.wallets && <span className="text-[10px] rounded-full px-2 py-0.5" style={{ backgroundColor: (e.wallets.color ?? "#0ea5e9") + "22", color: e.wallets.color }}>{e.wallets.name}</span>}
+                </div>
+                <div className="text-xs text-muted-foreground truncate">{formatDate(e.happened_at)}{e.notes ? ` · ${e.notes}` : ""}</div>
+              </div>
+              <div className="font-bold tabular-nums shrink-0">{formatMoney(e.amount, e.currency)}</div>
+            </div>
+          ) : (
             <div key={e.id} className="flex items-center gap-3 rounded-xl border bg-card p-3 shadow-[var(--shadow-card)]">
               <div className="h-10 w-10 rounded-xl shrink-0" style={{ backgroundColor: (e.categories?.color ?? "#64748b") + "33", border: `1px solid ${e.categories?.color ?? "#64748b"}` }} />
               <div className="flex-1 min-w-0">
@@ -141,6 +203,10 @@ function ExpensesPage() {
       )}
     </div>
   );
+}
+
+function cnFilter(active: boolean) {
+  return "rounded-full px-3 py-1 border transition " + (active ? "bg-primary text-primary-foreground border-primary" : "bg-card hover:bg-accent border-border text-muted-foreground");
 }
 
 function ExpenseForm({ categories, projects, wallets, onDone }: { categories: any[]; projects: any[]; wallets: any[]; onDone: () => void }) {
