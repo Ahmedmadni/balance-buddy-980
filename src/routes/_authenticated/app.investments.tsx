@@ -553,7 +553,7 @@ function InvestmentForm({ initial, wallets, onDone }: any) {
 }
 
 function InvestmentTxForm({ investment, wallets, onDone }: any) {
-  const [txClass, setTxClass] = useState<AssetTxClass>("capex");
+  const [txClass, setTxClass] = useState<AssetTxClass>(investment._preset_tx_class ?? "capex");
   const [amount, setAmount] = useState("");
   const [walletId, setWalletId] = useState<string>(investment.wallet_id ?? "none");
   const [happenedAt, setHappenedAt] = useState(todayISO());
