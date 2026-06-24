@@ -181,38 +181,77 @@ function InvestmentsPage() {
       </Dialog>
 
       <Dialog open={!!detail} onOpenChange={(v) => !v && setDetail(null)}>
-        <DialogContent className="max-w-lg max-h-[85vh] overflow-y-auto">
-          {detail && (
-            <>
-              <DialogHeader><DialogTitle>{detail.name} — سجل الحركات</DialogTitle></DialogHeader>
-              {detail.meta && Object.keys(detail.meta).length > 0 && (
-                <div className="rounded-xl border bg-accent/30 p-3 text-xs space-y-1">
-                  <div className="font-semibold mb-1">تفاصيل {typeLabel(detail.type)}</div>
-                  {Object.entries(detail.meta).map(([k, v]: any) => (
-                    <div key={k} className="flex justify-between"><span className="text-muted-foreground">{k}</span><span className="font-medium">{String(v)}</span></div>
-                  ))}
+        <DialogContent className="max-w-2xl max-h-[88vh] overflow-y-auto">
+          {detail && (() => {
+            const txs = txByInv.get(detail.id) ?? [];
+            const m = computeAssetMetrics(detail, txs);
+            const cur = detail.currency;
+            return (
+              <>
+                <DialogHeader>
+                  <DialogTitle className="flex items-center gap-2">
+                    <span className="text-2xl">{typeIcon(detail.type)}</span>
+                    {detail.name}
+                    <span className="text-[10px] rounded-full bg-primary/15 text-primary px-1.5 py-0.5">{typeLabel(detail.type)}</span>
+                  </DialogTitle>
+                </DialogHeader>
+
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                  <MetricCard label="القيمة السوقية" value={m.marketValue} cur={cur} accent />
+                  <MetricCard label="القيمة الدفترية" value={m.bookValue} cur={cur} />
+                  <MetricCard label="رأس المال" value={m.baseValue} cur={cur} />
+                  <MetricCard label="CapEx" value={m.capex} cur={cur} tone="text-blue-600" />
+                  <MetricCard label="OpEx" value={m.opex} cur={cur} tone="text-amber-600" />
+                  <MetricCard label="الإيرادات" value={m.income} cur={cur} tone="text-success" />
+                  <MetricCard label="صافي التدفق" value={m.netCashflow} cur={cur} tone={m.netCashflow >= 0 ? "text-success" : "text-destructive"} signed />
+                  <MetricCard label="غير محقق P&L" value={m.unrealizedPnl} cur={cur} tone={m.unrealizedPnl >= 0 ? "text-success" : "text-destructive"} signed />
+                  <MetricCard label="P&L الكلي" value={m.totalPnl} cur={cur} tone={m.totalPnl >= 0 ? "text-success" : "text-destructive"} signed />
                 </div>
-              )}
-              <div className="space-y-2 mt-2">
-                {(txByInv.get(detail.id) ?? []).length === 0 ? (
-                  <div className="text-center text-sm text-muted-foreground py-6">لا توجد حركات بعد</div>
-                ) : (txByInv.get(detail.id) ?? []).map((t: any) => {
-                  const cls = (t.tx_class || "capex") as AssetTxClass;
-                  const m = TX_CLASS_META[cls] ?? TX_CLASS_META.capex;
-                  return (
-                    <div key={t.id} className="flex items-center gap-3 rounded-xl border bg-card p-3">
-                      <span className={cn("text-lg leading-none", m.color)}>{m.sign}</span>
-                      <div className="flex-1 min-w-0">
-                        <div className="text-sm font-medium">{m.label}</div>
-                        <div className="text-[11px] text-muted-foreground">{formatDate(t.happened_at)}{t.notes ? ` · ${t.notes}` : ""}</div>
-                      </div>
-                      <div className={cn("font-bold tabular-nums", m.color)}>{m.sign === "−" ? "−" : m.sign === "+" ? "+" : ""}{formatMoney(t.amount, t.currency)}</div>
-                    </div>
-                  );
-                })}
-              </div>
-            </>
-          )}
+
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 mt-3">
+                  {(["capex","opex","income","adjustment"] as AssetTxClass[]).map((c) => {
+                    const tm = TX_CLASS_META[c];
+                    return (
+                      <Button key={c} variant="outline" size="sm" onClick={() => { setDetail(null); setTxFor({ ...detail, _preset_tx_class: c }); }}>
+                        <Plus className="h-3.5 w-3.5" /> {tm.label}
+                      </Button>
+                    );
+                  })}
+                </div>
+
+                {detail.meta && Object.keys(detail.meta).length > 0 && (
+                  <div className="rounded-xl border bg-accent/30 p-3 text-xs space-y-1 mt-3">
+                    <div className="font-semibold mb-1">تفاصيل {typeLabel(detail.type)}</div>
+                    {Object.entries(detail.meta).map(([k, v]: any) => (
+                      <div key={k} className="flex justify-between"><span className="text-muted-foreground">{k}</span><span className="font-medium">{String(v)}</span></div>
+                    ))}
+                  </div>
+                )}
+
+                <div className="mt-3">
+                  <div className="text-xs font-semibold mb-2 text-muted-foreground">سجل الحركات ({txs.length})</div>
+                  <div className="space-y-2">
+                    {txs.length === 0 ? (
+                      <div className="text-center text-sm text-muted-foreground py-6">لا توجد حركات بعد</div>
+                    ) : txs.map((t: any) => {
+                      const cls = (t.tx_class || "capex") as AssetTxClass;
+                      const tm = TX_CLASS_META[cls] ?? TX_CLASS_META.capex;
+                      return (
+                        <div key={t.id} className="flex items-center gap-3 rounded-xl border bg-card p-3">
+                          <span className={cn("text-lg leading-none", tm.color)}>{tm.sign}</span>
+                          <div className="flex-1 min-w-0">
+                            <div className="text-sm font-medium">{tm.label}</div>
+                            <div className="text-[11px] text-muted-foreground">{formatDate(t.happened_at)}{t.notes ? ` · ${t.notes}` : ""}</div>
+                          </div>
+                          <div className={cn("font-bold tabular-nums", tm.color)}>{tm.sign === "−" ? "−" : tm.sign === "+" ? "+" : ""}{formatMoney(t.amount, t.currency)}</div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              </>
+            );
+          })()}
         </DialogContent>
       </Dialog>
     </div>
