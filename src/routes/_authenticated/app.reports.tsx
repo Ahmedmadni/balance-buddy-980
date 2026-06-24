@@ -156,7 +156,7 @@ function ReportsPage() {
 
       <div className="rounded-2xl border bg-card p-6">
         <div className="text-center mb-4 pb-4 border-b">
-          <h2 className="text-xl font-bold">تقرير {type === "expenses" ? "المصاريف" : type === "people" ? "الأشخاص" : "العمليات"}</h2>
+          <h2 className="text-xl font-bold">تقرير {type === "expenses" ? "المصاريف" : type === "people" ? "الأشخاص" : type === "assets" ? "أداء الأصول" : "العمليات"}</h2>
           <div className="text-sm text-muted-foreground mt-1">من {formatDate(from)} إلى {formatDate(to)}</div>
         </div>
 
