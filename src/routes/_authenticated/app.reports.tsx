@@ -52,6 +52,20 @@ function ReportsPage() {
         let rows = (data ?? []) as any[];
         if (projectId !== "all") rows = rows.filter((r) => r.expenses?.project_id === projectId);
         return { rows };
+      } else if (type === "assets") {
+        const [iRes, tRes] = await Promise.all([
+          supabase.from("investments").select("*"),
+          supabase.from("investment_transactions").select("*").gte("happened_at", from).lte("happened_at", to),
+        ]);
+        const txs = (tRes.data ?? []) as any[];
+        const byInv = new Map<string, any[]>();
+        for (const t of txs) { const a = byInv.get(t.investment_id) ?? []; a.push(t); byInv.set(t.investment_id, a); }
+        const { computeAssetMetrics } = await import("@/lib/assets/calculator");
+        const rows = (iRes.data ?? []).map((inv: any) => ({
+          ...inv,
+          _m: computeAssetMetrics(inv, byInv.get(inv.id) ?? []),
+        }));
+        return { rows };
       } else {
         const { data, error } = await supabase.from("person_ledger")
           .select("*")
