@@ -21,6 +21,7 @@ export const Route = createFileRoute("/_authenticated/app/expenses")({
 function ExpensesPage() {
   const qc = useQueryClient();
   const [open, setOpen] = useState(false);
+  const [assetFilter, setAssetFilter] = useState<"all" | "regular" | "asset_opex">("all");
   const search = useSearch({ strict: false }) as { new?: string };
   const navigate = useNavigate();
   useEffect(() => {
@@ -33,13 +34,22 @@ function ExpensesPage() {
   const { data, isLoading } = useQuery({
     queryKey: ["expenses-list"],
     queryFn: async () => {
-      const [eRes, cRes, pRes, wRes] = await Promise.all([
+      const [eRes, cRes, pRes, wRes, opexRes, invRes] = await Promise.all([
         supabase.from("expenses").select("*, categories(name,color), projects(name,color), wallets(name,color)").order("spent_at", { ascending: false }).limit(200),
         supabase.from("categories").select("*").order("name"),
         supabase.from("projects").select("*").eq("status", "active").order("name"),
         supabase.from("wallets").select("*").order("created_at"),
+        supabase.from("investment_transactions").select("id,investment_id,amount,currency,happened_at,notes,wallet_id,tx_class").eq("tx_class", "opex").order("happened_at", { ascending: false }).limit(200),
+        supabase.from("investments").select("id,name,asset_kind,type"),
       ]);
-      return { expenses: eRes.data ?? [], categories: cRes.data ?? [], projects: pRes.data ?? [], wallets: wRes.data ?? [] };
+      return {
+        expenses: eRes.data ?? [],
+        categories: cRes.data ?? [],
+        projects: pRes.data ?? [],
+        wallets: wRes.data ?? [],
+        opex: opexRes.data ?? [],
+        investments: invRes.data ?? [],
+      };
     },
   });
 
@@ -64,6 +74,25 @@ function ExpensesPage() {
   });
 
   const noWallets = (data?.wallets ?? []).length === 0;
+  const invMap = useMemo(() => {
+    const m = new Map<string, any>();
+    for (const i of data?.investments ?? []) m.set(i.id, i);
+    return m;
+  }, [data?.investments]);
+
+  // Merge regular expenses + asset OpEx into a unified list, sorted by date
+  const merged = useMemo(() => {
+    const reg = (data?.expenses ?? []).map((e: any) => ({ ...e, _kind: "regular" as const, _date: e.spent_at }));
+    const ox = (data?.opex ?? []).map((t: any) => {
+      const w = (data?.wallets ?? []).find((x: any) => x.id === t.wallet_id);
+      const inv = invMap.get(t.investment_id);
+      return { ...t, _kind: "asset_opex" as const, _date: t.happened_at, wallets: w, investment: inv };
+    });
+    const list = [...reg, ...ox].filter((row) => assetFilter === "all" ? true : row._kind === assetFilter);
+    list.sort((a, b) => (a._date < b._date ? 1 : -1));
+    return list;
+  }, [data, invMap, assetFilter]);
+
 
   return (
     <div className="space-y-5">
