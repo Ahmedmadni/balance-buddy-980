@@ -229,6 +229,52 @@ function ReportsPage() {
               </tbody>
             </table>
           </>
+        ) : type === "assets" ? (
+          (() => {
+            const totals: Record<string, { value: number; capex: number; opex: number; income: number; pnl: number }> = {};
+            for (const r of rows as any[]) {
+              const c = r.currency; const m = r._m;
+              const t = (totals[c] ??= { value: 0, capex: 0, opex: 0, income: 0, pnl: 0 });
+              t.value += m.marketValue; t.capex += m.capex; t.opex += m.opex; t.income += m.income; t.pnl += m.totalPnl;
+            }
+            const top = [...(rows as any[])].sort((a, b) => b._m.totalPnl - a._m.totalPnl).slice(0, 10);
+            return (
+              <>
+                <div className="grid sm:grid-cols-3 gap-3 mb-4">
+                  {Object.entries(totals).map(([c, t]) => (
+                    <div key={c} className="rounded-xl border bg-accent/30 p-3 space-y-1">
+                      <div className="text-[11px] text-muted-foreground">إجمالي القيمة ({c})</div>
+                      <div className="text-lg font-extrabold tabular-nums">{formatMoney(t.value, c)}</div>
+                      <div className="grid grid-cols-2 gap-1 text-[11px] mt-1">
+                        <div className="text-blue-600">CapEx: {formatMoney(t.capex, c)}</div>
+                        <div className="text-amber-600">OpEx: {formatMoney(t.opex, c)}</div>
+                        <div className="text-success">دخل: {formatMoney(t.income, c)}</div>
+                        <div className={t.pnl >= 0 ? "text-success" : "text-destructive"}>P&L: {t.pnl >= 0 ? "+" : "−"}{formatMoney(Math.abs(t.pnl), c)}</div>
+                      </div>
+                    </div>
+                  ))}
+                  {Object.keys(totals).length === 0 && <div className="text-muted-foreground">—</div>}
+                </div>
+                <table className="w-full text-sm">
+                  <thead className="text-right text-xs text-muted-foreground border-b">
+                    <tr><th className="py-2">الأصل</th><th>القيمة</th><th>CapEx</th><th>OpEx</th><th>دخل</th><th className="text-left">P&L</th></tr>
+                  </thead>
+                  <tbody>
+                    {top.map((r: any) => (
+                      <tr key={r.id} className="border-b last:border-0">
+                        <td className="py-2 font-medium">{r.name}</td>
+                        <td className="tabular-nums">{formatMoney(r._m.marketValue, r.currency)}</td>
+                        <td className="tabular-nums text-blue-600">{formatMoney(r._m.capex, r.currency)}</td>
+                        <td className="tabular-nums text-amber-600">{formatMoney(r._m.opex, r.currency)}</td>
+                        <td className="tabular-nums text-success">{formatMoney(r._m.income, r.currency)}</td>
+                        <td className={`text-left tabular-nums ${r._m.totalPnl >= 0 ? "text-success" : "text-destructive"}`}>{r._m.totalPnl >= 0 ? "+" : "−"}{formatMoney(Math.abs(r._m.totalPnl), r.currency)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </>
+            );
+          })()
         ) : (
           <>
             <div className="rounded-xl bg-accent/40 p-3 mb-4">
