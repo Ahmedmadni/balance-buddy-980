@@ -121,9 +121,10 @@ function ReportsPage() {
 
       <div className="rounded-2xl border bg-card p-4 space-y-4 no-print">
         <Tabs value={type} onValueChange={(v) => setType(v as any)}>
-          <TabsList className="grid grid-cols-3 w-full">
+          <TabsList className="grid grid-cols-4 w-full">
             <TabsTrigger value="transactions">العمليات</TabsTrigger>
             <TabsTrigger value="expenses">مصاريف</TabsTrigger>
+            <TabsTrigger value="assets">الأصول</TabsTrigger>
             <TabsTrigger value="people">أشخاص</TabsTrigger>
           </TabsList>
         </Tabs>
