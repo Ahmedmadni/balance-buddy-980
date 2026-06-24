@@ -41,6 +41,16 @@ const TX_CLASSES: { value: AssetTxClass; label: string; emoji: string }[] = [
   { value: "sale", label: "بيع الأصل", emoji: "🏁" },
 ];
 
+function MetricCard({ label, value, cur, tone, accent, signed }: { label: string; value: number; cur: string; tone?: string; accent?: boolean; signed?: boolean }) {
+  const sign = signed && value !== 0 ? (value > 0 ? "+" : "−") : "";
+  return (
+    <div className={cn("rounded-xl border p-2.5", accent ? "bg-primary/5 border-primary/30" : "bg-card")}>
+      <div className="text-[10px] text-muted-foreground">{label}</div>
+      <div className={cn("text-sm font-bold tabular-nums mt-0.5", tone)}>{sign}{formatMoney(Math.abs(value), cur)}</div>
+    </div>
+  );
+}
+
 function InvestmentsPage() {
   const qc = useQueryClient();
   const [open, setOpen] = useState(false);
