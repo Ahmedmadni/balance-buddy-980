@@ -61,8 +61,17 @@ export function StatementTable({
             <tbody>
               {filtered.length === 0 ? (
                 <tr><td colSpan={showActions ? 7 : 6} className="p-8 text-center text-muted-foreground text-sm">لا توجد حركات في النطاق المختار</td></tr>
-              ) : filtered.map((r) => (
-                <tr key={r.id} className={cn("border-t hover:bg-accent/30", dense ? "[&>td]:p-1.5" : "[&>td]:p-2")}>
+              ) : filtered.map((r) => {
+                const clickable = !!onEdit && !r.lockedMirror;
+                return (
+                <tr
+                  key={r.id}
+                  className={cn("border-t hover:bg-accent/30", dense ? "[&>td]:p-1.5" : "[&>td]:p-2", clickable && "cursor-pointer")}
+                  onClick={clickable ? () => onEdit!(r) : undefined}
+                  role={clickable ? "button" : undefined}
+                  tabIndex={clickable ? 0 : undefined}
+                  onKeyDown={clickable ? (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onEdit!(r); } } : undefined}
+                >
                   <td className="text-xs text-muted-foreground whitespace-nowrap">{formatDate(r.date)}</td>
                   <td className="min-w-[180px]">
                     {r.description}
@@ -81,7 +90,7 @@ export function StatementTable({
                       {r.lockedMirror ? (
                         <span className="text-[10px] text-muted-foreground">عدّل من المصدر</span>
                       ) : (
-                        <div className="inline-flex gap-1">
+                        <div className="inline-flex gap-1" onClick={(e) => e.stopPropagation()}>
                           {onEdit && (
                             <Button type="button" size="icon" variant="ghost" className="h-7 w-7" onClick={() => onEdit(r)} aria-label="تعديل">
                               <Pencil className="h-3.5 w-3.5" />
@@ -97,7 +106,8 @@ export function StatementTable({
                     </td>
                   )}
                 </tr>
-              ))}
+                );
+              })}
             </tbody>
             {filtered.length > 0 && (
               <tfoot className="bg-muted/40 text-xs font-bold">
