@@ -90,7 +90,7 @@ export function StatementTable({
                       {r.lockedMirror ? (
                         <span className="text-[10px] text-muted-foreground">عدّل من المصدر</span>
                       ) : (
-                        <div className="inline-flex gap-1">
+                        <div className="inline-flex gap-1" onClick={(e) => e.stopPropagation()}>
                           {onEdit && (
                             <Button type="button" size="icon" variant="ghost" className="h-7 w-7" onClick={() => onEdit(r)} aria-label="تعديل">
                               <Pencil className="h-3.5 w-3.5" />
@@ -106,7 +106,8 @@ export function StatementTable({
                     </td>
                   )}
                 </tr>
-              ))}
+                );
+              })}
             </tbody>
             {filtered.length > 0 && (
               <tfoot className="bg-muted/40 text-xs font-bold">
