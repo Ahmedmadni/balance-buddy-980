@@ -12,12 +12,16 @@ import { CURRENCIES } from "@/lib/format";
 import {
   Plus, Trash2, Pencil, Search, Settings as SettingsIcon, Wallet as WalletIcon,
   Tags, Contact as ContactIcon, Archive, ArchiveRestore, ExternalLink, ChevronLeft,
-  Bell, Download, Coins, TrendingDown, RefreshCw,
+  Bell, Download, Coins, TrendingDown, RefreshCw, Megaphone,
 } from "lucide-react";
 import { toast } from "sonner";
 import { typeMeta, WALLET_TYPES } from "./app.wallets";
 import { computeWalletBalance } from "@/lib/wallet-balance";
 import { formatMoney } from "@/lib/format";
+import { cn } from "@/lib/utils";
+import { Switch } from "@/components/ui/switch";
+import { useAds } from "@/lib/ads/ad-context";
+import { AdSlot } from "@/components/ads/AdSlot";
 
 export const Route = createFileRoute("/_authenticated/app/settings")({
   head: () => ({ meta: [{ title: "الإعدادات — رصد" }] }),
@@ -65,6 +69,7 @@ function SettingsPage() {
           <TabsTrigger value="categories" className="gap-1.5"><Tags className="h-4 w-4" />الفئات</TabsTrigger>
           <TabsTrigger value="contacts" className="gap-1.5"><ContactIcon className="h-4 w-4" />جهات الاتصال</TabsTrigger>
           <TabsTrigger value="advanced" className="gap-1.5 text-muted-foreground"><Bell className="h-4 w-4" />متقدم</TabsTrigger>
+          <TabsTrigger value="ads" className="gap-1.5"><Megaphone className="h-4 w-4" />الإعلانات</TabsTrigger>
         </TabsList>
 
         <TabsContent value="general"><GeneralSection /></TabsContent>
@@ -72,6 +77,7 @@ function SettingsPage() {
         <TabsContent value="categories"><CategoriesSection /></TabsContent>
         <TabsContent value="contacts"><ContactsSection /></TabsContent>
         <TabsContent value="advanced"><AdvancedPlaceholder /></TabsContent>
+        <TabsContent value="ads"><AdsSection /></TabsContent>
       </Tabs>
     </div>
   );
@@ -563,6 +569,44 @@ function EmptyHint({ icon, text }: { icon: React.ReactNode; text: string }) {
     <div className="rounded-xl border border-dashed p-6 text-center text-sm text-muted-foreground flex flex-col items-center gap-2">
       <div className="grid h-10 w-10 place-items-center rounded-xl bg-accent text-accent-foreground">{icon}</div>
       {text}
+    </div>
+  );
+}
+
+// ===================== ADS =====================
+function AdsSection() {
+  const { prefs, setPrefs, platform } = useAds();
+  const Row = ({ title, desc, value, onChange, disabled }: { title: string; desc: string; value: boolean; onChange: (v: boolean) => void; disabled?: boolean }) => (
+    <div className={cn("flex items-start justify-between gap-4 rounded-xl border bg-card/50 p-3", disabled && "opacity-60")}>
+      <div className="min-w-0">
+        <div className="text-sm font-semibold">{title}</div>
+        <div className="text-[11px] text-muted-foreground mt-0.5">{desc}</div>
+      </div>
+      <Switch checked={value} onCheckedChange={onChange} disabled={disabled} />
+    </div>
+  );
+  return (
+    <div className="space-y-4">
+      <Section title="إعدادات الإعلانات" desc="تحكم بالإعلانات داخل التطبيق — لن تظهر إعلانات حقيقية الآن، البنية مهيّأة فقط">
+        <div className="grid gap-2 sm:grid-cols-2">
+          <Row title="تفعيل الإعلانات" desc="عند التفعيل ستظهر الإعلانات في الأماكن المخصصة"
+               value={prefs.enabled} onChange={(v) => setPrefs({ enabled: v })} disabled={prefs.premium} />
+          <Row title="إعلانات مخصصة" desc="إعلانات أكثر صلة بناءً على اهتماماتك"
+               value={prefs.personalized} onChange={(v) => setPrefs({ personalized: v })} disabled={prefs.premium || !prefs.enabled} />
+          <Row title="حساب Premium" desc="إخفاء كل الإعلانات لمشتركي النسخة المميزة"
+               value={prefs.premium} onChange={(v) => setPrefs({ premium: v })} />
+          <Row title="وضع الاختبار" desc="استخدام معرّفات اختبارية رسمية أثناء التطوير"
+               value={prefs.testMode} onChange={(v) => setPrefs({ testMode: v })} />
+          <Row title="إظهار مساحات تجريبية" desc="عرض مكان الإعلان كقالب فارغ حتى لو كانت الإعلانات معطلة"
+               value={prefs.showPlaceholder} onChange={(v) => setPrefs({ showPlaceholder: v })} />
+        </div>
+        <div className="rounded-xl border border-dashed bg-muted/30 p-3 text-[11px] text-muted-foreground space-y-1">
+          <div>المنصة الحالية: <span className="font-semibold text-foreground">{platform}</span></div>
+          <div>الأماكن المدعومة: dashboard_top, dashboard_bottom, transactions_inline, reports_bottom, settings_banner, assets_list_bottom, asset_details_bottom, people_bottom, zakat_bottom</div>
+          <div>لا يتم تحميل أي SDK أو سكربت خارجي حالياً.</div>
+        </div>
+      </Section>
+      <AdSlot slot="settings_banner" />
     </div>
   );
 }

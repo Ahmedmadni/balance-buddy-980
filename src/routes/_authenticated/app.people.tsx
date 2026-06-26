@@ -10,6 +10,7 @@ import { formatMoney, formatDate } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { PersonTxForm, kindSign } from "@/components/PersonTxForm";
 import { PersonStatementDrawer } from "@/components/PersonStatementDrawer";
+import { AdSlot } from "@/components/ads/AdSlot";
 
 export const Route = createFileRoute("/_authenticated/app/people")({
   head: () => ({ meta: [{ title: "الديون — رصد" }] }),
@@ -182,6 +183,8 @@ function PeoplePage() {
           ))}
         </div>
       )}
+
+      <AdSlot slot="people_bottom" />
 
       <PersonStatementDrawer
         contactId={drawerId}

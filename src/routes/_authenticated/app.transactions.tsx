@@ -14,6 +14,8 @@ import { formatMoney, formatDate, todayISO } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import * as XLSX from "xlsx";
 import { FadeIn } from "@/components/motion/FadeIn";
+import { AdSlot } from "@/components/ads/AdSlot";
+import { Fragment } from "react";
 
 export const Route = createFileRoute("/_authenticated/app/transactions")({
   head: () => ({ meta: [{ title: "العمليات — رصد" }] }),
@@ -182,29 +184,34 @@ function TransactionsPage() {
         {rows.length === 0 && (
           <div className="p-10 text-center text-sm text-muted-foreground">لا توجد عمليات في هذه الفترة</div>
         )}
-        {(rows as any[]).map((r) => {
+        {(rows as any[]).map((r, idx) => {
           const m = TYPE_META[r.type as keyof typeof TYPE_META];
           const Icon = m?.icon ?? Equal;
           const sign = r.direction === "in" ? "+" : r.direction === "out" ? "−" : "";
           const valColor = r.direction === "in" ? "text-emerald-500" : r.direction === "out" ? "text-rose-500" : "text-foreground";
           return (
-            <div key={r.id} className="flex items-center gap-3 p-3">
-              <span className={cn("grid h-10 w-10 place-items-center rounded-xl shrink-0", m?.tone ?? "bg-muted")}>
-                <Icon className="h-4 w-4" />
-              </span>
-              <div className="flex-1 min-w-0">
-                <div className="text-sm font-semibold truncate">
-                  {r.description || r.person_name || m?.label || "—"}
+            <Fragment key={r.id}>
+              <div className="flex items-center gap-3 p-3">
+                <span className={cn("grid h-10 w-10 place-items-center rounded-xl shrink-0", m?.tone ?? "bg-muted")}>
+                  <Icon className="h-4 w-4" />
+                </span>
+                <div className="flex-1 min-w-0">
+                  <div className="text-sm font-semibold truncate">
+                    {r.description || r.person_name || m?.label || "—"}
+                  </div>
+                  <div className="text-[11px] text-muted-foreground truncate">
+                    {formatDate(r.happened_at)} · {walletName.get(r.account_id) ?? "—"}
+                    {r.counterparty_account_id ? ` ← ${walletName.get(r.counterparty_account_id) ?? ""}` : ""}
+                  </div>
                 </div>
-                <div className="text-[11px] text-muted-foreground truncate">
-                  {formatDate(r.happened_at)} · {walletName.get(r.account_id) ?? "—"}
-                  {r.counterparty_account_id ? ` ← ${walletName.get(r.counterparty_account_id) ?? ""}` : ""}
+                <div className={cn("text-sm font-bold tabular-nums whitespace-nowrap", valColor)}>
+                  {sign}{formatMoney(r.amount, r.currency)}
                 </div>
               </div>
-              <div className={cn("text-sm font-bold tabular-nums whitespace-nowrap", valColor)}>
-                {sign}{formatMoney(r.amount, r.currency)}
-              </div>
-            </div>
+              {((idx + 1) % 25 === 0 && idx + 1 < rows.length) && (
+                <div className="p-3"><AdSlot slot="transactions_inline" /></div>
+              )}
+            </Fragment>
           );
         })}
       </div>
