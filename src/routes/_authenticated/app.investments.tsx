@@ -53,6 +53,14 @@ function MetricCard({ label, value, cur, tone, accent, signed }: { label: string
   );
 }
 
+function InfoRow({ label, value }: { label: string; value: React.ReactNode }) {
+  return (
+    <div className="flex justify-between rounded-lg bg-card border p-2">
+      <span className="text-muted-foreground">{label}</span>
+      <span className="font-medium truncate ml-2">{value}</span>
+    </div>
+  );
+
 function InvestmentsPage() {
   const qc = useQueryClient();
   const [open, setOpen] = useState(false);
