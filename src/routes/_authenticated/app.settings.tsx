@@ -18,6 +18,7 @@ import { toast } from "sonner";
 import { typeMeta, WALLET_TYPES } from "./app.wallets";
 import { computeWalletBalance } from "@/lib/wallet-balance";
 import { formatMoney } from "@/lib/format";
+import { cn } from "@/lib/utils";
 import { Switch } from "@/components/ui/switch";
 import { useAds } from "@/lib/ads/ad-context";
 import { AdSlot } from "@/components/ads/AdSlot";
