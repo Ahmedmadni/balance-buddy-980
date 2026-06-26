@@ -16,6 +16,7 @@ import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { computeAssetMetrics, TX_CLASS_META, type AssetTxClass } from "@/lib/assets/calculator";
 import { AdSlot } from "@/components/ads/AdSlot";
+import { AssetComponentsTab } from "@/components/AssetComponentsTab";
 
 export const Route = createFileRoute("/_authenticated/app/investments")({
   head: () => ({ meta: [{ title: "الأصول والاستثمارات — رصد" }] }),
