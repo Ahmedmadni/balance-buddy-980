@@ -255,7 +255,7 @@ function ComponentForm({ parent, initial, onDone }: { parent: any; initial: any 
           <Select value={currency} onValueChange={setCurrency}>
             <SelectTrigger><SelectValue /></SelectTrigger>
             <SelectContent>
-              {CURRENCIES.map((c) => <SelectItem key={c} value={c}>{c}</SelectItem>)}
+              {CURRENCIES.map((c: any) => { const code = typeof c === "string" ? c : c.code; return <SelectItem key={code} value={code}>{code}</SelectItem>; })}
             </SelectContent>
           </Select>
         </div>
