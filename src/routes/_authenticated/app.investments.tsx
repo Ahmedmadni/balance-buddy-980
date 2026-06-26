@@ -15,6 +15,7 @@ import { CURRENCIES, formatMoney, formatDate, todayISO } from "@/lib/format";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { computeAssetMetrics, TX_CLASS_META, type AssetTxClass } from "@/lib/assets/calculator";
+import { AdSlot } from "@/components/ads/AdSlot";
 
 export const Route = createFileRoute("/_authenticated/app/investments")({
   head: () => ({ meta: [{ title: "الأصول والاستثمارات — رصد" }] }),
@@ -413,6 +414,7 @@ function InvestmentsPage() {
                         <div className="flex justify-between"><span className="text-muted-foreground">قيمة البيع</span><span className="font-bold tabular-nums text-success">{formatMoney(detail.sold_amount, cur)}</span></div>
                       )}
                     </div>
+                    <AdSlot slot="asset_details_bottom" />
                   </TabsContent>
 
                   {/* ============ NOTES + ATTACHMENTS ============ */}
@@ -436,6 +438,8 @@ function InvestmentsPage() {
           })()}
         </DialogContent>
       </Dialog>
+
+      <AdSlot slot="assets_list_bottom" />
     </div>
   );
 }
