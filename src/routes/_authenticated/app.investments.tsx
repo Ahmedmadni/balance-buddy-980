@@ -81,7 +81,7 @@ function InvestmentsPage() {
     queryKey: ["investments-list"],
     queryFn: async () => {
       const [iRes, tRes, wRes] = await Promise.all([
-        supabase.from("investments").select("*, wallets(name,color,currency)").order("created_at", { ascending: false }),
+        supabase.from("investments").select("*, wallets(name,color,currency)").is("parent_investment_id", null).order("created_at", { ascending: false }),
         supabase.from("investment_transactions").select("*").order("happened_at", { ascending: false }),
         supabase.from("wallets").select("*").order("created_at"),
       ]);
