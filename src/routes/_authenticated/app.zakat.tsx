@@ -15,6 +15,7 @@ import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { computeWalletBalance } from "@/lib/wallet-balance";
 import { computeHaulStatus, validateBeforeCompute, classifyAsset, type ZakatSettings } from "@/lib/zakat/engine";
+import { AdSlot } from "@/components/ads/AdSlot";
 
 export const Route = createFileRoute("/_authenticated/app/zakat")({
   head: () => ({ meta: [{ title: "حاسبة الزكاة — رصد" }] }),
@@ -52,6 +53,8 @@ function ZakatPage() {
         <TabsContent value="settings" className="space-y-4 mt-4"><ZakatSettingsTab /></TabsContent>
         <TabsContent value="livestock" className="space-y-4 mt-4"><LivestockZakat /></TabsContent>
       </Tabs>
+
+      <AdSlot slot="zakat_bottom" />
     </div>
   );
 }
