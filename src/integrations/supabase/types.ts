@@ -426,6 +426,7 @@ export type Database = {
           nisab_reached_at: string | null
           notes: string | null
           ownership_pct: number
+          parent_investment_id: string | null
           principal: number
           purpose: string | null
           realized_pnl: number | null
@@ -453,6 +454,7 @@ export type Database = {
           nisab_reached_at?: string | null
           notes?: string | null
           ownership_pct?: number
+          parent_investment_id?: string | null
           principal?: number
           purpose?: string | null
           realized_pnl?: number | null
@@ -480,6 +482,7 @@ export type Database = {
           nisab_reached_at?: string | null
           notes?: string | null
           ownership_pct?: number
+          parent_investment_id?: string | null
           principal?: number
           purpose?: string | null
           realized_pnl?: number | null
@@ -494,6 +497,13 @@ export type Database = {
           wallet_id?: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: "investments_parent_investment_id_fkey"
+            columns: ["parent_investment_id"]
+            isOneToOne: false
+            referencedRelation: "investments"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "investments_wallet_id_fkey"
             columns: ["wallet_id"]

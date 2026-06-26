@@ -1,0 +1,2 @@
+ALTER TABLE public.investments ADD COLUMN IF NOT EXISTS parent_investment_id uuid REFERENCES public.investments(id) ON DELETE SET NULL;
+CREATE INDEX IF NOT EXISTS idx_investments_parent ON public.investments(parent_investment_id);
