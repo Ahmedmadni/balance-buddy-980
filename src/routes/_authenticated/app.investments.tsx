@@ -317,12 +317,18 @@ function InvestmentsPage() {
                 </DialogHeader>
 
                 <Tabs defaultValue="overview" className="mt-2">
-                  <TabsList className="w-full grid grid-cols-4">
+                  <TabsList className="w-full grid grid-cols-5">
                     <TabsTrigger value="overview">نظرة عامة</TabsTrigger>
+                    <TabsTrigger value="components">المكونات</TabsTrigger>
                     <TabsTrigger value="transactions">الحركات ({txs.length})</TabsTrigger>
                     <TabsTrigger value="performance">الأداء</TabsTrigger>
                     <TabsTrigger value="notes">ملاحظات ومرفقات</TabsTrigger>
                   </TabsList>
+
+                  {/* ============ COMPONENTS ============ */}
+                  <TabsContent value="components">
+                    <AssetComponentsTab parent={detail} />
+                  </TabsContent>
 
                   {/* ============ OVERVIEW ============ */}
                   <TabsContent value="overview" className="space-y-3 mt-3">
