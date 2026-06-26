@@ -289,53 +289,82 @@ function InvestmentsPage() {
             const txs = txByInv.get(detail.id) ?? [];
             const m = computeAssetMetrics(detail, txs);
             const cur = detail.currency;
+            const pnlPct = m.bookValue > 0 ? (m.totalPnl / m.bookValue) * 100 : 0;
             return (
               <>
                 <DialogHeader>
-                  <DialogTitle className="flex items-center gap-2">
+                  <DialogTitle className="flex items-center gap-2 flex-wrap">
                     <span className="text-2xl">{typeIcon(detail.type)}</span>
                     {detail.name}
                     <span className="text-[10px] rounded-full bg-primary/15 text-primary px-1.5 py-0.5">{typeLabel(detail.type)}</span>
+                    {detail.subtype && detail.subtype !== detail.type && (
+                      <span className="text-[10px] rounded-full bg-muted px-1.5 py-0.5">{detail.subtype}</span>
+                    )}
+                    <span className="text-[10px] rounded-full bg-accent px-1.5 py-0.5">{detail.status ?? "active"}</span>
                   </DialogTitle>
                 </DialogHeader>
 
-                <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-                  <MetricCard label="القيمة السوقية" value={m.marketValue} cur={cur} accent />
-                  <MetricCard label="القيمة الدفترية" value={m.bookValue} cur={cur} />
-                  <MetricCard label="رأس المال" value={m.baseValue} cur={cur} />
-                  <MetricCard label="CapEx" value={m.capex} cur={cur} tone="text-blue-600" />
-                  <MetricCard label="OpEx" value={m.opex} cur={cur} tone="text-amber-600" />
-                  <MetricCard label="الإيرادات" value={m.income} cur={cur} tone="text-success" />
-                  <MetricCard label="صافي التدفق" value={m.netCashflow} cur={cur} tone={m.netCashflow >= 0 ? "text-success" : "text-destructive"} signed />
-                  <MetricCard label="غير محقق P&L" value={m.unrealizedPnl} cur={cur} tone={m.unrealizedPnl >= 0 ? "text-success" : "text-destructive"} signed />
-                  <MetricCard label="P&L الكلي" value={m.totalPnl} cur={cur} tone={m.totalPnl >= 0 ? "text-success" : "text-destructive"} signed />
-                </div>
+                <Tabs defaultValue="overview" className="mt-2">
+                  <TabsList className="w-full grid grid-cols-4">
+                    <TabsTrigger value="overview">نظرة عامة</TabsTrigger>
+                    <TabsTrigger value="transactions">الحركات ({txs.length})</TabsTrigger>
+                    <TabsTrigger value="performance">الأداء</TabsTrigger>
+                    <TabsTrigger value="notes">ملاحظات ومرفقات</TabsTrigger>
+                  </TabsList>
 
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 mt-3">
-                  {(["capex","opex","income","adjustment"] as AssetTxClass[]).map((c) => {
-                    const tm = TX_CLASS_META[c];
-                    return (
-                      <Button key={c} variant="outline" size="sm" onClick={() => { setDetail(null); setTxFor({ ...detail, _preset_tx_class: c }); }}>
-                        <Plus className="h-3.5 w-3.5" /> {tm.label}
-                      </Button>
-                    );
-                  })}
-                </div>
+                  {/* ============ OVERVIEW ============ */}
+                  <TabsContent value="overview" className="space-y-3 mt-3">
+                    <div className="rounded-2xl border bg-[image:var(--gradient-primary)]/5 p-4">
+                      <div className="text-[11px] text-muted-foreground">القيمة السوقية الحالية</div>
+                      <div className="text-3xl font-extrabold tabular-nums text-primary">{formatMoney(m.marketValue, cur)}</div>
+                      <div className="mt-1 text-xs flex items-center gap-2">
+                        <span className="text-muted-foreground">فرق القيمة:</span>
+                        <span className={cn("font-bold tabular-nums", m.unrealizedPnl >= 0 ? "text-success" : "text-destructive")}>
+                          {m.unrealizedPnl >= 0 ? "+" : ""}{formatMoney(m.unrealizedPnl, cur)} ({pnlPct >= 0 ? "+" : ""}{pnlPct.toFixed(1)}%)
+                        </span>
+                      </div>
+                    </div>
 
-                {detail.meta && Object.keys(detail.meta).length > 0 && (
-                  <div className="rounded-xl border bg-accent/30 p-3 text-xs space-y-1 mt-3">
-                    <div className="font-semibold mb-1">تفاصيل {typeLabel(detail.type)}</div>
-                    {Object.entries(detail.meta).map(([k, v]: any) => (
-                      <div key={k} className="flex justify-between"><span className="text-muted-foreground">{k}</span><span className="font-medium">{String(v)}</span></div>
-                    ))}
-                  </div>
-                )}
+                    <div className="grid grid-cols-2 gap-2 text-xs">
+                      <InfoRow label="الاسم" value={detail.name} />
+                      <InfoRow label="النوع" value={typeLabel(detail.type)} />
+                      <InfoRow label="التصنيف الفرعي" value={detail.subtype ?? "—"} />
+                      <InfoRow label="الحالة" value={detail.status ?? "active"} />
+                      <InfoRow label="تاريخ الشراء" value={detail.acquired_at ? formatDate(detail.acquired_at) : (detail.start_date ? formatDate(detail.start_date) : "—")} />
+                      <InfoRow label="نسبة الملكية" value={`${detail.ownership_pct ?? 100}%`} />
+                      <InfoRow label="التكلفة الأصلية" value={formatMoney(m.baseValue, cur)} />
+                      <InfoRow label="القيمة الحالية" value={formatMoney(m.marketValue, cur)} />
+                      <InfoRow label="فرق القيمة" value={`${m.unrealizedPnl >= 0 ? "+" : ""}${formatMoney(m.unrealizedPnl, cur)}`} />
+                      <InfoRow label="نسبة الربح/الخسارة" value={`${pnlPct >= 0 ? "+" : ""}${pnlPct.toFixed(2)}%`} />
+                      <InfoRow label="العملة" value={cur} />
+                      <InfoRow label="قابل للزكاة" value={detail.is_zakatable ? "نعم" : "لا"} />
+                    </div>
 
-                <div className="mt-3">
-                  <div className="text-xs font-semibold mb-2 text-muted-foreground">سجل الحركات ({txs.length})</div>
-                  <div className="space-y-2">
+                    {detail.meta && Object.keys(detail.meta).length > 0 && (
+                      <div className="rounded-xl border bg-accent/30 p-3 text-xs space-y-1">
+                        <div className="font-semibold mb-1">تفاصيل {typeLabel(detail.type)}</div>
+                        {Object.entries(detail.meta).map(([k, v]: any) => (
+                          <div key={k} className="flex justify-between"><span className="text-muted-foreground">{k}</span><span className="font-medium">{String(v)}</span></div>
+                        ))}
+                      </div>
+                    )}
+
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 pt-2 border-t">
+                      {(["capex","opex","income","adjustment"] as AssetTxClass[]).map((c) => {
+                        const tm = TX_CLASS_META[c];
+                        return (
+                          <Button key={c} variant="outline" size="sm" onClick={() => { setDetail(null); setTxFor({ ...detail, _preset_tx_class: c }); }}>
+                            <Plus className="h-3.5 w-3.5" /> {tm.label}
+                          </Button>
+                        );
+                      })}
+                    </div>
+                  </TabsContent>
+
+                  {/* ============ TRANSACTIONS ============ */}
+                  <TabsContent value="transactions" className="space-y-2 mt-3">
                     {txs.length === 0 ? (
-                      <div className="text-center text-sm text-muted-foreground py-6">لا توجد حركات بعد</div>
+                      <div className="rounded-xl border border-dashed p-8 text-center text-sm text-muted-foreground">لا توجد حركات بعد</div>
                     ) : txs.map((t: any) => {
                       const cls = (t.tx_class || "capex") as AssetTxClass;
                       const tm = TX_CLASS_META[cls] ?? TX_CLASS_META.capex;
@@ -350,8 +379,48 @@ function InvestmentsPage() {
                         </div>
                       );
                     })}
-                  </div>
-                </div>
+                  </TabsContent>
+
+                  {/* ============ PERFORMANCE ============ */}
+                  <TabsContent value="performance" className="space-y-3 mt-3">
+                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                      <MetricCard label="إجمالي الإيرادات" value={m.income} cur={cur} tone="text-success" />
+                      <MetricCard label="إجمالي المصروفات" value={m.opex + m.capex} cur={cur} tone="text-amber-600" />
+                      <MetricCard label="صافي الربح" value={m.totalPnl} cur={cur} tone={m.totalPnl >= 0 ? "text-success" : "text-destructive"} signed />
+                      <MetricCard label="القيمة الدفترية" value={m.bookValue} cur={cur} />
+                      <MetricCard label="القيمة السوقية" value={m.marketValue} cur={cur} accent />
+                      <MetricCard label="صافي التدفق النقدي" value={m.netCashflow} cur={cur} tone={m.netCashflow >= 0 ? "text-success" : "text-destructive"} signed />
+                      <MetricCard label="CapEx" value={m.capex} cur={cur} tone="text-blue-600" />
+                      <MetricCard label="OpEx" value={m.opex} cur={cur} tone="text-amber-600" />
+                      <MetricCard label="غير محقق P&L" value={m.unrealizedPnl} cur={cur} tone={m.unrealizedPnl >= 0 ? "text-success" : "text-destructive"} signed />
+                    </div>
+                    <div className="rounded-xl border bg-accent/20 p-3 text-xs space-y-1">
+                      <div className="flex justify-between"><span className="text-muted-foreground">العائد الحالي</span>
+                        <span className={cn("font-bold tabular-nums", pnlPct >= 0 ? "text-success" : "text-destructive")}>{pnlPct >= 0 ? "+" : ""}{pnlPct.toFixed(2)}%</span>
+                      </div>
+                      <div className="flex justify-between"><span className="text-muted-foreground">عدد الحركات</span><span className="font-medium tabular-nums">{txs.length}</span></div>
+                      {detail.sold_amount > 0 && (
+                        <div className="flex justify-between"><span className="text-muted-foreground">قيمة البيع</span><span className="font-bold tabular-nums text-success">{formatMoney(detail.sold_amount, cur)}</span></div>
+                      )}
+                    </div>
+                  </TabsContent>
+
+                  {/* ============ NOTES + ATTACHMENTS ============ */}
+                  <TabsContent value="notes" className="space-y-3 mt-3">
+                    <div className="rounded-xl border bg-card p-3">
+                      <div className="text-xs font-semibold text-muted-foreground mb-1.5">الملاحظات</div>
+                      {detail.notes ? (
+                        <div className="text-sm whitespace-pre-wrap">{detail.notes}</div>
+                      ) : (
+                        <div className="text-xs text-muted-foreground">لا توجد ملاحظات.</div>
+                      )}
+                    </div>
+                    <div className="rounded-xl border bg-card p-3">
+                      <div className="text-xs font-semibold text-muted-foreground mb-2">المرفقات</div>
+                      <AttachmentUploader entityType="investments" entityId={detail.id} />
+                    </div>
+                  </TabsContent>
+                </Tabs>
               </>
             );
           })()}
