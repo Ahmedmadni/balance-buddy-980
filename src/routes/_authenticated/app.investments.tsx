@@ -16,6 +16,7 @@ import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { computeAssetMetrics, TX_CLASS_META, type AssetTxClass } from "@/lib/assets/calculator";
 import { AdSlot } from "@/components/ads/AdSlot";
+import { AssetComponentsTab } from "@/components/AssetComponentsTab";
 
 export const Route = createFileRoute("/_authenticated/app/investments")({
   head: () => ({ meta: [{ title: "الأصول والاستثمارات — رصد" }] }),
@@ -80,7 +81,7 @@ function InvestmentsPage() {
     queryKey: ["investments-list"],
     queryFn: async () => {
       const [iRes, tRes, wRes] = await Promise.all([
-        supabase.from("investments").select("*, wallets(name,color,currency)").order("created_at", { ascending: false }),
+        supabase.from("investments").select("*, wallets(name,color,currency)").is("parent_investment_id", null).order("created_at", { ascending: false }),
         supabase.from("investment_transactions").select("*").order("happened_at", { ascending: false }),
         supabase.from("wallets").select("*").order("created_at"),
       ]);
@@ -316,12 +317,18 @@ function InvestmentsPage() {
                 </DialogHeader>
 
                 <Tabs defaultValue="overview" className="mt-2">
-                  <TabsList className="w-full grid grid-cols-4">
+                  <TabsList className="w-full grid grid-cols-5">
                     <TabsTrigger value="overview">نظرة عامة</TabsTrigger>
+                    <TabsTrigger value="components">المكونات</TabsTrigger>
                     <TabsTrigger value="transactions">الحركات ({txs.length})</TabsTrigger>
                     <TabsTrigger value="performance">الأداء</TabsTrigger>
                     <TabsTrigger value="notes">ملاحظات ومرفقات</TabsTrigger>
                   </TabsList>
+
+                  {/* ============ COMPONENTS ============ */}
+                  <TabsContent value="components">
+                    <AssetComponentsTab parent={detail} />
+                  </TabsContent>
 
                   {/* ============ OVERVIEW ============ */}
                   <TabsContent value="overview" className="space-y-3 mt-3">
