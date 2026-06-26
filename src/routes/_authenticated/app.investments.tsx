@@ -8,7 +8,9 @@ import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from "@/components/ui/dialog";
-import { Plus, TrendingUp, Trash2, Pencil, X, Wallet as WalletIcon } from "lucide-react";
+import { Plus, TrendingUp, Trash2, Pencil, X, Wallet as WalletIcon, Search, ArrowUpDown, LayoutGrid, List as ListIcon } from "lucide-react";
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
+import { AttachmentUploader } from "@/components/AttachmentUploader";
 import { CURRENCIES, formatMoney, formatDate, todayISO } from "@/lib/format";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
@@ -57,6 +59,11 @@ function InvestmentsPage() {
   const [editing, setEditing] = useState<any | null>(null);
   const [txFor, setTxFor] = useState<any | null>(null);
   const [detail, setDetail] = useState<any | null>(null);
+  const [search, setSearch] = useState("");
+  const [filterType, setFilterType] = useState<string>("all");
+  const [filterStatus, setFilterStatus] = useState<string>("active");
+  const [sort, setSort] = useState<"recent" | "value_desc" | "value_asc" | "pnl_desc" | "name">("recent");
+  const [groupByType, setGroupByType] = useState(true);
 
   const { data, isLoading } = useQuery({
     queryKey: ["investments-list"],
