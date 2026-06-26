@@ -60,6 +60,8 @@ function InfoRow({ label, value }: { label: string; value: React.ReactNode }) {
       <span className="font-medium truncate ml-2">{value}</span>
     </div>
   );
+}
+
 
 function InvestmentsPage() {
   const qc = useQueryClient();
