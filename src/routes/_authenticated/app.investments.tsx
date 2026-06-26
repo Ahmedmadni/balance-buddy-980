@@ -8,7 +8,9 @@ import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from "@/components/ui/dialog";
-import { Plus, TrendingUp, Trash2, Pencil, X, Wallet as WalletIcon } from "lucide-react";
+import { Plus, TrendingUp, Trash2, Pencil, X, Wallet as WalletIcon, Search, ArrowUpDown, LayoutGrid, List as ListIcon } from "lucide-react";
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
+import { AttachmentUploader } from "@/components/AttachmentUploader";
 import { CURRENCIES, formatMoney, formatDate, todayISO } from "@/lib/format";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
@@ -51,12 +53,27 @@ function MetricCard({ label, value, cur, tone, accent, signed }: { label: string
   );
 }
 
+function InfoRow({ label, value }: { label: string; value: React.ReactNode }) {
+  return (
+    <div className="flex justify-between rounded-lg bg-card border p-2">
+      <span className="text-muted-foreground">{label}</span>
+      <span className="font-medium truncate ml-2">{value}</span>
+    </div>
+  );
+}
+
+
 function InvestmentsPage() {
   const qc = useQueryClient();
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<any | null>(null);
   const [txFor, setTxFor] = useState<any | null>(null);
   const [detail, setDetail] = useState<any | null>(null);
+  const [search, setSearch] = useState("");
+  const [filterType, setFilterType] = useState<string>("all");
+  const [filterStatus, setFilterStatus] = useState<string>("active");
+  const [sort, setSort] = useState<"recent" | "value_desc" | "value_asc" | "pnl_desc" | "name">("recent");
+  const [groupByType, setGroupByType] = useState(true);
 
   const { data, isLoading } = useQuery({
     queryKey: ["investments-list"],
@@ -130,59 +147,145 @@ function InvestmentsPage() {
         </div>
       )}
 
-      {isLoading ? (
-        <div className="space-y-2">{[1,2].map(i => <div key={i} className="h-24 animate-pulse rounded-2xl bg-muted" />)}</div>
-      ) : (data?.items ?? []).length === 0 ? (
-        <div className="rounded-2xl border bg-card p-10 text-center">
-          <div className="mx-auto grid h-14 w-14 place-items-center rounded-2xl bg-accent"><TrendingUp className="h-6 w-6" /></div>
-          <h3 className="mt-4 font-semibold">لا يوجد استثمارات</h3>
-          <p className="mt-1 text-sm text-muted-foreground">أضف أول استثمار لمتابعة عوائده</p>
+      {/* Filter / Search / Sort / Group bar */}
+      <div className="rounded-2xl border bg-card p-3 flex flex-wrap items-center gap-2">
+        <div className="relative flex-1 min-w-[180px]">
+          <Search className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+          <Input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="ابحث في الأصول..." className="pr-9" />
         </div>
-      ) : (
-        <div className="space-y-2">
-          {data!.items.map((inv: any) => {
-            const txs = txByInv.get(inv.id) ?? [];
-            const invested = txs.filter(x => x.kind === "capital_add").reduce((s, x) => s + Number(x.amount), 0) + Number(inv.principal);
-            const returns = txs.filter(x => x.kind === "return").reduce((s, x) => s + Number(x.amount), 0);
-            const withdraws = txs.filter(x => x.kind === "withdraw").reduce((s, x) => s + Number(x.amount), 0);
-            const net = invested - withdraws;
-            const pnl = Number(inv.current_value || net) - net + returns;
-            const pnlPct = net > 0 ? (pnl / net) * 100 : 0;
-            return (
-              <div key={inv.id} className="rounded-2xl border bg-card p-4 shadow-[var(--shadow-card)] cursor-pointer hover:-translate-y-0.5 hover:shadow-[var(--shadow-elegant)] transition" onClick={() => setDetail(inv)}>
-                <div className="flex items-start gap-3">
-                  <div className="grid h-11 w-11 place-items-center rounded-xl bg-[image:var(--gradient-primary)] text-white text-lg shrink-0">{typeIcon(inv.type)}</div>
-                  <div className="flex-1 min-w-0">
-                    <div className="font-semibold truncate flex items-center gap-2 flex-wrap">
-                      {inv.name}
-                      <span className="text-[10px] rounded-full bg-primary/15 text-primary px-1.5 py-0.5">{typeLabel(inv.type)}</span>
-                      {inv.is_zakatable && <span className="text-[10px] rounded-full bg-amber-500/15 text-amber-700 px-1.5 py-0.5">قابل للزكاة</span>}
-                      {inv.status === "closed" && <span className="text-[10px] rounded-full bg-muted px-1.5 py-0.5">مغلق</span>}
-                    </div>
-                    <div className="text-[11px] text-muted-foreground mt-0.5">
-                      الملكية {inv.ownership_pct}% · بدأ {formatDate(inv.start_date)}
-                      {inv.meta?.market && <> · {inv.meta.market}</>}
-                      {inv.meta?.karat && <> · عيار {inv.meta.karat}</>}
-                    </div>
-                    <div className="mt-2 grid grid-cols-3 gap-2 text-[11px]">
-                      <div><div className="text-muted-foreground">رأس المال</div><div className="font-bold tabular-nums">{formatMoney(net, inv.currency)}</div></div>
-                      <div><div className="text-muted-foreground">القيمة</div><div className="font-bold tabular-nums">{formatMoney(inv.current_value || net, inv.currency)}</div></div>
-                      <div><div className="text-muted-foreground">العائد</div><div className={cn("font-bold tabular-nums", pnl >= 0 ? "text-success" : "text-destructive")}>{pnl >= 0 ? "+" : ""}{pnlPct.toFixed(1)}%</div></div>
-                    </div>
-                  </div>
-                  <div className="flex flex-col gap-1 shrink-0" onClick={(e) => e.stopPropagation()}>
-                    <Button variant="outline" size="sm" onClick={() => setTxFor(inv)}><Plus className="h-3.5 w-3.5" /> حركة</Button>
-                    <div className="flex gap-1">
-                      <Button variant="ghost" size="icon" onClick={() => setEditing(inv)}><Pencil className="h-4 w-4" /></Button>
-                      <Button variant="ghost" size="icon" onClick={() => { if (confirm("حذف الاستثمار؟")) del.mutate(inv.id); }}><Trash2 className="h-4 w-4 text-destructive" /></Button>
-                    </div>
-                  </div>
+        <Select value={filterType} onValueChange={setFilterType}>
+          <SelectTrigger className="w-36"><SelectValue placeholder="النوع" /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">كل الأنواع</SelectItem>
+            {INV_TYPES.map((t) => <SelectItem key={t.value} value={t.value}>{t.icon} {t.label}</SelectItem>)}
+          </SelectContent>
+        </Select>
+        <Select value={filterStatus} onValueChange={setFilterStatus}>
+          <SelectTrigger className="w-32"><SelectValue placeholder="الحالة" /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">كل الحالات</SelectItem>
+            <SelectItem value="active">نشط</SelectItem>
+            <SelectItem value="closed">مغلق</SelectItem>
+            <SelectItem value="sold">مباع</SelectItem>
+          </SelectContent>
+        </Select>
+        <Select value={sort} onValueChange={(v: any) => setSort(v)}>
+          <SelectTrigger className="w-40"><ArrowUpDown className="h-3.5 w-3.5" /><SelectValue /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value="recent">الأحدث</SelectItem>
+            <SelectItem value="name">الاسم (أبجدي)</SelectItem>
+            <SelectItem value="value_desc">القيمة (↓)</SelectItem>
+            <SelectItem value="value_asc">القيمة (↑)</SelectItem>
+            <SelectItem value="pnl_desc">الأعلى ربحاً</SelectItem>
+          </SelectContent>
+        </Select>
+        <Button type="button" variant={groupByType ? "default" : "outline"} size="sm" onClick={() => setGroupByType((g) => !g)}>
+          {groupByType ? <LayoutGrid className="h-3.5 w-3.5" /> : <ListIcon className="h-3.5 w-3.5" />}
+          {groupByType ? "مجمّع" : "قائمة"}
+        </Button>
+      </div>
+
+      {(() => {
+        if (isLoading) return <div className="space-y-2">{[1,2].map(i => <div key={i} className="h-24 animate-pulse rounded-2xl bg-muted" />)}</div>;
+        const all = data?.items ?? [];
+        if (all.length === 0) {
+          return (
+            <div className="rounded-2xl border bg-card p-10 text-center">
+              <div className="mx-auto grid h-14 w-14 place-items-center rounded-2xl bg-accent"><TrendingUp className="h-6 w-6" /></div>
+              <h3 className="mt-4 font-semibold">لا يوجد أصول بعد</h3>
+              <p className="mt-1 text-sm text-muted-foreground">أضف أول أصل لمتابعة قيمته وعوائده</p>
+            </div>
+          );
+        }
+        const q = search.trim().toLowerCase();
+        const filtered = all.filter((inv: any) => {
+          if (filterStatus !== "all" && (inv.status ?? "active") !== filterStatus) return false;
+          if (filterType !== "all" && inv.type !== filterType) return false;
+          if (!q) return true;
+          return (
+            (inv.name ?? "").toLowerCase().includes(q) ||
+            (inv.notes ?? "").toLowerCase().includes(q) ||
+            JSON.stringify(inv.meta ?? {}).toLowerCase().includes(q)
+          );
+        });
+        const withMetrics = filtered.map((inv: any) => {
+          const txs = txByInv.get(inv.id) ?? [];
+          const m = computeAssetMetrics(inv, txs);
+          return { inv, txs, m };
+        });
+        withMetrics.sort((a, b) => {
+          if (sort === "name") return (a.inv.name ?? "").localeCompare(b.inv.name ?? "", "ar");
+          if (sort === "value_desc") return b.m.marketValue - a.m.marketValue;
+          if (sort === "value_asc") return a.m.marketValue - b.m.marketValue;
+          if (sort === "pnl_desc") return b.m.totalPnl - a.m.totalPnl;
+          return new Date(b.inv.created_at).getTime() - new Date(a.inv.created_at).getTime();
+        });
+
+        if (withMetrics.length === 0) {
+          return <div className="rounded-2xl border bg-card p-8 text-center text-sm text-muted-foreground">لا توجد نتائج تطابق التصفية</div>;
+        }
+
+        const renderCard = ({ inv, m }: any) => (
+          <div key={inv.id} className="rounded-2xl border bg-card p-4 shadow-[var(--shadow-card)] cursor-pointer hover:-translate-y-0.5 hover:shadow-[var(--shadow-elegant)] transition" onClick={() => setDetail(inv)}>
+            <div className="flex items-start gap-3">
+              <div className="grid h-11 w-11 place-items-center rounded-xl bg-[image:var(--gradient-primary)] text-white text-lg shrink-0">{typeIcon(inv.type)}</div>
+              <div className="flex-1 min-w-0">
+                <div className="font-semibold truncate flex items-center gap-2 flex-wrap">
+                  {inv.name}
+                  <span className="text-[10px] rounded-full bg-primary/15 text-primary px-1.5 py-0.5">{typeLabel(inv.type)}</span>
+                  {inv.is_zakatable && <span className="text-[10px] rounded-full bg-amber-500/15 text-amber-700 px-1.5 py-0.5">قابل للزكاة</span>}
+                  {inv.status === "closed" && <span className="text-[10px] rounded-full bg-muted px-1.5 py-0.5">مغلق</span>}
+                  {inv.status === "sold" && <span className="text-[10px] rounded-full bg-success/15 text-success px-1.5 py-0.5">مباع</span>}
+                </div>
+                <div className="text-[11px] text-muted-foreground mt-0.5">
+                  الملكية {inv.ownership_pct}% · بدأ {formatDate(inv.start_date)}
+                  {inv.meta?.market && <> · {inv.meta.market}</>}
+                  {inv.meta?.karat && <> · عيار {inv.meta.karat}</>}
+                </div>
+                <div className="mt-2 grid grid-cols-3 gap-2 text-[11px]">
+                  <div><div className="text-muted-foreground">رأس المال</div><div className="font-bold tabular-nums">{formatMoney(m.bookValue, inv.currency)}</div></div>
+                  <div><div className="text-muted-foreground">القيمة</div><div className="font-bold tabular-nums">{formatMoney(m.marketValue, inv.currency)}</div></div>
+                  <div><div className="text-muted-foreground">العائد</div><div className={cn("font-bold tabular-nums", m.totalPnl >= 0 ? "text-success" : "text-destructive")}>{m.totalPnl >= 0 ? "+" : ""}{formatMoney(m.totalPnl, inv.currency)}</div></div>
                 </div>
               </div>
-            );
-          })}
-        </div>
-      )}
+              <div className="flex flex-col gap-1 shrink-0" onClick={(e) => e.stopPropagation()}>
+                <Button variant="outline" size="sm" onClick={() => setTxFor(inv)}><Plus className="h-3.5 w-3.5" /> حركة</Button>
+                <div className="flex gap-1">
+                  <Button variant="ghost" size="icon" onClick={() => setEditing(inv)}><Pencil className="h-4 w-4" /></Button>
+                  <Button variant="ghost" size="icon" onClick={() => { if (confirm("حذف الأصل؟")) del.mutate(inv.id); }}><Trash2 className="h-4 w-4 text-destructive" /></Button>
+                </div>
+              </div>
+            </div>
+          </div>
+        );
+
+        if (!groupByType) {
+          return <div className="space-y-2">{withMetrics.map(renderCard)}</div>;
+        }
+
+        const groups = new Map<string, typeof withMetrics>();
+        for (const row of withMetrics) {
+          const key = row.inv.type;
+          if (!groups.has(key)) groups.set(key, [] as any);
+          groups.get(key)!.push(row);
+        }
+        return (
+          <div className="space-y-5">
+            {Array.from(groups.entries()).map(([type, rows]) => (
+              <div key={type} className="space-y-2">
+                <div className="flex items-center justify-between px-1">
+                  <h3 className="text-sm font-bold flex items-center gap-2">
+                    <span className="text-lg">{typeIcon(type)}</span>
+                    {typeLabel(type)}
+                    <span className="text-[10px] text-muted-foreground">({rows.length})</span>
+                  </h3>
+                </div>
+                {rows.map(renderCard)}
+              </div>
+            ))}
+          </div>
+        );
+      })()}
 
       <Dialog open={!!txFor} onOpenChange={(v) => !v && setTxFor(null)}>
         <DialogContent className="max-w-md">
@@ -196,53 +299,82 @@ function InvestmentsPage() {
             const txs = txByInv.get(detail.id) ?? [];
             const m = computeAssetMetrics(detail, txs);
             const cur = detail.currency;
+            const pnlPct = m.bookValue > 0 ? (m.totalPnl / m.bookValue) * 100 : 0;
             return (
               <>
                 <DialogHeader>
-                  <DialogTitle className="flex items-center gap-2">
+                  <DialogTitle className="flex items-center gap-2 flex-wrap">
                     <span className="text-2xl">{typeIcon(detail.type)}</span>
                     {detail.name}
                     <span className="text-[10px] rounded-full bg-primary/15 text-primary px-1.5 py-0.5">{typeLabel(detail.type)}</span>
+                    {detail.subtype && detail.subtype !== detail.type && (
+                      <span className="text-[10px] rounded-full bg-muted px-1.5 py-0.5">{detail.subtype}</span>
+                    )}
+                    <span className="text-[10px] rounded-full bg-accent px-1.5 py-0.5">{detail.status ?? "active"}</span>
                   </DialogTitle>
                 </DialogHeader>
 
-                <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-                  <MetricCard label="القيمة السوقية" value={m.marketValue} cur={cur} accent />
-                  <MetricCard label="القيمة الدفترية" value={m.bookValue} cur={cur} />
-                  <MetricCard label="رأس المال" value={m.baseValue} cur={cur} />
-                  <MetricCard label="CapEx" value={m.capex} cur={cur} tone="text-blue-600" />
-                  <MetricCard label="OpEx" value={m.opex} cur={cur} tone="text-amber-600" />
-                  <MetricCard label="الإيرادات" value={m.income} cur={cur} tone="text-success" />
-                  <MetricCard label="صافي التدفق" value={m.netCashflow} cur={cur} tone={m.netCashflow >= 0 ? "text-success" : "text-destructive"} signed />
-                  <MetricCard label="غير محقق P&L" value={m.unrealizedPnl} cur={cur} tone={m.unrealizedPnl >= 0 ? "text-success" : "text-destructive"} signed />
-                  <MetricCard label="P&L الكلي" value={m.totalPnl} cur={cur} tone={m.totalPnl >= 0 ? "text-success" : "text-destructive"} signed />
-                </div>
+                <Tabs defaultValue="overview" className="mt-2">
+                  <TabsList className="w-full grid grid-cols-4">
+                    <TabsTrigger value="overview">نظرة عامة</TabsTrigger>
+                    <TabsTrigger value="transactions">الحركات ({txs.length})</TabsTrigger>
+                    <TabsTrigger value="performance">الأداء</TabsTrigger>
+                    <TabsTrigger value="notes">ملاحظات ومرفقات</TabsTrigger>
+                  </TabsList>
 
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 mt-3">
-                  {(["capex","opex","income","adjustment"] as AssetTxClass[]).map((c) => {
-                    const tm = TX_CLASS_META[c];
-                    return (
-                      <Button key={c} variant="outline" size="sm" onClick={() => { setDetail(null); setTxFor({ ...detail, _preset_tx_class: c }); }}>
-                        <Plus className="h-3.5 w-3.5" /> {tm.label}
-                      </Button>
-                    );
-                  })}
-                </div>
+                  {/* ============ OVERVIEW ============ */}
+                  <TabsContent value="overview" className="space-y-3 mt-3">
+                    <div className="rounded-2xl border bg-[image:var(--gradient-primary)]/5 p-4">
+                      <div className="text-[11px] text-muted-foreground">القيمة السوقية الحالية</div>
+                      <div className="text-3xl font-extrabold tabular-nums text-primary">{formatMoney(m.marketValue, cur)}</div>
+                      <div className="mt-1 text-xs flex items-center gap-2">
+                        <span className="text-muted-foreground">فرق القيمة:</span>
+                        <span className={cn("font-bold tabular-nums", m.unrealizedPnl >= 0 ? "text-success" : "text-destructive")}>
+                          {m.unrealizedPnl >= 0 ? "+" : ""}{formatMoney(m.unrealizedPnl, cur)} ({pnlPct >= 0 ? "+" : ""}{pnlPct.toFixed(1)}%)
+                        </span>
+                      </div>
+                    </div>
 
-                {detail.meta && Object.keys(detail.meta).length > 0 && (
-                  <div className="rounded-xl border bg-accent/30 p-3 text-xs space-y-1 mt-3">
-                    <div className="font-semibold mb-1">تفاصيل {typeLabel(detail.type)}</div>
-                    {Object.entries(detail.meta).map(([k, v]: any) => (
-                      <div key={k} className="flex justify-between"><span className="text-muted-foreground">{k}</span><span className="font-medium">{String(v)}</span></div>
-                    ))}
-                  </div>
-                )}
+                    <div className="grid grid-cols-2 gap-2 text-xs">
+                      <InfoRow label="الاسم" value={detail.name} />
+                      <InfoRow label="النوع" value={typeLabel(detail.type)} />
+                      <InfoRow label="التصنيف الفرعي" value={detail.subtype ?? "—"} />
+                      <InfoRow label="الحالة" value={detail.status ?? "active"} />
+                      <InfoRow label="تاريخ الشراء" value={detail.acquired_at ? formatDate(detail.acquired_at) : (detail.start_date ? formatDate(detail.start_date) : "—")} />
+                      <InfoRow label="نسبة الملكية" value={`${detail.ownership_pct ?? 100}%`} />
+                      <InfoRow label="التكلفة الأصلية" value={formatMoney(m.baseValue, cur)} />
+                      <InfoRow label="القيمة الحالية" value={formatMoney(m.marketValue, cur)} />
+                      <InfoRow label="فرق القيمة" value={`${m.unrealizedPnl >= 0 ? "+" : ""}${formatMoney(m.unrealizedPnl, cur)}`} />
+                      <InfoRow label="نسبة الربح/الخسارة" value={`${pnlPct >= 0 ? "+" : ""}${pnlPct.toFixed(2)}%`} />
+                      <InfoRow label="العملة" value={cur} />
+                      <InfoRow label="قابل للزكاة" value={detail.is_zakatable ? "نعم" : "لا"} />
+                    </div>
 
-                <div className="mt-3">
-                  <div className="text-xs font-semibold mb-2 text-muted-foreground">سجل الحركات ({txs.length})</div>
-                  <div className="space-y-2">
+                    {detail.meta && Object.keys(detail.meta).length > 0 && (
+                      <div className="rounded-xl border bg-accent/30 p-3 text-xs space-y-1">
+                        <div className="font-semibold mb-1">تفاصيل {typeLabel(detail.type)}</div>
+                        {Object.entries(detail.meta).map(([k, v]: any) => (
+                          <div key={k} className="flex justify-between"><span className="text-muted-foreground">{k}</span><span className="font-medium">{String(v)}</span></div>
+                        ))}
+                      </div>
+                    )}
+
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 pt-2 border-t">
+                      {(["capex","opex","income","adjustment"] as AssetTxClass[]).map((c) => {
+                        const tm = TX_CLASS_META[c];
+                        return (
+                          <Button key={c} variant="outline" size="sm" onClick={() => { setDetail(null); setTxFor({ ...detail, _preset_tx_class: c }); }}>
+                            <Plus className="h-3.5 w-3.5" /> {tm.label}
+                          </Button>
+                        );
+                      })}
+                    </div>
+                  </TabsContent>
+
+                  {/* ============ TRANSACTIONS ============ */}
+                  <TabsContent value="transactions" className="space-y-2 mt-3">
                     {txs.length === 0 ? (
-                      <div className="text-center text-sm text-muted-foreground py-6">لا توجد حركات بعد</div>
+                      <div className="rounded-xl border border-dashed p-8 text-center text-sm text-muted-foreground">لا توجد حركات بعد</div>
                     ) : txs.map((t: any) => {
                       const cls = (t.tx_class || "capex") as AssetTxClass;
                       const tm = TX_CLASS_META[cls] ?? TX_CLASS_META.capex;
@@ -257,8 +389,48 @@ function InvestmentsPage() {
                         </div>
                       );
                     })}
-                  </div>
-                </div>
+                  </TabsContent>
+
+                  {/* ============ PERFORMANCE ============ */}
+                  <TabsContent value="performance" className="space-y-3 mt-3">
+                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                      <MetricCard label="إجمالي الإيرادات" value={m.income} cur={cur} tone="text-success" />
+                      <MetricCard label="إجمالي المصروفات" value={m.opex + m.capex} cur={cur} tone="text-amber-600" />
+                      <MetricCard label="صافي الربح" value={m.totalPnl} cur={cur} tone={m.totalPnl >= 0 ? "text-success" : "text-destructive"} signed />
+                      <MetricCard label="القيمة الدفترية" value={m.bookValue} cur={cur} />
+                      <MetricCard label="القيمة السوقية" value={m.marketValue} cur={cur} accent />
+                      <MetricCard label="صافي التدفق النقدي" value={m.netCashflow} cur={cur} tone={m.netCashflow >= 0 ? "text-success" : "text-destructive"} signed />
+                      <MetricCard label="CapEx" value={m.capex} cur={cur} tone="text-blue-600" />
+                      <MetricCard label="OpEx" value={m.opex} cur={cur} tone="text-amber-600" />
+                      <MetricCard label="غير محقق P&L" value={m.unrealizedPnl} cur={cur} tone={m.unrealizedPnl >= 0 ? "text-success" : "text-destructive"} signed />
+                    </div>
+                    <div className="rounded-xl border bg-accent/20 p-3 text-xs space-y-1">
+                      <div className="flex justify-between"><span className="text-muted-foreground">العائد الحالي</span>
+                        <span className={cn("font-bold tabular-nums", pnlPct >= 0 ? "text-success" : "text-destructive")}>{pnlPct >= 0 ? "+" : ""}{pnlPct.toFixed(2)}%</span>
+                      </div>
+                      <div className="flex justify-between"><span className="text-muted-foreground">عدد الحركات</span><span className="font-medium tabular-nums">{txs.length}</span></div>
+                      {detail.sold_amount > 0 && (
+                        <div className="flex justify-between"><span className="text-muted-foreground">قيمة البيع</span><span className="font-bold tabular-nums text-success">{formatMoney(detail.sold_amount, cur)}</span></div>
+                      )}
+                    </div>
+                  </TabsContent>
+
+                  {/* ============ NOTES + ATTACHMENTS ============ */}
+                  <TabsContent value="notes" className="space-y-3 mt-3">
+                    <div className="rounded-xl border bg-card p-3">
+                      <div className="text-xs font-semibold text-muted-foreground mb-1.5">الملاحظات</div>
+                      {detail.notes ? (
+                        <div className="text-sm whitespace-pre-wrap">{detail.notes}</div>
+                      ) : (
+                        <div className="text-xs text-muted-foreground">لا توجد ملاحظات.</div>
+                      )}
+                    </div>
+                    <div className="rounded-xl border bg-card p-3">
+                      <div className="text-xs font-semibold text-muted-foreground mb-2">المرفقات</div>
+                      <AttachmentUploader entityType="investments" entityId={detail.id} />
+                    </div>
+                  </TabsContent>
+                </Tabs>
               </>
             );
           })()}

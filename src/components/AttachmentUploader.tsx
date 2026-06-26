@@ -6,7 +6,7 @@ import { useRef, useState } from "react";
 import { toast } from "sonner";
 
 type Props = {
-  entityType: "expense" | "person_ledger" | "wallet_tx" | "debt" | "recurring_expense";
+  entityType: "expense" | "person_ledger" | "wallet_tx" | "debt" | "recurring_expense" | "investments";
   entityId: string;
   compact?: boolean;
 };
