@@ -11,6 +11,7 @@ import { Printer, FileSpreadsheet } from "lucide-react";
 import { formatMoney, formatDate, todayISO } from "@/lib/format";
 import { kindMeta, kindSign } from "@/components/PersonTxForm";
 import * as XLSX from "xlsx";
+import { AdSlot } from "@/components/ads/AdSlot";
 
 export const Route = createFileRoute("/_authenticated/app/reports")({
   head: () => ({ meta: [{ title: "التقارير — رصد" }] }),
@@ -303,6 +304,7 @@ function ReportsPage() {
 
         {rows.length === 0 && <div className="text-center py-8 text-muted-foreground">لا توجد بيانات في هذه الفترة</div>}
       </div>
+      <AdSlot slot="reports_bottom" />
     </div>
   );
 }
