@@ -12,12 +12,15 @@ import { CURRENCIES } from "@/lib/format";
 import {
   Plus, Trash2, Pencil, Search, Settings as SettingsIcon, Wallet as WalletIcon,
   Tags, Contact as ContactIcon, Archive, ArchiveRestore, ExternalLink, ChevronLeft,
-  Bell, Download, Coins, TrendingDown, RefreshCw,
+  Bell, Download, Coins, TrendingDown, RefreshCw, Megaphone,
 } from "lucide-react";
 import { toast } from "sonner";
 import { typeMeta, WALLET_TYPES } from "./app.wallets";
 import { computeWalletBalance } from "@/lib/wallet-balance";
 import { formatMoney } from "@/lib/format";
+import { Switch } from "@/components/ui/switch";
+import { useAds } from "@/lib/ads/ad-context";
+import { AdSlot } from "@/components/ads/AdSlot";
 
 export const Route = createFileRoute("/_authenticated/app/settings")({
   head: () => ({ meta: [{ title: "الإعدادات — رصد" }] }),
@@ -65,6 +68,7 @@ function SettingsPage() {
           <TabsTrigger value="categories" className="gap-1.5"><Tags className="h-4 w-4" />الفئات</TabsTrigger>
           <TabsTrigger value="contacts" className="gap-1.5"><ContactIcon className="h-4 w-4" />جهات الاتصال</TabsTrigger>
           <TabsTrigger value="advanced" className="gap-1.5 text-muted-foreground"><Bell className="h-4 w-4" />متقدم</TabsTrigger>
+          <TabsTrigger value="ads" className="gap-1.5"><Megaphone className="h-4 w-4" />الإعلانات</TabsTrigger>
         </TabsList>
 
         <TabsContent value="general"><GeneralSection /></TabsContent>
@@ -72,6 +76,7 @@ function SettingsPage() {
         <TabsContent value="categories"><CategoriesSection /></TabsContent>
         <TabsContent value="contacts"><ContactsSection /></TabsContent>
         <TabsContent value="advanced"><AdvancedPlaceholder /></TabsContent>
+        <TabsContent value="ads"><AdsSection /></TabsContent>
       </Tabs>
     </div>
   );
