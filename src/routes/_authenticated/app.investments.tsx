@@ -137,59 +137,145 @@ function InvestmentsPage() {
         </div>
       )}
 
-      {isLoading ? (
-        <div className="space-y-2">{[1,2].map(i => <div key={i} className="h-24 animate-pulse rounded-2xl bg-muted" />)}</div>
-      ) : (data?.items ?? []).length === 0 ? (
-        <div className="rounded-2xl border bg-card p-10 text-center">
-          <div className="mx-auto grid h-14 w-14 place-items-center rounded-2xl bg-accent"><TrendingUp className="h-6 w-6" /></div>
-          <h3 className="mt-4 font-semibold">لا يوجد استثمارات</h3>
-          <p className="mt-1 text-sm text-muted-foreground">أضف أول استثمار لمتابعة عوائده</p>
+      {/* Filter / Search / Sort / Group bar */}
+      <div className="rounded-2xl border bg-card p-3 flex flex-wrap items-center gap-2">
+        <div className="relative flex-1 min-w-[180px]">
+          <Search className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+          <Input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="ابحث في الأصول..." className="pr-9" />
         </div>
-      ) : (
-        <div className="space-y-2">
-          {data!.items.map((inv: any) => {
-            const txs = txByInv.get(inv.id) ?? [];
-            const invested = txs.filter(x => x.kind === "capital_add").reduce((s, x) => s + Number(x.amount), 0) + Number(inv.principal);
-            const returns = txs.filter(x => x.kind === "return").reduce((s, x) => s + Number(x.amount), 0);
-            const withdraws = txs.filter(x => x.kind === "withdraw").reduce((s, x) => s + Number(x.amount), 0);
-            const net = invested - withdraws;
-            const pnl = Number(inv.current_value || net) - net + returns;
-            const pnlPct = net > 0 ? (pnl / net) * 100 : 0;
-            return (
-              <div key={inv.id} className="rounded-2xl border bg-card p-4 shadow-[var(--shadow-card)] cursor-pointer hover:-translate-y-0.5 hover:shadow-[var(--shadow-elegant)] transition" onClick={() => setDetail(inv)}>
-                <div className="flex items-start gap-3">
-                  <div className="grid h-11 w-11 place-items-center rounded-xl bg-[image:var(--gradient-primary)] text-white text-lg shrink-0">{typeIcon(inv.type)}</div>
-                  <div className="flex-1 min-w-0">
-                    <div className="font-semibold truncate flex items-center gap-2 flex-wrap">
-                      {inv.name}
-                      <span className="text-[10px] rounded-full bg-primary/15 text-primary px-1.5 py-0.5">{typeLabel(inv.type)}</span>
-                      {inv.is_zakatable && <span className="text-[10px] rounded-full bg-amber-500/15 text-amber-700 px-1.5 py-0.5">قابل للزكاة</span>}
-                      {inv.status === "closed" && <span className="text-[10px] rounded-full bg-muted px-1.5 py-0.5">مغلق</span>}
-                    </div>
-                    <div className="text-[11px] text-muted-foreground mt-0.5">
-                      الملكية {inv.ownership_pct}% · بدأ {formatDate(inv.start_date)}
-                      {inv.meta?.market && <> · {inv.meta.market}</>}
-                      {inv.meta?.karat && <> · عيار {inv.meta.karat}</>}
-                    </div>
-                    <div className="mt-2 grid grid-cols-3 gap-2 text-[11px]">
-                      <div><div className="text-muted-foreground">رأس المال</div><div className="font-bold tabular-nums">{formatMoney(net, inv.currency)}</div></div>
-                      <div><div className="text-muted-foreground">القيمة</div><div className="font-bold tabular-nums">{formatMoney(inv.current_value || net, inv.currency)}</div></div>
-                      <div><div className="text-muted-foreground">العائد</div><div className={cn("font-bold tabular-nums", pnl >= 0 ? "text-success" : "text-destructive")}>{pnl >= 0 ? "+" : ""}{pnlPct.toFixed(1)}%</div></div>
-                    </div>
-                  </div>
-                  <div className="flex flex-col gap-1 shrink-0" onClick={(e) => e.stopPropagation()}>
-                    <Button variant="outline" size="sm" onClick={() => setTxFor(inv)}><Plus className="h-3.5 w-3.5" /> حركة</Button>
-                    <div className="flex gap-1">
-                      <Button variant="ghost" size="icon" onClick={() => setEditing(inv)}><Pencil className="h-4 w-4" /></Button>
-                      <Button variant="ghost" size="icon" onClick={() => { if (confirm("حذف الاستثمار؟")) del.mutate(inv.id); }}><Trash2 className="h-4 w-4 text-destructive" /></Button>
-                    </div>
-                  </div>
+        <Select value={filterType} onValueChange={setFilterType}>
+          <SelectTrigger className="w-36"><SelectValue placeholder="النوع" /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">كل الأنواع</SelectItem>
+            {INV_TYPES.map((t) => <SelectItem key={t.value} value={t.value}>{t.icon} {t.label}</SelectItem>)}
+          </SelectContent>
+        </Select>
+        <Select value={filterStatus} onValueChange={setFilterStatus}>
+          <SelectTrigger className="w-32"><SelectValue placeholder="الحالة" /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">كل الحالات</SelectItem>
+            <SelectItem value="active">نشط</SelectItem>
+            <SelectItem value="closed">مغلق</SelectItem>
+            <SelectItem value="sold">مباع</SelectItem>
+          </SelectContent>
+        </Select>
+        <Select value={sort} onValueChange={(v: any) => setSort(v)}>
+          <SelectTrigger className="w-40"><ArrowUpDown className="h-3.5 w-3.5" /><SelectValue /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value="recent">الأحدث</SelectItem>
+            <SelectItem value="name">الاسم (أبجدي)</SelectItem>
+            <SelectItem value="value_desc">القيمة (↓)</SelectItem>
+            <SelectItem value="value_asc">القيمة (↑)</SelectItem>
+            <SelectItem value="pnl_desc">الأعلى ربحاً</SelectItem>
+          </SelectContent>
+        </Select>
+        <Button type="button" variant={groupByType ? "default" : "outline"} size="sm" onClick={() => setGroupByType((g) => !g)}>
+          {groupByType ? <LayoutGrid className="h-3.5 w-3.5" /> : <ListIcon className="h-3.5 w-3.5" />}
+          {groupByType ? "مجمّع" : "قائمة"}
+        </Button>
+      </div>
+
+      {(() => {
+        if (isLoading) return <div className="space-y-2">{[1,2].map(i => <div key={i} className="h-24 animate-pulse rounded-2xl bg-muted" />)}</div>;
+        const all = data?.items ?? [];
+        if (all.length === 0) {
+          return (
+            <div className="rounded-2xl border bg-card p-10 text-center">
+              <div className="mx-auto grid h-14 w-14 place-items-center rounded-2xl bg-accent"><TrendingUp className="h-6 w-6" /></div>
+              <h3 className="mt-4 font-semibold">لا يوجد أصول بعد</h3>
+              <p className="mt-1 text-sm text-muted-foreground">أضف أول أصل لمتابعة قيمته وعوائده</p>
+            </div>
+          );
+        }
+        const q = search.trim().toLowerCase();
+        const filtered = all.filter((inv: any) => {
+          if (filterStatus !== "all" && (inv.status ?? "active") !== filterStatus) return false;
+          if (filterType !== "all" && inv.type !== filterType) return false;
+          if (!q) return true;
+          return (
+            (inv.name ?? "").toLowerCase().includes(q) ||
+            (inv.notes ?? "").toLowerCase().includes(q) ||
+            JSON.stringify(inv.meta ?? {}).toLowerCase().includes(q)
+          );
+        });
+        const withMetrics = filtered.map((inv: any) => {
+          const txs = txByInv.get(inv.id) ?? [];
+          const m = computeAssetMetrics(inv, txs);
+          return { inv, txs, m };
+        });
+        withMetrics.sort((a, b) => {
+          if (sort === "name") return (a.inv.name ?? "").localeCompare(b.inv.name ?? "", "ar");
+          if (sort === "value_desc") return b.m.marketValue - a.m.marketValue;
+          if (sort === "value_asc") return a.m.marketValue - b.m.marketValue;
+          if (sort === "pnl_desc") return b.m.totalPnl - a.m.totalPnl;
+          return new Date(b.inv.created_at).getTime() - new Date(a.inv.created_at).getTime();
+        });
+
+        if (withMetrics.length === 0) {
+          return <div className="rounded-2xl border bg-card p-8 text-center text-sm text-muted-foreground">لا توجد نتائج تطابق التصفية</div>;
+        }
+
+        const renderCard = ({ inv, m }: any) => (
+          <div key={inv.id} className="rounded-2xl border bg-card p-4 shadow-[var(--shadow-card)] cursor-pointer hover:-translate-y-0.5 hover:shadow-[var(--shadow-elegant)] transition" onClick={() => setDetail(inv)}>
+            <div className="flex items-start gap-3">
+              <div className="grid h-11 w-11 place-items-center rounded-xl bg-[image:var(--gradient-primary)] text-white text-lg shrink-0">{typeIcon(inv.type)}</div>
+              <div className="flex-1 min-w-0">
+                <div className="font-semibold truncate flex items-center gap-2 flex-wrap">
+                  {inv.name}
+                  <span className="text-[10px] rounded-full bg-primary/15 text-primary px-1.5 py-0.5">{typeLabel(inv.type)}</span>
+                  {inv.is_zakatable && <span className="text-[10px] rounded-full bg-amber-500/15 text-amber-700 px-1.5 py-0.5">قابل للزكاة</span>}
+                  {inv.status === "closed" && <span className="text-[10px] rounded-full bg-muted px-1.5 py-0.5">مغلق</span>}
+                  {inv.status === "sold" && <span className="text-[10px] rounded-full bg-success/15 text-success px-1.5 py-0.5">مباع</span>}
+                </div>
+                <div className="text-[11px] text-muted-foreground mt-0.5">
+                  الملكية {inv.ownership_pct}% · بدأ {formatDate(inv.start_date)}
+                  {inv.meta?.market && <> · {inv.meta.market}</>}
+                  {inv.meta?.karat && <> · عيار {inv.meta.karat}</>}
+                </div>
+                <div className="mt-2 grid grid-cols-3 gap-2 text-[11px]">
+                  <div><div className="text-muted-foreground">رأس المال</div><div className="font-bold tabular-nums">{formatMoney(m.bookValue, inv.currency)}</div></div>
+                  <div><div className="text-muted-foreground">القيمة</div><div className="font-bold tabular-nums">{formatMoney(m.marketValue, inv.currency)}</div></div>
+                  <div><div className="text-muted-foreground">العائد</div><div className={cn("font-bold tabular-nums", m.totalPnl >= 0 ? "text-success" : "text-destructive")}>{m.totalPnl >= 0 ? "+" : ""}{formatMoney(m.totalPnl, inv.currency)}</div></div>
                 </div>
               </div>
-            );
-          })}
-        </div>
-      )}
+              <div className="flex flex-col gap-1 shrink-0" onClick={(e) => e.stopPropagation()}>
+                <Button variant="outline" size="sm" onClick={() => setTxFor(inv)}><Plus className="h-3.5 w-3.5" /> حركة</Button>
+                <div className="flex gap-1">
+                  <Button variant="ghost" size="icon" onClick={() => setEditing(inv)}><Pencil className="h-4 w-4" /></Button>
+                  <Button variant="ghost" size="icon" onClick={() => { if (confirm("حذف الأصل؟")) del.mutate(inv.id); }}><Trash2 className="h-4 w-4 text-destructive" /></Button>
+                </div>
+              </div>
+            </div>
+          </div>
+        );
+
+        if (!groupByType) {
+          return <div className="space-y-2">{withMetrics.map(renderCard)}</div>;
+        }
+
+        const groups = new Map<string, typeof withMetrics>();
+        for (const row of withMetrics) {
+          const key = row.inv.type;
+          if (!groups.has(key)) groups.set(key, [] as any);
+          groups.get(key)!.push(row);
+        }
+        return (
+          <div className="space-y-5">
+            {Array.from(groups.entries()).map(([type, rows]) => (
+              <div key={type} className="space-y-2">
+                <div className="flex items-center justify-between px-1">
+                  <h3 className="text-sm font-bold flex items-center gap-2">
+                    <span className="text-lg">{typeIcon(type)}</span>
+                    {typeLabel(type)}
+                    <span className="text-[10px] text-muted-foreground">({rows.length})</span>
+                  </h3>
+                </div>
+                {rows.map(renderCard)}
+              </div>
+            ))}
+          </div>
+        );
+      })()}
 
       <Dialog open={!!txFor} onOpenChange={(v) => !v && setTxFor(null)}>
         <DialogContent className="max-w-md">
