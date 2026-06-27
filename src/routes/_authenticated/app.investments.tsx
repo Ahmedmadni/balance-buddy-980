@@ -319,12 +319,13 @@ function InvestmentsPage() {
                 </DialogHeader>
 
                 <Tabs defaultValue="overview" className="mt-2">
-                  <TabsList className="w-full grid grid-cols-6">
+                  <TabsList className="w-full grid grid-cols-7">
                     <TabsTrigger value="overview">نظرة عامة</TabsTrigger>
                     <TabsTrigger value="components">المكونات</TabsTrigger>
                     <TabsTrigger value="transactions">الحركات ({txs.length})</TabsTrigger>
                     <TabsTrigger value="performance">الأداء</TabsTrigger>
                     <TabsTrigger value="market">القيمة السوقية</TabsTrigger>
+                    <TabsTrigger value="depreciation">الإهلاك</TabsTrigger>
                     <TabsTrigger value="notes">ملاحظات ومرفقات</TabsTrigger>
                   </TabsList>
 
