@@ -433,6 +433,11 @@ function InvestmentsPage() {
                     <MarketValueHistoryTab asset={detail} />
                   </TabsContent>
 
+                  {/* ============ DEPRECIATION ============ */}
+                  <TabsContent value="depreciation">
+                    <DepreciationTab asset={detail} />
+                  </TabsContent>
+
 
                   {/* ============ NOTES + ATTACHMENTS ============ */}
                   <TabsContent value="notes" className="space-y-3 mt-3">
