@@ -18,6 +18,7 @@ import { computeAssetMetrics, TX_CLASS_META, type AssetTxClass } from "@/lib/ass
 import { AdSlot } from "@/components/ads/AdSlot";
 import { AssetComponentsTab } from "@/components/AssetComponentsTab";
 import { MarketValueHistoryTab } from "@/components/MarketValueHistoryTab";
+import { DepreciationTab } from "@/components/DepreciationTab";
 
 export const Route = createFileRoute("/_authenticated/app/investments")({
   head: () => ({ meta: [{ title: "الأصول والاستثمارات — رصد" }] }),
