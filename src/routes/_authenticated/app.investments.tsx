@@ -426,6 +426,12 @@ function InvestmentsPage() {
                     <AdSlot slot="asset_details_bottom" />
                   </TabsContent>
 
+                  {/* ============ MARKET VALUE HISTORY ============ */}
+                  <TabsContent value="market">
+                    <MarketValueHistoryTab asset={detail} />
+                  </TabsContent>
+
+
                   {/* ============ NOTES + ATTACHMENTS ============ */}
                   <TabsContent value="notes" className="space-y-3 mt-3">
                     <div className="rounded-xl border bg-card p-3">
