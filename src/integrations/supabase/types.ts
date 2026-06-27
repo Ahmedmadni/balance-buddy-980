@@ -14,6 +14,53 @@ export type Database = {
   }
   public: {
     Tables: {
+      asset_market_values: {
+        Row: {
+          created_at: string
+          currency: string
+          id: string
+          investment_id: string
+          market_value: number
+          notes: string | null
+          source: string | null
+          updated_at: string
+          user_id: string
+          valuation_date: string
+        }
+        Insert: {
+          created_at?: string
+          currency?: string
+          id?: string
+          investment_id: string
+          market_value: number
+          notes?: string | null
+          source?: string | null
+          updated_at?: string
+          user_id: string
+          valuation_date?: string
+        }
+        Update: {
+          created_at?: string
+          currency?: string
+          id?: string
+          investment_id?: string
+          market_value?: number
+          notes?: string | null
+          source?: string | null
+          updated_at?: string
+          user_id?: string
+          valuation_date?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "asset_market_values_investment_id_fkey"
+            columns: ["investment_id"]
+            isOneToOne: false
+            referencedRelation: "investments"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       attachments: {
         Row: {
           created_at: string

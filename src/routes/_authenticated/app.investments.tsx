@@ -17,6 +17,7 @@ import { cn } from "@/lib/utils";
 import { computeAssetMetrics, TX_CLASS_META, type AssetTxClass } from "@/lib/assets/calculator";
 import { AdSlot } from "@/components/ads/AdSlot";
 import { AssetComponentsTab } from "@/components/AssetComponentsTab";
+import { MarketValueHistoryTab } from "@/components/MarketValueHistoryTab";
 
 export const Route = createFileRoute("/_authenticated/app/investments")({
   head: () => ({ meta: [{ title: "الأصول والاستثمارات — رصد" }] }),
@@ -317,11 +318,12 @@ function InvestmentsPage() {
                 </DialogHeader>
 
                 <Tabs defaultValue="overview" className="mt-2">
-                  <TabsList className="w-full grid grid-cols-5">
+                  <TabsList className="w-full grid grid-cols-6">
                     <TabsTrigger value="overview">نظرة عامة</TabsTrigger>
                     <TabsTrigger value="components">المكونات</TabsTrigger>
                     <TabsTrigger value="transactions">الحركات ({txs.length})</TabsTrigger>
                     <TabsTrigger value="performance">الأداء</TabsTrigger>
+                    <TabsTrigger value="market">القيمة السوقية</TabsTrigger>
                     <TabsTrigger value="notes">ملاحظات ومرفقات</TabsTrigger>
                   </TabsList>
 
@@ -423,6 +425,12 @@ function InvestmentsPage() {
                     </div>
                     <AdSlot slot="asset_details_bottom" />
                   </TabsContent>
+
+                  {/* ============ MARKET VALUE HISTORY ============ */}
+                  <TabsContent value="market">
+                    <MarketValueHistoryTab asset={detail} />
+                  </TabsContent>
+
 
                   {/* ============ NOTES + ATTACHMENTS ============ */}
                   <TabsContent value="notes" className="space-y-3 mt-3">
