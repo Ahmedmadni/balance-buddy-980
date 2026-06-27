@@ -257,6 +257,62 @@ export type Database = {
           },
         ]
       }
+      depreciation_profiles: {
+        Row: {
+          created_at: string
+          id: string
+          investment_id: string
+          is_active: boolean
+          method: string
+          notes: string | null
+          salvage_value: number
+          start_date: string
+          units_consumed: number | null
+          units_total: number | null
+          updated_at: string
+          useful_life_months: number
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          investment_id: string
+          is_active?: boolean
+          method?: string
+          notes?: string | null
+          salvage_value?: number
+          start_date?: string
+          units_consumed?: number | null
+          units_total?: number | null
+          updated_at?: string
+          useful_life_months: number
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          investment_id?: string
+          is_active?: boolean
+          method?: string
+          notes?: string | null
+          salvage_value?: number
+          start_date?: string
+          units_consumed?: number | null
+          units_total?: number | null
+          updated_at?: string
+          useful_life_months?: number
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "depreciation_profiles_investment_id_fkey"
+            columns: ["investment_id"]
+            isOneToOne: false
+            referencedRelation: "investments"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       exchange_rates: {
         Row: {
           base_currency: string
