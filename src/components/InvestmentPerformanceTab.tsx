@@ -46,7 +46,7 @@ export function InvestmentPerformanceTab({ asset }: { asset: any }) {
     const txs = (bundle?.txs ?? []).filter((t: any) => t.investment_id === a.id);
     const mvs = (bundle?.mvs ?? []).filter((m: any) => m.investment_id === a.id);
     const dep = (bundle?.deps ?? []).find((d: any) => d.investment_id === a.id) ?? null;
-    return computeInvestmentPerformance({ asset: a, txs, marketValues: mvs, depreciationProfile: dep });
+    return computeInvestmentPerformance({ asset: a, txs, marketValues: mvs, depreciationProfile: dep as any });
   };
 
   const assetPerf = perfFor(asset);
