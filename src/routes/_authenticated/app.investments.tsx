@@ -19,6 +19,7 @@ import { AdSlot } from "@/components/ads/AdSlot";
 import { AssetComponentsTab } from "@/components/AssetComponentsTab";
 import { MarketValueHistoryTab } from "@/components/MarketValueHistoryTab";
 import { DepreciationTab } from "@/components/DepreciationTab";
+import { InvestmentPerformanceTab } from "@/components/InvestmentPerformanceTab";
 
 export const Route = createFileRoute("/_authenticated/app/investments")({
   head: () => ({ meta: [{ title: "الأصول والاستثمارات — رصد" }] }),
@@ -319,10 +320,11 @@ function InvestmentsPage() {
                 </DialogHeader>
 
                 <Tabs defaultValue="overview" className="mt-2">
-                  <TabsList className="w-full grid grid-cols-7">
+                  <TabsList className="w-full grid grid-cols-4 sm:grid-cols-8 h-auto gap-1">
                     <TabsTrigger value="overview">نظرة عامة</TabsTrigger>
                     <TabsTrigger value="components">المكونات</TabsTrigger>
                     <TabsTrigger value="transactions">الحركات ({txs.length})</TabsTrigger>
+                    <TabsTrigger value="summary">ملخص مالي</TabsTrigger>
                     <TabsTrigger value="performance">الأداء</TabsTrigger>
                     <TabsTrigger value="market">القيمة السوقية</TabsTrigger>
                     <TabsTrigger value="depreciation">الإهلاك</TabsTrigger>
@@ -403,8 +405,8 @@ function InvestmentsPage() {
                     })}
                   </TabsContent>
 
-                  {/* ============ PERFORMANCE ============ */}
-                  <TabsContent value="performance" className="space-y-3 mt-3">
+                  {/* ============ FINANCIAL SUMMARY (legacy quick view) ============ */}
+                  <TabsContent value="summary" className="space-y-3 mt-3">
                     <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
                       <MetricCard label="إجمالي الإيرادات" value={m.income} cur={cur} tone="text-success" />
                       <MetricCard label="إجمالي المصروفات" value={m.opex + m.capex} cur={cur} tone="text-amber-600" />
@@ -426,6 +428,11 @@ function InvestmentsPage() {
                       )}
                     </div>
                     <AdSlot slot="asset_details_bottom" />
+                  </TabsContent>
+
+                  {/* ============ INVESTMENT PERFORMANCE ENGINE ============ */}
+                  <TabsContent value="performance">
+                    <InvestmentPerformanceTab asset={detail} />
                   </TabsContent>
 
                   {/* ============ MARKET VALUE HISTORY ============ */}
