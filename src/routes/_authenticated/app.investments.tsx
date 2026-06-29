@@ -20,6 +20,7 @@ import { AssetComponentsTab } from "@/components/AssetComponentsTab";
 import { MarketValueHistoryTab } from "@/components/MarketValueHistoryTab";
 import { DepreciationTab } from "@/components/DepreciationTab";
 import { InvestmentPerformanceTab } from "@/components/InvestmentPerformanceTab";
+import { AssetZakatTab } from "@/components/AssetZakatTab";
 
 export const Route = createFileRoute("/_authenticated/app/investments")({
   head: () => ({ meta: [{ title: "الأصول والاستثمارات — رصد" }] }),
