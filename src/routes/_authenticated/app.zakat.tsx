@@ -15,6 +15,7 @@ import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { computeWalletBalance } from "@/lib/wallet-balance";
 import { computeHaulStatus, validateBeforeCompute, classifyAsset, type ZakatSettings } from "@/lib/zakat/engine";
+import { computeAssetZakat, type AssetZakatMode } from "@/lib/assets/zakat-asset";
 import { AdSlot } from "@/components/ads/AdSlot";
 
 export const Route = createFileRoute("/_authenticated/app/zakat")({
