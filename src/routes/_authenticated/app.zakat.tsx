@@ -439,6 +439,8 @@ function MoneyZakat() {
           </Dialog>
         </div>
       )}
+      <InvestmentAssetsZakatSection rate={(parseFloat(rate) || 2.5) / 100} />
+
 
       {(data?.records ?? []).length > 0 && (
         <div className="space-y-2">
