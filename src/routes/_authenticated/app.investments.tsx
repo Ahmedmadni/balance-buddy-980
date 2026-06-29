@@ -321,7 +321,7 @@ function InvestmentsPage() {
                 </DialogHeader>
 
                 <Tabs defaultValue="overview" className="mt-2">
-                  <TabsList className="w-full grid grid-cols-4 sm:grid-cols-8 h-auto gap-1">
+                  <TabsList className="w-full grid grid-cols-3 sm:grid-cols-9 h-auto gap-1">
                     <TabsTrigger value="overview">نظرة عامة</TabsTrigger>
                     <TabsTrigger value="components">المكونات</TabsTrigger>
                     <TabsTrigger value="transactions">الحركات ({txs.length})</TabsTrigger>
@@ -329,6 +329,7 @@ function InvestmentsPage() {
                     <TabsTrigger value="performance">الأداء</TabsTrigger>
                     <TabsTrigger value="market">القيمة السوقية</TabsTrigger>
                     <TabsTrigger value="depreciation">الإهلاك</TabsTrigger>
+                    <TabsTrigger value="zakat">الزكاة</TabsTrigger>
                     <TabsTrigger value="notes">ملاحظات ومرفقات</TabsTrigger>
                   </TabsList>
 
