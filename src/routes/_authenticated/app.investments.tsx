@@ -447,6 +447,12 @@ function InvestmentsPage() {
                     <DepreciationTab asset={detail} />
                   </TabsContent>
 
+                  {/* ============ ASSET ZAKAT ============ */}
+                  <TabsContent value="zakat">
+                    <AssetZakatTab asset={detail} />
+                  </TabsContent>
+
+
 
                   {/* ============ NOTES + ATTACHMENTS ============ */}
                   <TabsContent value="notes" className="space-y-3 mt-3">
