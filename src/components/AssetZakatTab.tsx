@@ -75,7 +75,7 @@ export function AssetZakatTab({ asset }: { asset: any }) {
       asset: overlayAsset,
       txs: data.parentTxs,
       marketValues: data.parentMv,
-      depreciationProfile: data.parentDep,
+      depreciationProfile: data.parentDep as any,
       mode,
       rate: rateN,
     });
