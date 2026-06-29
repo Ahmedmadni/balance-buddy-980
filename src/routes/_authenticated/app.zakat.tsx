@@ -852,3 +852,111 @@ function ZakatSettingsTab() {
     </div>
   );
 }
+
+// ============== INVESTMENT ASSETS ZAKAT SECTION ==============
+function InvestmentAssetsZakatSection({ rate }: { rate: number }) {
+  const [mode, setMode] = useState<AssetZakatMode>("market_based");
+  const { data, isLoading } = useQuery({
+    queryKey: ["zakat-asset-bundle"],
+    queryFn: async () => {
+      const [iRes, tRes, mvRes, depRes, sRes] = await Promise.all([
+        supabase.from("investments").select("*").eq("status", "active").is("parent_investment_id", null),
+        supabase.from("investment_transactions").select("*"),
+        supabase.from("asset_market_values").select("*"),
+        supabase.from("depreciation_profiles").select("*").eq("is_active", true),
+        supabase.from("zakat_settings").select("gold_jewelry_opinion").maybeSingle(),
+      ]);
+      return { items: iRes.data ?? [], txs: tRes.data ?? [], mv: mvRes.data ?? [], dep: depRes.data ?? [], settings: sRes.data };
+    },
+  });
+
+  const results = useMemo(() => {
+    if (!data) return [];
+    const jewelry = (data.settings?.gold_jewelry_opinion ?? "no_zakat") as "zakat" | "no_zakat";
+    return data.items.map((a: any) => computeAssetZakat({
+      asset: a,
+      txs: data.txs.filter((t: any) => t.investment_id === a.id),
+      marketValues: data.mv.filter((m: any) => m.investment_id === a.id),
+      depreciationProfile: (data.dep.find((d: any) => d.investment_id === a.id) || null) as any,
+      mode,
+      rate,
+      jewelryOpinion: jewelry,
+    }));
+  }, [data, mode, rate]);
+
+  const totals = useMemo(() => {
+    const acc: Record<string, { value: number; zakat: number }> = {};
+    for (const r of results) {
+      if (!r.isZakatable) continue;
+      const s = (acc[r.currency] ??= { value: 0, zakat: 0 });
+      s.value += r.zakatableValue; s.zakat += r.zakatAmount;
+    }
+    return acc;
+  }, [results]);
+
+  if (isLoading) return <div className="h-24 animate-pulse rounded-2xl bg-muted" />;
+  if (!data || data.items.length === 0) return null;
+
+  return (
+    <div className="rounded-2xl border bg-card p-4 space-y-3">
+      <div className="flex items-center justify-between flex-wrap gap-2">
+        <div className="text-sm font-semibold flex items-center gap-2">
+          <HandCoins className="h-4 w-4 text-amber-600" /> زكاة الأصول الاستثمارية
+        </div>
+        <Tabs value={mode} onValueChange={(v) => setMode(v as AssetZakatMode)}>
+          <TabsList className="h-8">
+            <TabsTrigger value="market_based" className="text-xs">سوقي</TabsTrigger>
+            <TabsTrigger value="conservative" className="text-xs">متحفّظ</TabsTrigger>
+          </TabsList>
+        </Tabs>
+      </div>
+
+      <div className="overflow-x-auto">
+        <table className="w-full text-xs">
+          <thead className="text-muted-foreground">
+            <tr className="text-right">
+              <th className="py-1.5">الأصل</th>
+              <th>طريقة التقييم</th>
+              <th>القيمة الزكوية</th>
+              <th>الزكاة</th>
+            </tr>
+          </thead>
+          <tbody>
+            {results.map((r) => (
+              <tr key={r.assetId} className="border-t">
+                <td className="py-1.5">
+                  <div className="font-medium">{r.assetName}</div>
+                  <div className="text-[10px] text-muted-foreground">{r.reason}</div>
+                </td>
+                <td>{r.isZakatable ? (r.effectiveMethod === "book_value" ? "دفترية" : r.effectiveMethod === "custom_value" ? "مخصّصة" : "سوقية") : "—"}</td>
+                <td className="tabular-nums">{r.isZakatable ? formatMoney(r.zakatableValue, r.currency) : "—"}</td>
+                <td className={cn("tabular-nums font-semibold", r.zakatAmount > 0 ? "text-success" : "text-muted-foreground")}>
+                  {r.isZakatable ? formatMoney(r.zakatAmount, r.currency) : "غير خاضع"}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+
+      {Object.keys(totals).length > 0 && (
+        <div className="pt-3 border-t grid sm:grid-cols-2 gap-2">
+          {Object.entries(totals).map(([cur, t]) => (
+            <div key={cur} className="rounded-xl bg-accent/30 p-3 text-xs flex items-center justify-between">
+              <div>
+                <div className="font-bold">{cur}</div>
+                <div className="text-muted-foreground text-[10px]">إجمالي زكوي: {formatMoney(t.value, cur)}</div>
+              </div>
+              <div className="font-bold tabular-nums text-success">{formatMoney(t.zakat, cur)}</div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      <div className="text-[10px] text-muted-foreground">
+        يمكن تخصيص خضوع كل أصل وطريقة تقييمه من تبويب «الزكاة» داخل تفاصيل الأصل. هذه الأرقام تحليلية ولا تؤثر على أرصدتك.
+      </div>
+    </div>
+  );
+}
+
