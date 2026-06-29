@@ -87,7 +87,7 @@ export function AssetZakatTab({ asset }: { asset: any }) {
       asset: c,
       txs: data.childTx.filter((t: any) => t.investment_id === c.id),
       marketValues: data.childMv.filter((m: any) => m.investment_id === c.id),
-      depreciationProfile: data.childDep.find((d: any) => d.investment_id === c.id) || null,
+      depreciationProfile: (data.childDep.find((d: any) => d.investment_id === c.id) || null) as any,
       mode,
       rate: rateN,
     }));
