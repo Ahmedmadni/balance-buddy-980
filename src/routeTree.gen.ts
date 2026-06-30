@@ -24,6 +24,7 @@ import { Route as AuthenticatedAppProjectsRouteImport } from './routes/_authenti
 import { Route as AuthenticatedAppPeopleRouteImport } from './routes/_authenticated/app.people'
 import { Route as AuthenticatedAppInvestmentsRouteImport } from './routes/_authenticated/app.investments'
 import { Route as AuthenticatedAppExpensesRouteImport } from './routes/_authenticated/app.expenses'
+import { Route as AuthenticatedAppEventsRouteImport } from './routes/_authenticated/app.events'
 import { Route as AuthenticatedAppDebtsRouteImport } from './routes/_authenticated/app.debts'
 import { Route as AuthenticatedAppContactsRouteImport } from './routes/_authenticated/app.contacts'
 import { Route as AuthenticatedAppWalletsIdRouteImport } from './routes/_authenticated/app.wallets.$id'
@@ -111,6 +112,11 @@ const AuthenticatedAppExpensesRoute =
     path: '/expenses',
     getParentRoute: () => AuthenticatedAppRoute,
   } as any)
+const AuthenticatedAppEventsRoute = AuthenticatedAppEventsRouteImport.update({
+  id: '/events',
+  path: '/events',
+  getParentRoute: () => AuthenticatedAppRoute,
+} as any)
 const AuthenticatedAppDebtsRoute = AuthenticatedAppDebtsRouteImport.update({
   id: '/debts',
   path: '/debts',
@@ -152,6 +158,7 @@ export interface FileRoutesByFullPath {
   '/app': typeof AuthenticatedAppRouteWithChildren
   '/app/contacts': typeof AuthenticatedAppContactsRoute
   '/app/debts': typeof AuthenticatedAppDebtsRouteWithChildren
+  '/app/events': typeof AuthenticatedAppEventsRoute
   '/app/expenses': typeof AuthenticatedAppExpensesRoute
   '/app/investments': typeof AuthenticatedAppInvestmentsRoute
   '/app/people': typeof AuthenticatedAppPeopleRouteWithChildren
@@ -173,6 +180,7 @@ export interface FileRoutesByTo {
   '/auth': typeof AuthRoute
   '/app/contacts': typeof AuthenticatedAppContactsRoute
   '/app/debts': typeof AuthenticatedAppDebtsRouteWithChildren
+  '/app/events': typeof AuthenticatedAppEventsRoute
   '/app/expenses': typeof AuthenticatedAppExpensesRoute
   '/app/investments': typeof AuthenticatedAppInvestmentsRoute
   '/app/people': typeof AuthenticatedAppPeopleRouteWithChildren
@@ -197,6 +205,7 @@ export interface FileRoutesById {
   '/_authenticated/app': typeof AuthenticatedAppRouteWithChildren
   '/_authenticated/app/contacts': typeof AuthenticatedAppContactsRoute
   '/_authenticated/app/debts': typeof AuthenticatedAppDebtsRouteWithChildren
+  '/_authenticated/app/events': typeof AuthenticatedAppEventsRoute
   '/_authenticated/app/expenses': typeof AuthenticatedAppExpensesRoute
   '/_authenticated/app/investments': typeof AuthenticatedAppInvestmentsRoute
   '/_authenticated/app/people': typeof AuthenticatedAppPeopleRouteWithChildren
@@ -221,6 +230,7 @@ export interface FileRouteTypes {
     | '/app'
     | '/app/contacts'
     | '/app/debts'
+    | '/app/events'
     | '/app/expenses'
     | '/app/investments'
     | '/app/people'
@@ -242,6 +252,7 @@ export interface FileRouteTypes {
     | '/auth'
     | '/app/contacts'
     | '/app/debts'
+    | '/app/events'
     | '/app/expenses'
     | '/app/investments'
     | '/app/people'
@@ -265,6 +276,7 @@ export interface FileRouteTypes {
     | '/_authenticated/app'
     | '/_authenticated/app/contacts'
     | '/_authenticated/app/debts'
+    | '/_authenticated/app/events'
     | '/_authenticated/app/expenses'
     | '/_authenticated/app/investments'
     | '/_authenticated/app/people'
@@ -395,6 +407,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedAppExpensesRouteImport
       parentRoute: typeof AuthenticatedAppRoute
     }
+    '/_authenticated/app/events': {
+      id: '/_authenticated/app/events'
+      path: '/events'
+      fullPath: '/app/events'
+      preLoaderRoute: typeof AuthenticatedAppEventsRouteImport
+      parentRoute: typeof AuthenticatedAppRoute
+    }
     '/_authenticated/app/debts': {
       id: '/_authenticated/app/debts'
       path: '/debts'
@@ -498,6 +517,7 @@ const AuthenticatedAppWalletsRouteWithChildren =
 interface AuthenticatedAppRouteChildren {
   AuthenticatedAppContactsRoute: typeof AuthenticatedAppContactsRoute
   AuthenticatedAppDebtsRoute: typeof AuthenticatedAppDebtsRouteWithChildren
+  AuthenticatedAppEventsRoute: typeof AuthenticatedAppEventsRoute
   AuthenticatedAppExpensesRoute: typeof AuthenticatedAppExpensesRoute
   AuthenticatedAppInvestmentsRoute: typeof AuthenticatedAppInvestmentsRoute
   AuthenticatedAppPeopleRoute: typeof AuthenticatedAppPeopleRouteWithChildren
@@ -514,6 +534,7 @@ interface AuthenticatedAppRouteChildren {
 const AuthenticatedAppRouteChildren: AuthenticatedAppRouteChildren = {
   AuthenticatedAppContactsRoute: AuthenticatedAppContactsRoute,
   AuthenticatedAppDebtsRoute: AuthenticatedAppDebtsRouteWithChildren,
+  AuthenticatedAppEventsRoute: AuthenticatedAppEventsRoute,
   AuthenticatedAppExpensesRoute: AuthenticatedAppExpensesRoute,
   AuthenticatedAppInvestmentsRoute: AuthenticatedAppInvestmentsRoute,
   AuthenticatedAppPeopleRoute: AuthenticatedAppPeopleRouteWithChildren,
