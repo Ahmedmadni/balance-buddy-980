@@ -849,6 +849,54 @@ export type Database = {
           },
         ]
       }
+      system_events: {
+        Row: {
+          created_at: string
+          description: string | null
+          due_date: string
+          entity_id: string | null
+          entity_type: string | null
+          event_type: string
+          id: string
+          metadata: Json
+          priority: string
+          status: string
+          title: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          description?: string | null
+          due_date: string
+          entity_id?: string | null
+          entity_type?: string | null
+          event_type: string
+          id?: string
+          metadata?: Json
+          priority?: string
+          status?: string
+          title: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          description?: string | null
+          due_date?: string
+          entity_id?: string | null
+          entity_type?: string | null
+          event_type?: string
+          id?: string
+          metadata?: Json
+          priority?: string
+          status?: string
+          title?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       transactions: {
         Row: {
           account_id: string | null
