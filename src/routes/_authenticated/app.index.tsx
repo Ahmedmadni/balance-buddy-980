@@ -186,9 +186,14 @@ function Dashboard() {
 
       <AdSlot slot="dashboard_top" />
 
+      <FadeIn delay={0.07}>
+        <UpcomingEventsWidget />
+      </FadeIn>
+
       <FadeIn delay={0.08}>
         <QuickActionsRow />
       </FadeIn>
+
 
 
       {dueRows.length > 0 && (
