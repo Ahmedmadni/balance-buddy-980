@@ -22,6 +22,7 @@ import { cn } from "@/lib/utils";
 import { Switch } from "@/components/ui/switch";
 import { useAds } from "@/lib/ads/ad-context";
 import { AdSlot } from "@/components/ads/AdSlot";
+import { ReminderSettingsSection } from "@/components/ReminderSettingsSection";
 
 export const Route = createFileRoute("/_authenticated/app/settings")({
   head: () => ({ meta: [{ title: "الإعدادات — رصد" }] }),
@@ -68,6 +69,7 @@ function SettingsPage() {
           <TabsTrigger value="wallets" className="gap-1.5"><WalletIcon className="h-4 w-4" />المحافظ</TabsTrigger>
           <TabsTrigger value="categories" className="gap-1.5"><Tags className="h-4 w-4" />الفئات</TabsTrigger>
           <TabsTrigger value="contacts" className="gap-1.5"><ContactIcon className="h-4 w-4" />جهات الاتصال</TabsTrigger>
+          <TabsTrigger value="reminders" className="gap-1.5"><Bell className="h-4 w-4" />التذكيرات</TabsTrigger>
           <TabsTrigger value="advanced" className="gap-1.5 text-muted-foreground"><Bell className="h-4 w-4" />متقدم</TabsTrigger>
           <TabsTrigger value="ads" className="gap-1.5"><Megaphone className="h-4 w-4" />الإعلانات</TabsTrigger>
         </TabsList>
@@ -76,8 +78,10 @@ function SettingsPage() {
         <TabsContent value="wallets"><WalletsSection /></TabsContent>
         <TabsContent value="categories"><CategoriesSection /></TabsContent>
         <TabsContent value="contacts"><ContactsSection /></TabsContent>
+        <TabsContent value="reminders"><ReminderSettingsSection /></TabsContent>
         <TabsContent value="advanced"><AdvancedPlaceholder /></TabsContent>
         <TabsContent value="ads"><AdsSection /></TabsContent>
+
       </Tabs>
     </div>
   );

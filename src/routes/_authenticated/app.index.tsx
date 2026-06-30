@@ -11,6 +11,7 @@ import { StaggerGrid, StaggerItem } from "@/components/motion/StaggerGrid";
 import { FadeIn } from "@/components/motion/FadeIn";
 import { QuickActionsRow } from "@/components/dashboard/QuickActionsRow";
 import { AdSlot } from "@/components/ads/AdSlot";
+import { UpcomingEventsWidget } from "@/components/dashboard/UpcomingEventsWidget";
 
 export const Route = createFileRoute("/_authenticated/app/")({
   head: () => ({ meta: [{ title: "اللوحة الرئيسية — رصد" }] }),
@@ -185,9 +186,14 @@ function Dashboard() {
 
       <AdSlot slot="dashboard_top" />
 
+      <FadeIn delay={0.07}>
+        <UpcomingEventsWidget />
+      </FadeIn>
+
       <FadeIn delay={0.08}>
         <QuickActionsRow />
       </FadeIn>
+
 
 
       {dueRows.length > 0 && (

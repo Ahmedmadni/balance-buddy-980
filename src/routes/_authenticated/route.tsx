@@ -3,7 +3,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   LayoutDashboard, Wallet, FileBarChart, Settings, LogOut, Menu, Landmark,
-  Contact, Repeat, TrendingUp, HandCoins, Receipt, BadgePercent,
+  Contact, Repeat, TrendingUp, HandCoins, Receipt, BadgePercent, Bell,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
@@ -31,6 +31,7 @@ const NAV = [
   { to: "/app/investments", icon: TrendingUp, label: "الاستثمارات" },
   { to: "/app/zakat", icon: BadgePercent, label: "الزكاة" },
   { to: "/app/reports", icon: FileBarChart, label: "التقارير" },
+  { to: "/app/events", icon: Bell, label: "الأحداث" },
   { to: "/app/contacts", icon: Contact, label: "جهات الاتصال" },
 ];
 
