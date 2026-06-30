@@ -113,18 +113,20 @@ export async function computeUpcomingEvents(opts?: { horizonDays?: number }): Pr
     supabase.from("investments").select("id,name,currency,meta,asset_kind"),
     supabase.from("depreciation_profiles").select("id,investment_id,start_date,useful_life_months,is_active").eq("is_active", true),
     supabase.from("asset_market_values").select("investment_id,valuation_date"),
-    supabase.from("zakat_settings").select("base_currency,haul_start,haul_end"),
+    supabase.from("zakat_settings").select("base_currency,last_haul_start_date"),
   ]);
 
   // 1) User-created system_events
   for (const r of sysRes.data ?? []) {
+    const meta = r.metadata && typeof r.metadata === "object" && !Array.isArray(r.metadata)
+      ? (r.metadata as Record<string, any>) : {};
     events.push({
       id: r.id, source: "system_events", event_type: r.event_type as EventType,
       entity_type: r.entity_type, entity_id: r.entity_id, title: r.title,
       description: r.description, due_date: r.due_date,
       priority: (r.priority as EventPriority) || "normal",
       status: (r.status as EventStatus) || "pending",
-      metadata: r.metadata || {},
+      metadata: meta,
     });
   }
 
@@ -235,14 +237,15 @@ export async function computeUpcomingEvents(opts?: { horizonDays?: number }): Pr
     });
   }
 
-  // 7) Zakat haul
+  // 7) Zakat haul (Hijri ≈ 354 days from last haul start)
   for (const z of zsRes.data ?? []) {
-    if (!z.haul_end) continue;
-    const due = new Date(z.haul_end);
+    if (!z.last_haul_start_date) continue;
+    const due = new Date(z.last_haul_start_date);
+    due.setDate(due.getDate() + 354);
     const daysOut = daysBetween(due, today0);
     if (daysOut > horizon) continue;
     events.push({
-      id: `zk:${z.haul_end}`, source: "derived",
+      id: `zk:${z.last_haul_start_date}`, source: "derived",
       event_type: daysOut <= 0 ? "zakat_due" : "hawl_due",
       entity_type: "zakat_settings", entity_id: null,
       title: daysOut <= 0 ? "زكاة مستحقة" : "اقتراب حلول الحول",
