@@ -4,6 +4,8 @@ import { Smartphone, Upload } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
+import { createAuditEntry } from "@/lib/system/audit";
+import { captureApplicationError } from "@/lib/system/errors";
 
 // Parse a vCard (.vcf) file into { name, phone, email } records
 function parseVCF(text: string) {
@@ -42,8 +44,13 @@ export function ContactImportButton({ onDone }: { onDone?: () => void }) {
       if (error) throw error;
       return rows.length;
     },
-    onSuccess: (n) => { toast.success(`تم استيراد ${n} جهة اتصال`); qc.invalidateQueries({ queryKey: ["contacts"] }); onDone?.(); },
-    onError: (e: any) => toast.error("خطأ", { description: e.message }),
+    onSuccess: (n) => {
+      toast.success(`تم استيراد ${n} جهة اتصال`);
+      createAuditEntry("import", `استيراد ${n} جهة اتصال`, { entityType: "contacts", meta: { count: n } });
+      qc.invalidateQueries({ queryKey: ["contacts"] });
+      onDone?.();
+    },
+    onError: (e: any) => { captureApplicationError(e, "import", { scope: "contacts" }); toast.error("خطأ", { description: e.message }); },
   });
 
   async function pickFromPhone() {

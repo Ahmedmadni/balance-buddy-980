@@ -27,6 +27,7 @@ import {
   type NotificationPayload,
 } from "./provider";
 import { hasBeenSent, recordNotification } from "./store";
+import { captureApplicationError } from "@/lib/system/errors";
 
 export interface ProcessSummary {
   scanned: number;
@@ -121,7 +122,10 @@ export async function processPendingNotifications(
       });
       if (result.ok) sent++;
       else if (result.skipped) skipped++;
-      else failed++;
+      else {
+        failed++;
+        captureApplicationError(result.error ?? "notification_send_failed", "notification", { channel, eventId: ev.id });
+      }
     }
   }
 

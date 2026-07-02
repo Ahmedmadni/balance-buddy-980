@@ -13,6 +13,8 @@ import { reportLovableError } from "../lib/lovable-error-reporting";
 import { supabase } from "@/integrations/supabase/client";
 import { Toaster } from "@/components/ui/sonner";
 import { AdProviderRoot } from "@/lib/ads/ad-context";
+import { createAuditEntry } from "@/lib/system/audit";
+import { initErrorTracking } from "@/lib/system/errors";
 
 function NotFoundComponent() {
   return (
@@ -100,8 +102,11 @@ function RootComponent() {
       document.documentElement.classList.toggle("dark", theme === "dark");
       document.documentElement.style.colorScheme = theme;
     } catch {}
+    initErrorTracking();
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event) => {
       if (event !== "SIGNED_IN" && event !== "SIGNED_OUT" && event !== "USER_UPDATED") return;
+      if (event === "SIGNED_IN") createAuditEntry("login", "تسجيل دخول");
+      if (event === "SIGNED_OUT") createAuditEntry("logout", "تسجيل خروج");
       router.invalidate();
       if (event !== "SIGNED_OUT") queryClient.invalidateQueries();
     });

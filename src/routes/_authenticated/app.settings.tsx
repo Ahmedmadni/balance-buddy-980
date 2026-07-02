@@ -12,7 +12,7 @@ import { CURRENCIES } from "@/lib/format";
 import {
   Plus, Trash2, Pencil, Search, Settings as SettingsIcon, Wallet as WalletIcon,
   Tags, Contact as ContactIcon, Archive, ArchiveRestore, ExternalLink, ChevronLeft,
-  Bell, Download, Coins, TrendingDown, RefreshCw, Megaphone, DatabaseBackup,
+  Bell, Download, Coins, TrendingDown, RefreshCw, Megaphone, DatabaseBackup, ShieldCheck,
 } from "lucide-react";
 import { BackupRestoreSection } from "@/components/BackupRestoreSection";
 import { toast } from "sonner";
@@ -25,6 +25,8 @@ import { useAds } from "@/lib/ads/ad-context";
 import { AdSlot } from "@/components/ads/AdSlot";
 import { ReminderSettingsSection } from "@/components/ReminderSettingsSection";
 import { NotificationSettingsSection } from "@/components/NotificationSettingsSection";
+import { SystemToolsSection } from "@/components/SystemToolsSection";
+import { createAuditEntry } from "@/lib/system/audit";
 
 export const Route = createFileRoute("/_authenticated/app/settings")({
   head: () => ({ meta: [{ title: "الإعدادات — رصد" }] }),
@@ -75,6 +77,7 @@ function SettingsPage() {
           <TabsTrigger value="notifications" className="gap-1.5"><Bell className="h-4 w-4" />الإشعارات</TabsTrigger>
           <TabsTrigger value="backup" className="gap-1.5"><DatabaseBackup className="h-4 w-4" />النسخ الاحتياطي</TabsTrigger>
           <TabsTrigger value="advanced" className="gap-1.5 text-muted-foreground"><Bell className="h-4 w-4" />متقدم</TabsTrigger>
+          <TabsTrigger value="system" className="gap-1.5"><ShieldCheck className="h-4 w-4" />النظام</TabsTrigger>
           <TabsTrigger value="ads" className="gap-1.5"><Megaphone className="h-4 w-4" />الإعلانات</TabsTrigger>
         </TabsList>
 
@@ -86,6 +89,7 @@ function SettingsPage() {
         <TabsContent value="notifications"><NotificationSettingsSection /></TabsContent>
         <TabsContent value="backup"><BackupRestoreSection /></TabsContent>
         <TabsContent value="advanced"><AdvancedPlaceholder /></TabsContent>
+        <TabsContent value="system"><SystemToolsSection /></TabsContent>
         <TabsContent value="ads"><AdsSection /></TabsContent>
 
       </Tabs>
@@ -120,7 +124,11 @@ function GeneralSection() {
       if (error) throw error;
       localStorage.setItem(PREFS_KEY, JSON.stringify(prefs));
     },
-    onSuccess: () => { toast.success("تم حفظ التفضيلات"); qc.invalidateQueries({ queryKey: ["profile"] }); },
+    onSuccess: () => {
+      toast.success("تم حفظ التفضيلات");
+      createAuditEntry("settings_change", "تعديل الملف الشخصي / العملة الافتراضية");
+      qc.invalidateQueries({ queryKey: ["profile"] });
+    },
     onError: (e: any) => toast.error("خطأ", { description: e.message }),
   });
 

@@ -18,6 +18,8 @@ import {
   CLOUD_PROVIDERS,
   type BackupScope, type BackupBundle, type ImportMode, type ImportPlan,
 } from "@/lib/backup/engine";
+import { createAuditEntry } from "@/lib/system/audit";
+import { captureApplicationError } from "@/lib/system/errors";
 
 const SCOPE_LABEL: Record<BackupScope, string> = {
   full: "نسخة كاملة",
@@ -48,8 +50,12 @@ export function BackupRestoreSection() {
       else if (fmt === "csv") downloadCSVZip(b);
       else downloadXLSX(b);
       setLastBundle(b);
+      createAuditEntry("backup", `تصدير نسخة احتياطية (${SCOPE_LABEL[scope]}, ${fmt.toUpperCase()})`, {
+        meta: { scope, format: fmt, rows: sumRows(b) },
+      });
       toast.success("تم التصدير", { description: `${SCOPE_LABEL[scope]} — ${sumRows(b)} سجل` });
     } catch (e: any) {
+      captureApplicationError(e, "backup", { scope, fmt });
       toast.error("فشل التصدير", { description: e.message });
     } finally { setBusy(null); }
   }
@@ -76,6 +82,9 @@ export function BackupRestoreSection() {
     try {
       const r = await importUserData(importBundle, { mode });
       const total = Object.values(r.inserted).reduce((s, n) => s + n, 0);
+      createAuditEntry("restore", `استعادة بيانات (${SCOPE_LABEL[importBundle.meta.scope]}, وضع: ${mode})`, {
+        meta: { scope: importBundle.meta.scope, mode, rows: total, errors: r.errors.length },
+      });
       if (r.errors.length) {
         toast.warning("اكتمل مع أخطاء", { description: `${total} سجل — ${r.errors.length} خطأ` });
       } else {
@@ -84,6 +93,7 @@ export function BackupRestoreSection() {
       setConfirming(false);
       setImportBundle(null); setPlan(null);
     } catch (e: any) {
+      captureApplicationError(e, "backup", { scope: importBundle?.meta.scope, mode });
       toast.error("فشل الاستيراد", { description: e.message });
     } finally { setRunning(false); }
   }

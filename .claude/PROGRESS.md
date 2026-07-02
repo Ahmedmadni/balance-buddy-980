@@ -5,7 +5,7 @@
 حدّث هذا الملف كلما اكتمل بند أو استُجد بند جديد.
 
 آخر مراجعة: 2026-07-02 (فرع `claude/project-setup-plan-4fz4w9`) — أُضيف القسم 5 (Notification
-Delivery Engine) والقسم 7 (Analytics & Insights Engine) في نفس اليوم.
+Delivery Engine)، القسم 7 (Analytics & Insights Engine)، والقسم 9 (Production Hardening) في نفس اليوم.
 
 ---
 
@@ -130,7 +130,47 @@ depreciation_profiles, zakat_records, system_events) — بدون أي جدول 
 
 ---
 
-## 8. كيف تُحدَّث هذه الوثيقة
+## 9. Prompt 17 — Production Hardening & Operational Readiness (منجز)
+
+طبقة جاهزية إنتاج فوق كل المحركات الحالية: تدقيق (Audit)، تتبّع أخطاء (Error Tracking)، فحص صحي
+(Health Check)، تحقّق سلامة مالية (Integrity Validator)، مقاييس أداء (Performance)، أدوات استعادة
+(Recovery Tools)، ولوحة تشخيص Beta (`/app/system`). كل شيء قراءة فقط أو تخزين محلي — بدون أي تعديل
+على `transactions`/`investment_transactions`/`investments`/`person_ledger`/`system_events`/
+`v_account_statement`/أي Trigger/أي RLS Policy موجودة، وبدون تغيير منطق الزكاة أو الإهلاك أو محرك
+الاستثمار.
+
+| الملف | الدور |
+|---|---|
+| `src/lib/system/audit.ts` | `createAuditEntry()` — سجل محلي (localStorage) لأحداث منخفضة التكرار فقط (دخول/خروج/استيراد/تصدير/نسخ احتياطي/استعادة/حذف/أرشفة/تغييرات إعدادات رئيسية). لا يسجّل `transactions` ولا `investment_transactions` ولا أي عملية يومية متكررة. |
+| `src/lib/system/errors.ts` | `captureApplicationError()` + `initErrorTracking()` — سجل أخطاء محلي منفصل عن `error-capture.ts`/`lovable-error-reporting.ts` الموجودين (لم يُعدَّلا)، مع مستمعّي `window.error`/`unhandledrejection` سلبيين (بلا Cron ولا Worker). |
+| `src/lib/system/shared.ts` | `reconcileWallets()` و`checkTransactionSync()` — يعيدان اشتقاق الأرقام عبر `computeWalletBalance()` الموجودة ويقارنانها بـ`v_account_statement`/`transactions` (قراءة فقط). |
+| `src/lib/system/health.ts` | `runSystemHealthCheck()` — 4 أقسام: قاعدة البيانات (وجود الجداول)، محرك العمليات المالية (تطابق + مزامنة)، الأصول (مكونات يتيمة/تقييمات مفقودة/إهلاك ناقص)، الأحداث (منتهية/مكررة). |
+| `src/lib/system/integrity.ts` | `validateFinancialIntegrity()` → `{valid, warnings, errors}` — يعيد استخدام `computeWalletBalance`/`computeAssetMetrics`/`computeAssetZakat` الموجودة، لا يحسب بمنطق مختلف. |
+| `src/lib/system/performance.ts` | `collectPerformanceMetrics()` — مدد استعلامات فعلية، مساحة localStorage، تقدير IndexedDB (`navigator.storage.estimate()`)، حجم آخر نسخة احتياطية (عبر `loadLastBackup()` الموجودة)، عدد إشعارات، عدد أحداث (`computeUpcomingEvents()`). |
+| `src/lib/system/recovery.ts` | أدوات Verify Database / Rebuild Cache / Recompute Insights / Recompute Events / Validate Assets / Validate Investments (يعيد استخدام `computeInvestmentPerformance()`) / Export Diagnostic Report. |
+| `src/components/SystemToolsSection.tsx` | تبويب "النظام" الجديد داخل `app.settings.tsx` — أزرار أدوات الاستعادة السبعة. |
+| `src/routes/_authenticated/app.system.tsx` | صفحة **تشخيص النظام** الجديدة (`/app/system`) — Health/Performance/Integrity + توصيات، بدون إضافتها لقائمة التنقّل الرئيسية (يصلها المستخدم عبر تبويب النظام في الإعدادات فقط، لأنها أداة تقنية وليست ميزة للمستخدم النهائي). |
+| `__root.tsx` | ربط `createAuditEntry("login"/"logout")` بحدث `onAuthStateChange` الموجود أصلاً (نقطة واحدة، ليست عالية التكرار)، و`initErrorTracking()` عند تحميل التطبيق. |
+| `BackupRestoreSection.tsx`, `ContactImportButton.tsx`, `notifications/engine.ts` | نقاط تدقيق/أخطاء إضافية: تصدير/استيراد نسخة احتياطية، استيراد جهات اتصال، فشل إرسال إشعار. |
+
+**تصحيح منطقي أثناء البناء:** اكتُشف أن `v_account_statement` يُغذّى فعلياً من `wallet_transactions`
+فقط — محفّزات المزامنة الخاصة بـ`expenses`/`person_ledger` تضبط `affects_balance = (wallet_id IS
+NULL)`، أي أنها **تُستبعد دائماً** من هذا العرض عندما تكون مرتبطة بمحفظة حقيقية. مقارنة رصيد المحفظة
+الكامل (`computeWalletBalance`, يشمل المصاريف) بهذا العرض كانت ستُنتج نتيجة "عدم تطابق" خاطئة لكل
+محفظة تقريباً. تم تصحيح `reconcileWallets()` لمقارنة حركات المحفظة فقط (`wallet_transactions`) مقابل
+العرض — وهو ما يعكسه العرض فعلياً — مع الإبقاء على الرصيد الكامل للعرض في الواجهة فقط دون استخدامه
+في قرار التطابق.
+
+**تقرير الإغلاق (وفق الأسئلة العشرة المطلوبة) — أيضاً معروض في نهاية الرد على المستخدم:**
+انظر ملخص الإغلاق الكامل في رسالة الجلسة؛ خلاصته: صفر جداول جديدة، صفر migrations، Schema Freeze
+محفوظ بالكامل، إعادة استخدام كل المحركات المطلوبة (`computeWalletBalance`, `computeAssetMetrics`,
+`computeDepreciation`, `computeInvestmentPerformance`, `computeAssetZakat`, `computeUpcomingEvents`,
+`computeFinancialInsights`)، الأداء إضافي خفيف (استعلامات قراءة فقط عند فتح صفحة النظام أو الضغط على
+أداة، لا شيء يعمل في الخلفية)، ولا تغيير في أي سلوك مالي قائم.
+
+---
+
+## 10. كيف تُحدَّث هذه الوثيقة
 
 - عند إنجاز بند من "الفجوات" أعلاه: انقله إلى قسم "منجزة" مع رابط الملف/الالتزام (commit).
 - عند بدء خطة تطوير جديدة (سواء مطروحة من المستخدم أو من `.lovable/plan.md` مستقبلاً): أضف قسماً
