@@ -12,6 +12,7 @@ import { FadeIn } from "@/components/motion/FadeIn";
 import { QuickActionsRow } from "@/components/dashboard/QuickActionsRow";
 import { AdSlot } from "@/components/ads/AdSlot";
 import { UpcomingEventsWidget } from "@/components/dashboard/UpcomingEventsWidget";
+import { WealthOverviewWidgets } from "@/components/dashboard/WealthOverviewWidgets";
 
 export const Route = createFileRoute("/_authenticated/app/")({
   head: () => ({ meta: [{ title: "اللوحة الرئيسية — رصد" }] }),
@@ -185,6 +186,10 @@ function Dashboard() {
       </StaggerGrid>
 
       <AdSlot slot="dashboard_top" />
+
+      <FadeIn delay={0.06}>
+        <WealthOverviewWidgets />
+      </FadeIn>
 
       <FadeIn delay={0.07}>
         <UpcomingEventsWidget />

@@ -5,7 +5,7 @@
 حدّث هذا الملف كلما اكتمل بند أو استُجد بند جديد.
 
 آخر مراجعة: 2026-07-02 (فرع `claude/project-setup-plan-4fz4w9`) — أُضيف القسم 5 (Notification
-Delivery Engine) في نفس اليوم.
+Delivery Engine) والقسم 7 (Analytics & Insights Engine) في نفس اليوم.
 
 ---
 
@@ -98,7 +98,39 @@ CapEx/OpEx/Income/Adjustment) **منفَّذة بالكامل فعلياً**، �
 
 ---
 
-## 6. كيف تُحدَّث هذه الوثيقة
+## 7. Prompt 16 — Analytics & Insights Engine (منجز)
+
+طبقة قراءة-فقط `computeFinancialInsights()` فوق كل المحركات الحالية (wallets, transactions,
+expenses, person_ledger, investments, investment_transactions, asset_market_values,
+depreciation_profiles, zakat_records, system_events) — بدون أي جدول جديد، بدون تعديل أي منطق مالي،
+بدون تغيير أي Route موجود.
+
+| الملف | الدور |
+|---|---|
+| `src/lib/insights/types.ts` | كل الأنواع (`FinancialInsights` وكل قسم فرعي) — قيم مالية كـ `CurrencyMap` (نفس اصطلاح لوحة التحكم/التقارير، بلا تحويل عملات). |
+| `src/lib/insights/calculator.ts` | دوال حساب نقية (Wealth/CashFlow/Investment/Asset/Debt) تُعاد استخدام `computeWalletBalance` و`computeAssetMetrics`/`computeDepreciation` الموجودة بدل إعادة حسابها بمنطق مختلف. |
+| `src/lib/insights/engine.ts` | `computeFinancialInsights()` — يجلب كل الجداول المذكورة بالتوازي، يستدعي الحاسبات النقية، ويدمج `computeUpcomingEvents()` الموجود لتحليل التذكيرات وآخر سجل `zakat_records` + `nextZakatDate()` لتحليل الزكاة. |
+| `src/routes/_authenticated/app.insights.tsx` | صفحة **الرؤى المالية** الجديدة (`/app/insights`) — بطاقات KPI، رسم بياني للتدفق النقدي آخر 6 أشهر، Top Lists لكل قسم. |
+| `src/components/dashboard/WealthOverviewWidgets.tsx` | 4 ودجات جديدة في لوحة التحكم: صافي الثروة، صافي التدفق النقدي، أداء الاستثمارات (متوسط ROI)، حالة الزكاة. Upcoming Events كانت موجودة مسبقاً (`UpcomingEventsWidget`). |
+| `src/routes/_authenticated/route.tsx` | إضافة بند تنقّل واحد "الرؤى المالية" في نهاية `NAV` (لم تُغيَّر أي فهارس تنقّل موجودة تُستخدم في `BOTTOM_NAV`). |
+| `src/routes/_authenticated/app.index.tsx` | إدراج `WealthOverviewWidgets` في لوحة التحكم — بدون حذف أي بطاقة موجودة. |
+
+**تقرير الإغلاق:**
+- **جداول جديدة؟** لا. `computeFinancialInsights()` قراءة فقط من الجداول المذكورة في الطلب، صفر هجرات SQL.
+- **Schema Freeze محفوظ؟** نعم بالكامل — صفر تعديل على `transactions`/`investments`/`investment_transactions`/`person_ledger`/`system_events`/Triggers، وصفر Route موجود تغيّر (تمت إضافة Route واحد جديد: `/app/insights`، وهو مطلوب صراحة في الطلب: "إنشاء صفحة: Financial Insights").
+- **يمكن إضافة AI Insights لاحقاً؟** نعم — طبقة العرض (`app.insights.tsx`) والحاسبات (`calculator.ts`) منفصلتان عن الجلب (`engine.ts`)؛ أي تحليل ذكي مستقبلي يُبنى كطبقة جديدة تستهلك `FinancialInsights` الحالي دون تعديله.
+- **يمكن إضافة Forecasting لاحقاً؟** نعم، لكن لم يُنفَّذ أي تنبؤ هنا — `calcCashFlowTrend()` يعرض فقط أشهراً ماضية فعلية (Trend تاريخي)، ولا يُسقط أي قيمة مستقبلية.
+- **تغيّر أي سلوك موجود؟** لا شيء في المنطق المالي. التغييرات الوحيدة خارج الملفات الجديدة: سطر واحد في `NAV` (route.tsx)، وإدراج ودجة واحدة إضافية في `app.index.tsx` (لا حذف لأي بطاقة/قسم موجود).
+
+**ملاحظة بيئية:** `routeTree.gen.ts` (مولَّد تلقائياً بواسطة إضافة TanStack Router عند تشغيل
+`bun run dev`/`build`) لم يتضمن بعد مسار `/app/insights` وقت الفحص، لأن هذه البيئة السحابية لا
+تشغّل خادم Vite (نفس قيد تثبيت الحزم المذكور في تقرير Prompt 15). هذا الملف يُعاد توليده تلقائياً
+عند أول تشغيل حقيقي للمشروع (Lovable أو محلياً) — لا حاجة لأي تدخّل يدوي، والمشروع يمنع صراحة
+تعديل هذا الملف يدوياً.
+
+---
+
+## 8. كيف تُحدَّث هذه الوثيقة
 
 - عند إنجاز بند من "الفجوات" أعلاه: انقله إلى قسم "منجزة" مع رابط الملف/الالتزام (commit).
 - عند بدء خطة تطوير جديدة (سواء مطروحة من المستخدم أو من `.lovable/plan.md` مستقبلاً): أضف قسماً
