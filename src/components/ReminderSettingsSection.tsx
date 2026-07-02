@@ -85,7 +85,7 @@ export function ReminderSettingsSection() {
 
       <div className="rounded-2xl border bg-amber-50/40 dark:bg-amber-950/10 p-3 text-[11px] text-amber-800 dark:text-amber-200 flex gap-2">
         <Info className="h-3.5 w-3.5 mt-0.5 shrink-0" />
-        <span>هذه التذكيرات تعرض داخل التطبيق فقط — لا يوجد إرسال بريد إلكتروني أو إشعارات Push أو رسائل SMS/WhatsApp في هذه المرحلة.</span>
+        <span>هذه الأولويات تتحكم بترتيب الأحداث داخل التطبيق. لإرسال إشعارات فعلية (محلية على الجهاز، أو Push/بريد/SMS/واتساب لاحقاً) فعّلها من تبويب "الإشعارات" المجاور.</span>
       </div>
 
       <Button onClick={save} className="w-full"><Save className="h-4 w-4 ml-1" /> حفظ التفضيلات</Button>

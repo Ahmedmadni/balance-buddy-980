@@ -10,7 +10,8 @@ import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { PageTransition } from "@/components/motion/PageTransition";
 import { cn } from "@/lib/utils";
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { processPendingNotifications } from "@/lib/notifications/engine";
 
 export const Route = createFileRoute("/_authenticated")({
   ssr: false,
@@ -79,6 +80,16 @@ function AppLayout() {
       return data;
     },
   });
+
+  // Foreground-only notification tick — no cron/background worker. Runs once
+  // on layout mount and every 5 minutes while the app stays open; a no-op
+  // when notifications are disabled in Settings (see engine.ts).
+  useEffect(() => {
+    const tick = () => { processPendingNotifications().catch(() => {}); };
+    tick();
+    const id = setInterval(tick, 5 * 60 * 1000);
+    return () => clearInterval(id);
+  }, []);
 
   async function signOut() {
     await qc.cancelQueries();
