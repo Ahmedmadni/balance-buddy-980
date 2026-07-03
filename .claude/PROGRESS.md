@@ -4,9 +4,10 @@
 فعلياً، حتى تلتقط أي جلسة Claude Code لاحقة العمل من حيث توقف، دون إعادة اكتشاف ما تم إنجازه.
 حدّث هذا الملف كلما اكتمل بند أو استُجد بند جديد.
 
-آخر مراجعة: 2026-07-02 (فرع `claude/project-setup-plan-4fz4w9`) — أُضيف القسم 5 (Notification
+آخر مراجعة: 2026-07-03 (فرع `claude/project-setup-plan-4fz4w9`) — أُضيف القسم 5 (Notification
 Delivery Engine)، القسم 7 (Analytics & Insights Engine)، القسم 9 (Production Hardening)، القسم 11
-(Mobile Packaging & Cross-Platform Readiness)، والقسم 13 (Ads Production Readiness) في نفس اليوم.
+(Mobile Packaging & Cross-Platform Readiness)، القسم 13 (Ads Production Readiness)، والقسم 15
+(UX Polish & Beta Testing Readiness).
 
 ---
 
@@ -220,7 +221,35 @@ Tracking أُضيف، ولا تغيير في أي سلوك مالي قائم.
 
 ---
 
-## 14. كيف تُحدَّث هذه الوثيقة
+## 15. Prompt 20 — UX Polish & Beta Testing Readiness (منجز)
+
+تهيئة التطبيق للاختبار المغلق (Closed Beta): تدقيق تجربة المستخدم/الوصول/التجاوب، تلميحات سياقية،
+محرك ملاحظات محلي، قسم مساعدة في الإعدادات، ودرجة جاهزية إطلاق إجمالية. صفر جداول جديدة، صفر
+migrations، صفر تعديل على أي منطق مالي/زكاة/إهلاك/استثمار/Analytics/Notifications/Backup.
+
+| الملف | الدور |
+|---|---|
+| `src/lib/ux/empty-states.ts` | `auditEmptyStates()` — تدقيق **ثابت** (مُعدّ يدوياً بعد قراءة كل ملف مسار فعلياً) لجودة الحالة الفارغة في 9 صفحات أساسية (Dashboard/Wallets/Transactions/Expenses/People/Investments/Zakat/Events/Insights): هل توجد Empty State + CTA + شرح مختصر. النتيجة الفعلية: **كاملة** — Wallets، People. **جزئية** — Dashboard، Expenses، Investments، Events. **مفقودة** — Transactions، Zakat، Insights. |
+| `src/lib/ux/hints.ts` | `getContextualHints()` — تلميحات سياقية **حقيقية** (استعلامات Supabase فعلية لعدد المحافظ/الأصول/سجلات الزكاة + حالة النسخ الاحتياطي والإشعارات الفعلية)، غير إلزامية، مرتبة حسب الأولوية: أضف محفظة، أضف أصل، فعّل النسخ الاحتياطي، راجع الزكاة، أكمل إعدادات الإشعارات. |
+| `src/lib/ux/quick-actions.ts` | `auditQuickActions()` — تدقيق **ثابت** مبني على قراءة `QuickActionsRow.tsx` وأنماط `useSearch`/`?new=` الفعلية في كل صفحة. ضمن ضغطتين: مصروف، دخل، تحويل، دين، فتح الزكاة. **يتجاوز** الحد: إضافة أصل/استثمار (3 — الصفحة لا تقرأ `?new=`)، حدث جديد (3 — غير موجود بالتنقّل السفلي)، تصدير نسخة احتياطية (4). |
+| `src/lib/ux/accessibility.ts` | `auditAccessibility()` — 5 فحوصات (Contrast، Keyboard Navigation، Screen Reader Labels، Focus States، Touch Targets)، مزيج من فحوصات DOM حية وقت التشغيل وحقيقة ثابتة واحدة موثّقة (أنماط `focus-visible:ring` في `src/components/ui`). لا حساب لنسبة تباين فعلية (يحتاج قراءة بكسلات مرسومة غير متاحة هنا). |
+| `src/lib/ux/responsive.ts` | `auditResponsiveLayouts()` — حجم/اتجاه الشاشة الحالية وقت التشغيل، تأكيد وجود `viewport-fit=cover` (جاهزية Foldables/notch، موجودة فعلاً في `__root.tsx`)، وجدول ثابت لعدد ملفات كل بادئة Tailwind (`sm`/`md`/`lg`) تم التحقق منه عبر `grep`. |
+| `src/lib/ux/feedback.ts` | محرك **Beta Feedback محلي بالكامل** — `submitBetaFeedback()`/`loadBetaFeedback()`/`deleteBetaFeedback()`/`clearBetaFeedback()` يخزّن في `localStorage` فقط (نفس نمط `audit.ts`/`errors.ts`)، يدعم Bug/Suggestion/Question/Rating. لا اتصال شبكي، لا جدول جديد. |
+| `src/lib/ux/readiness-score.ts` | `calculateReleaseReadiness()` — يحسب **RC Score: XX/100** من 8 فئات موزونة (سلامة البيانات 20، النسخ الاحتياطي 10، الإشعارات 10، الجوال 15، الإعلانات 10، إتاحة الوصول 15، UX 10، التشخيص 10)، كل فئة تُعيد استخدام محرك فعلي موجود (Health/Integrity/Backup/Notifications/Mobile Readiness/Ads Premium Check) دون إعادة حساب أي منطق مالي. |
+| `src/components/HelpSection.tsx` | قسم **Settings > المساعدة** الجديد: إصدار التطبيق (`APP_VERSION`) + معلومات البناء (منصة/أصلي أو ويب)، زر تصدير تقرير تشخيصي (يُعيد استخدام `buildDiagnosticReport`/`downloadDiagnosticReport` من Prompt 17)، رابط لفتح `/app/system`، وحوار إرسال ملاحظة (Bug/Suggestion/Question/Rating مع تقييم نجوم) يستدعي `submitBetaFeedback()`. |
+| `src/routes/_authenticated/app.settings.tsx` | تبويب **المساعدة** جديد يستضيف `HelpSection` — إضافة `TabsTrigger`/`TabsContent` فقط، بلا تعديل على أي تبويب قائم. |
+| `src/routes/_authenticated/app.system.tsx` | قسمان جديدان داخل لوحة التشخيص القائمة: **جاهزية الإطلاق التجريبي (Release Readiness)** يعرض `RC Score: XX/100` بشكل بارز مع تفصيل الفئات الثماني، و**تجربة المستخدم وإمكانية الوصول (UX & Accessibility)** يعرض نتائج الحالات الفارغة/الإجراءات السريعة/إتاحة الوصول/التجاوب + معاينة التلميحات السياقية النشطة حالياً. |
+
+**تقرير الإغلاق (الأسئلة العشرة) — أيضاً في نهاية رسالة الجلسة:** صفر جداول جديدة، صفر migrations،
+Schema Freeze محفوظ بالكامل (لا تعديل على transactions/investment_transactions/investments/
+person_ledger/system_events/v_account_statement/أي Trigger/RLS)، كل محرك مُعاد استخدامه فعلياً
+(Health/Integrity/Performance/Notifications/Backup/Analytics/Mobile Readiness/Ads Audit) دون تكرار
+منطقه، لا SDK تحليلات أو تتبّع مستخدمين أو استبيانات خارجية أو تخزين سحابي أُضيف، ولا تغيير في أي
+سلوك مالي قائم.
+
+---
+
+## 16. كيف تُحدَّث هذه الوثيقة
 
 - عند إنجاز بند من "الفجوات" أعلاه: انقله إلى قسم "منجزة" مع رابط الملف/الالتزام (commit).
 - عند بدء خطة تطوير جديدة (سواء مطروحة من المستخدم أو من `.lovable/plan.md` مستقبلاً): أضف قسماً

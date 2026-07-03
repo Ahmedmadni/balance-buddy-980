@@ -13,6 +13,12 @@ import { evaluateAdVisibility } from "@/lib/ads/rules";
 import { validatePremiumExperience } from "@/lib/ads/premium";
 import { simulateAdRevenue, DEFAULT_REVENUE_ASSUMPTIONS, type RevenueSimulationInput } from "@/lib/ads/simulation";
 import { AD_PLACEMENTS } from "@/lib/ads/placements";
+import { calculateReleaseReadiness } from "@/lib/ux/readiness-score";
+import { auditEmptyStates, type EmptyStateQuality } from "@/lib/ux/empty-states";
+import { auditQuickActions } from "@/lib/ux/quick-actions";
+import { auditAccessibility } from "@/lib/ux/accessibility";
+import { auditResponsiveLayouts } from "@/lib/ux/responsive";
+import { getContextualHints } from "@/lib/ux/hints";
 import { formatMoney } from "@/lib/format";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -37,6 +43,9 @@ import {
   WifiOff,
   Megaphone,
   Coins,
+  Award,
+  LayoutGrid,
+  Monitor,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
@@ -123,6 +132,13 @@ function SystemPage() {
 
   const cachedQueries = qc.getQueryCache().getAll().length;
 
+  const readiness = useQuery({ queryKey: ["ux-readiness"], queryFn: calculateReleaseReadiness });
+  const hints = useQuery({ queryKey: ["ux-hints"], queryFn: getContextualHints });
+  const emptyStates = auditEmptyStates();
+  const quickActions = auditQuickActions();
+  const a11y = auditAccessibility();
+  const responsive = auditResponsiveLayouts();
+
   const recommendations: string[] = [];
   if (health.data?.status === "error")
     recommendations.push(
@@ -159,6 +175,39 @@ function SystemPage() {
           <Link to="/app/settings">أدوات الاستعادة (Settings)</Link>
         </Button>
       </div>
+
+      {/* Release Readiness */}
+      <Section title="جاهزية الإطلاق التجريبي (Release Readiness)" icon={Award}>
+        {readiness.isLoading ? (
+          <SkeletonRows />
+        ) : (
+          <div className="space-y-4">
+            <div className="flex items-center gap-4 rounded-2xl border bg-muted/30 p-4">
+              <div className="text-4xl font-black tabular-nums text-primary">
+                {readiness.data!.totalScore}
+              </div>
+              <div>
+                <div className="text-sm font-bold">RC Score: {readiness.data!.totalScore}/100</div>
+                <div className="text-xs text-muted-foreground">{readiness.data!.label}</div>
+              </div>
+            </div>
+            <div className="grid gap-2.5 sm:grid-cols-2 lg:grid-cols-4">
+              {readiness.data!.categories.map((c) => (
+                <div key={c.id} className="rounded-2xl border bg-card p-3.5 space-y-1.5">
+                  <div className="flex items-center justify-between text-xs font-semibold">
+                    <span>{c.label}</span>
+                    <span className="tabular-nums text-muted-foreground">{c.score}/100</span>
+                  </div>
+                  <div className="h-1.5 rounded-full bg-muted overflow-hidden">
+                    <div className="h-full bg-primary" style={{ width: `${c.score}%` }} />
+                  </div>
+                  <div className="text-[10px] text-muted-foreground">{c.detail}</div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+      </Section>
 
       {/* Health */}
       <Section title="الصحة العامة (Health)" icon={Database}>
@@ -364,6 +413,131 @@ function SystemPage() {
         </div>
       </Section>
 
+      {/* UX & Accessibility */}
+      <Section title="تجربة المستخدم وإمكانية الوصول (UX & Accessibility)" icon={LayoutGrid}>
+        <div className="space-y-5">
+          <div>
+            <div className="text-xs font-semibold text-muted-foreground mb-2">
+              الحالات الفارغة (Empty States) — {emptyStates.score}/100 · {emptyStates.completeCount}{" "}
+              كاملة، {emptyStates.partialCount} جزئية، {emptyStates.missingCount} مفقودة
+            </div>
+            <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+              {emptyStates.pages.map((p) => (
+                <div key={p.id} className="rounded-xl border bg-card/50 p-2.5 text-xs space-y-1">
+                  <div className="flex items-center justify-between">
+                    <span className="font-semibold">{p.label}</span>
+                    <QualityBadge quality={p.quality} />
+                  </div>
+                  <div className="text-[11px] text-muted-foreground">{p.note}</div>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <div>
+            <div className="text-xs font-semibold text-muted-foreground mb-2">
+              الإجراءات السريعة (Quick Actions ≤ ضغطتين) — {quickActions.score}/100
+            </div>
+            <ul className="space-y-1.5">
+              {quickActions.actions.map((a) => (
+                <li
+                  key={a.id}
+                  className="flex items-center justify-between gap-2 rounded-xl border bg-card/50 p-2.5 text-xs"
+                >
+                  <span>
+                    {a.label} — <span className="text-muted-foreground">{a.path}</span>
+                  </span>
+                  <span
+                    className={cn(
+                      "flex items-center gap-1.5 font-medium shrink-0",
+                      a.withinLimit ? "text-success" : "text-warning",
+                    )}
+                  >
+                    {a.withinLimit ? (
+                      <CheckCircle2 className="h-3.5 w-3.5" />
+                    ) : (
+                      <AlertTriangle className="h-3.5 w-3.5" />
+                    )}
+                    {a.taps} ضغطات
+                  </span>
+                </li>
+              ))}
+            </ul>
+          </div>
+
+          <div>
+            <div className="text-xs font-semibold text-muted-foreground mb-2">
+              إمكانية الوصول (Accessibility) — {a11y.score}/100
+            </div>
+            <div className="grid gap-2.5 sm:grid-cols-2 lg:grid-cols-3">
+              {a11y.items.map((it) => (
+                <div
+                  key={it.id}
+                  className={cn(
+                    "rounded-xl border p-2.5 text-xs space-y-1",
+                    it.status === "ok"
+                      ? "border-success/30 bg-success/5"
+                      : it.status === "warning"
+                        ? "border-warning/30 bg-warning/5"
+                        : "border-destructive/30 bg-destructive/5",
+                  )}
+                >
+                  <div className="flex items-center justify-between">
+                    <span className="font-semibold">{it.label}</span>
+                    {STATUS_ICON(it.status)}
+                  </div>
+                  <div className="text-[11px] text-muted-foreground">{it.detail}</div>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <div>
+            <div className="text-xs font-semibold text-muted-foreground mb-2">
+              التجاوب (Responsive) — {responsive.score}/100
+            </div>
+            <div className="grid gap-2.5 sm:grid-cols-3">
+              <MetricCard
+                icon={Monitor}
+                label="حجم الشاشة الحالي"
+                value={`${responsive.currentViewport.width}×${responsive.currentViewport.height} (${responsive.currentViewport.category})`}
+              />
+              <MetricCard
+                icon={CheckCircle2}
+                label="Viewport Meta (foldables/notch)"
+                value={responsive.viewportMetaOk ? "صحيح" : "ناقص"}
+              />
+              <MetricCard
+                icon={LayoutGrid}
+                label="استخدام Breakpoints"
+                value={responsive.breakpointUsage.map((b) => `${b.prefix}:${b.fileCount}`).join(" · ")}
+              />
+            </div>
+          </div>
+
+          {hints.data && hints.data.length > 0 && (
+            <div>
+              <div className="text-xs font-semibold text-muted-foreground mb-2">
+                تلميحات سياقية نشطة الآن (Contextual Hints)
+              </div>
+              <ul className="space-y-1.5">
+                {hints.data.map((h) => (
+                  <li
+                    key={h.id}
+                    className="flex items-start gap-2 rounded-xl border bg-card/50 p-2.5 text-xs"
+                  >
+                    <Lightbulb className="h-3.5 w-3.5 text-primary shrink-0 mt-0.5" />
+                    <span>
+                      <span className="font-semibold">{h.title}:</span> {h.description}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+        </div>
+      </Section>
+
       {/* Integrity */}
       <Section title="سلامة البيانات (Integrity)" icon={Bug}>
         {integrity.isLoading ? (
@@ -432,6 +606,8 @@ function SystemPage() {
             qc.invalidateQueries({ queryKey: ["system-integrity"] });
             qc.invalidateQueries({ queryKey: ["system-performance"] });
             qc.invalidateQueries({ queryKey: ["system-offline"] });
+            qc.invalidateQueries({ queryKey: ["ux-readiness"] });
+            qc.invalidateQueries({ queryKey: ["ux-hints"] });
           }}
         >
           <RefreshCw className="h-4 w-4 ml-1" /> إعادة الفحص
@@ -492,6 +668,16 @@ function HealthCard({
       </ul>
     </div>
   );
+}
+
+function QualityBadge({ quality }: { quality: EmptyStateQuality }) {
+  const map: Record<EmptyStateQuality, { label: string; cls: string }> = {
+    complete: { label: "كاملة", cls: "text-success" },
+    partial: { label: "جزئية", cls: "text-warning" },
+    missing: { label: "مفقودة", cls: "text-destructive" },
+  };
+  const m = map[quality];
+  return <span className={cn("text-[10px] font-semibold", m.cls)}>{m.label}</span>;
 }
 
 function MetricCard({ icon: Icon, label, value }: { icon: any; label: string; value: string }) {
