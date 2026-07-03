@@ -3,14 +3,16 @@ import { supabase } from "@/integrations/supabase/client";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   LayoutDashboard, Wallet, FileBarChart, Settings, LogOut, Menu, Landmark,
-  Contact, Repeat, TrendingUp, HandCoins, Receipt, BadgePercent, Bell,
+  Contact, Repeat, TrendingUp, HandCoins, Receipt, BadgePercent, Bell, Sparkles,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { PageTransition } from "@/components/motion/PageTransition";
 import { cn } from "@/lib/utils";
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { processPendingNotifications } from "@/lib/notifications/engine";
+import { trackBetaSession, recordPageVisit, finalizeCurrentPage } from "@/lib/beta/session";
 
 export const Route = createFileRoute("/_authenticated")({
   ssr: false,
@@ -33,6 +35,7 @@ const NAV = [
   { to: "/app/reports", icon: FileBarChart, label: "التقارير" },
   { to: "/app/events", icon: Bell, label: "الأحداث" },
   { to: "/app/contacts", icon: Contact, label: "جهات الاتصال" },
+  { to: "/app/insights", icon: Sparkles, label: "الرؤى المالية" },
 ];
 
 const BOTTOM_NAV = [
@@ -80,6 +83,16 @@ function AppLayout() {
     },
   });
 
+  // Foreground-only notification tick — no cron/background worker. Runs once
+  // on layout mount and every 5 minutes while the app stays open; a no-op
+  // when notifications are disabled in Settings (see engine.ts).
+  useEffect(() => {
+    const tick = () => { processPendingNotifications().catch(() => {}); };
+    tick();
+    const id = setInterval(tick, 5 * 60 * 1000);
+    return () => clearInterval(id);
+  }, []);
+
   async function signOut() {
     await qc.cancelQueries();
     qc.clear();
@@ -88,6 +101,18 @@ function AppLayout() {
   }
 
   const pathname = useRouterState({ select: (s) => s.location.pathname });
+
+  // Local-only Beta session/usage tracker (localStorage) — no analytics SDK,
+  // no network call. See src/lib/beta/session.ts.
+  useEffect(() => {
+    trackBetaSession();
+    const onBeforeUnload = () => finalizeCurrentPage();
+    window.addEventListener("beforeunload", onBeforeUnload);
+    return () => window.removeEventListener("beforeunload", onBeforeUnload);
+  }, []);
+  useEffect(() => {
+    recordPageVisit(pathname);
+  }, [pathname]);
 
   return (
     <div className="min-h-screen bg-muted/30 dark:bg-background">

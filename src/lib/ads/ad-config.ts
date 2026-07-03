@@ -4,22 +4,17 @@
 // IMPORTANT: This file contains PLACEHOLDERS ONLY.
 // No real ads, no SDK, no external script is loaded at runtime.
 // Replace the placeholder IDs with real ones when ready to monetize.
+//
+// Placement identity (AdPlacement/AdFormat/PLACEMENT_FORMAT) now lives
+// in ./placements.ts, the single source of truth — re-exported here so
+// every existing `from "./ad-config"` import keeps working unchanged.
 // =============================================================
+import type { AdPlacement } from "./placements";
 
 export type AdPlatform = "web" | "android" | "ios" | "premium" | "auto";
 
-export type AdPlacement =
-  | "dashboard_top"
-  | "dashboard_bottom"
-  | "transactions_inline"
-  | "reports_bottom"
-  | "settings_banner"
-  | "assets_list_bottom"
-  | "asset_details_bottom"
-  | "people_bottom"
-  | "zakat_bottom";
-
-export type AdFormat = "banner" | "rectangle" | "interstitial" | "reward" | "native";
+export type { AdPlacement, AdFormat } from "./placements";
+export { PLACEMENT_FORMAT, AD_PLACEMENTS, AD_PLACEMENT_IDS, getPlacementDef } from "./placements";
 
 // ----- Web (Google AdSense placeholders) -----
 export const WEB_ADSENSE_CLIENT = "ca-pub-XXXXXXXXXXXXXXXX"; // TODO
@@ -82,19 +77,6 @@ export const PRODUCTION_IDS = {
   ios: { app: IOS_ADMOB_APP, units: IOS_ADMOB_UNITS },
 };
 
-// ----- Default placement → format mapping -----
-export const PLACEMENT_FORMAT: Record<AdPlacement, AdFormat> = {
-  dashboard_top: "banner",
-  dashboard_bottom: "rectangle",
-  transactions_inline: "native",
-  reports_bottom: "rectangle",
-  settings_banner: "banner",
-  assets_list_bottom: "banner",
-  asset_details_bottom: "rectangle",
-  people_bottom: "banner",
-  zakat_bottom: "banner",
-};
-
 // ----- User preferences (localStorage) -----
 export type AdPrefs = {
   enabled: boolean;
@@ -113,3 +95,13 @@ export const DEFAULT_AD_PREFS: AdPrefs = {
 };
 
 export const AD_PREFS_KEY = "rasd.adPrefs.v1";
+
+/** Reads AdPrefs straight from localStorage — for non-React callers (diagnostics, checklists) that can't use useAds(). */
+export function loadAdPrefs(): AdPrefs {
+  if (typeof localStorage === "undefined") return DEFAULT_AD_PREFS;
+  try {
+    return { ...DEFAULT_AD_PREFS, ...JSON.parse(localStorage.getItem(AD_PREFS_KEY) || "{}") };
+  } catch {
+    return DEFAULT_AD_PREFS;
+  }
+}

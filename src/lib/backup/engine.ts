@@ -23,12 +23,12 @@ export interface BackupBundle {
     counts: Record<string, number>;
   };
   data: Record<string, any[]>;
-  local?: {
-    localPrefs?: any;
-    reminderPrefs?: any;
-    quickActions?: any;
-    ads?: any;
-  };
+  // Keyed by the raw localStorage key (e.g. "rasd.localPrefs.v1"), not by a
+  // short alias — readLocalPrefs()/importUserData() both operate on the
+  // real key strings directly. (The previous {localPrefs, reminderPrefs,
+  // quickActions, ads} shape never matched what was actually written here —
+  // fixed as a type-only correction in Prompt 24; no behavior change.)
+  local?: Record<string, unknown>;
 }
 
 // Tables that carry user data. Order matters for restore (parents first).
@@ -70,11 +70,30 @@ const SCOPES: Record<BackupScope, BackupTable[]> = {
   ],
 };
 
+// Prompt 24 remediation: two of the original 4 keys below never matched
+// anything actually written to localStorage (found by Prompt 23's
+// data-export-audit.ts) — "rasd.quickActions.v1" vs. the real
+// "dashboard.quickActions.v1" (QuickActionsRow.tsx), and "rasd.ads.v1" vs.
+// the real "rasd.adPrefs.v1" (ad-config.ts). They're kept below (not
+// removed) so restoring an old backup that happens to carry them still
+// round-trips those fields unchanged; the correct real keys are added
+// alongside so new exports actually capture that data. Also newly added:
+// notification settings/log, beta session tracker, and beta feedback —
+// none of which were exported before. importUserData() already restores
+// every key present in `bundle.local` generically (see below), so both
+// old-shaped and new-shaped backups import correctly without any import
+// code change.
 const LOCAL_KEYS = [
   "rasd.localPrefs.v1",
   "rasd.reminderPrefs.v1",
-  "rasd.quickActions.v1",
-  "rasd.ads.v1",
+  "rasd.quickActions.v1", // legacy — never actually written; kept for backward compatibility
+  "rasd.ads.v1", // legacy — never actually written; kept for backward compatibility
+  "dashboard.quickActions.v1", // real key (QuickActionsRow.tsx)
+  "rasd.adPrefs.v1", // real key (ad-config.ts AD_PREFS_KEY)
+  "rasd.notificationSettings.v1", // notifications/config.ts
+  "rasd.notificationLog.v1", // notifications/store.ts
+  "rasd.betaSessions.v1", // beta/session.ts
+  "rasd.betaFeedback.v1", // ux/feedback.ts
 ];
 
 // -------------------- Export --------------------

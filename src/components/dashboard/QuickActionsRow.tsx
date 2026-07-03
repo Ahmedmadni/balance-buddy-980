@@ -8,6 +8,7 @@ import { cn } from "@/lib/utils";
 import { useEffect, useMemo, useState, type ComponentType } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
+import { recordFeatureUse, recordDialogOpened, recordDialogSaved } from "@/lib/beta/session";
 
 type Tone = "rose" | "emerald" | "sky" | "amber" | "violet" | "teal" | "indigo" | "slate";
 
@@ -79,6 +80,7 @@ function ActionCard({ a, delay }: { a: Action; delay: number }) {
         to={a.to as any}
         search={a.search as any}
         preload="intent"
+        onClick={() => recordFeatureUse(a.id)}
         className="group flex h-full flex-col items-center justify-center gap-2 rounded-2xl border border-border bg-card p-3 shadow-[var(--shadow-card)] transition-colors hover:border-primary/30"
       >
         <span className={cn("grid h-11 w-11 place-items-center rounded-xl transition-transform group-hover:scale-110", toneClass[a.tone])}>
@@ -106,6 +108,7 @@ function CustomizeDialog({
   const [open, setOpen] = useState(false);
   const [draft, setDraft] = useState<string[]>(selected);
   useEffect(() => { if (open) setDraft(selected); }, [open, selected]);
+  useEffect(() => { if (open) recordDialogOpened("quick_actions_customize"); }, [open]);
 
   const toggle = (id: string) => {
     setDraft((d) => d.includes(id) ? d.filter((x) => x !== id) : [...d, id]);
@@ -155,6 +158,7 @@ function CustomizeDialog({
               const final = draft.length === 0 ? DEFAULT_IDS : draft;
               localStorage.setItem(STORAGE_KEY, JSON.stringify(final));
               onChange(final);
+              recordDialogSaved("quick_actions_customize");
               setOpen(false);
             }}
           >

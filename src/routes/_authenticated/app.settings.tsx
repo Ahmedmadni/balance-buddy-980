@@ -12,7 +12,8 @@ import { CURRENCIES } from "@/lib/format";
 import {
   Plus, Trash2, Pencil, Search, Settings as SettingsIcon, Wallet as WalletIcon,
   Tags, Contact as ContactIcon, Archive, ArchiveRestore, ExternalLink, ChevronLeft,
-  Bell, Download, Coins, TrendingDown, RefreshCw, Megaphone, DatabaseBackup,
+  Bell, Download, Coins, TrendingDown, RefreshCw, Megaphone, DatabaseBackup, ShieldCheck, Smartphone,
+  HelpCircle,
 } from "lucide-react";
 import { BackupRestoreSection } from "@/components/BackupRestoreSection";
 import { toast } from "sonner";
@@ -24,6 +25,11 @@ import { Switch } from "@/components/ui/switch";
 import { useAds } from "@/lib/ads/ad-context";
 import { AdSlot } from "@/components/ads/AdSlot";
 import { ReminderSettingsSection } from "@/components/ReminderSettingsSection";
+import { NotificationSettingsSection } from "@/components/NotificationSettingsSection";
+import { SystemToolsSection } from "@/components/SystemToolsSection";
+import { MobileSettingsSection } from "@/components/MobileSettingsSection";
+import { HelpSection } from "@/components/HelpSection";
+import { createAuditEntry } from "@/lib/system/audit";
 
 export const Route = createFileRoute("/_authenticated/app/settings")({
   head: () => ({ meta: [{ title: "الإعدادات — رصد" }] }),
@@ -71,9 +77,13 @@ function SettingsPage() {
           <TabsTrigger value="categories" className="gap-1.5"><Tags className="h-4 w-4" />الفئات</TabsTrigger>
           <TabsTrigger value="contacts" className="gap-1.5"><ContactIcon className="h-4 w-4" />جهات الاتصال</TabsTrigger>
           <TabsTrigger value="reminders" className="gap-1.5"><Bell className="h-4 w-4" />التذكيرات</TabsTrigger>
+          <TabsTrigger value="notifications" className="gap-1.5"><Bell className="h-4 w-4" />الإشعارات</TabsTrigger>
           <TabsTrigger value="backup" className="gap-1.5"><DatabaseBackup className="h-4 w-4" />النسخ الاحتياطي</TabsTrigger>
           <TabsTrigger value="advanced" className="gap-1.5 text-muted-foreground"><Bell className="h-4 w-4" />متقدم</TabsTrigger>
+          <TabsTrigger value="system" className="gap-1.5"><ShieldCheck className="h-4 w-4" />النظام</TabsTrigger>
+          <TabsTrigger value="mobile" className="gap-1.5"><Smartphone className="h-4 w-4" />الجهاز</TabsTrigger>
           <TabsTrigger value="ads" className="gap-1.5"><Megaphone className="h-4 w-4" />الإعلانات</TabsTrigger>
+          <TabsTrigger value="help" className="gap-1.5"><HelpCircle className="h-4 w-4" />المساعدة</TabsTrigger>
         </TabsList>
 
         <TabsContent value="general"><GeneralSection /></TabsContent>
@@ -81,9 +91,13 @@ function SettingsPage() {
         <TabsContent value="categories"><CategoriesSection /></TabsContent>
         <TabsContent value="contacts"><ContactsSection /></TabsContent>
         <TabsContent value="reminders"><ReminderSettingsSection /></TabsContent>
+        <TabsContent value="notifications"><NotificationSettingsSection /></TabsContent>
         <TabsContent value="backup"><BackupRestoreSection /></TabsContent>
         <TabsContent value="advanced"><AdvancedPlaceholder /></TabsContent>
+        <TabsContent value="system"><SystemToolsSection /></TabsContent>
+        <TabsContent value="mobile"><MobileSettingsSection /></TabsContent>
         <TabsContent value="ads"><AdsSection /></TabsContent>
+        <TabsContent value="help"><HelpSection /></TabsContent>
 
       </Tabs>
     </div>
@@ -117,7 +131,11 @@ function GeneralSection() {
       if (error) throw error;
       localStorage.setItem(PREFS_KEY, JSON.stringify(prefs));
     },
-    onSuccess: () => { toast.success("تم حفظ التفضيلات"); qc.invalidateQueries({ queryKey: ["profile"] }); },
+    onSuccess: () => {
+      toast.success("تم حفظ التفضيلات");
+      createAuditEntry("settings_change", "تعديل الملف الشخصي / العملة الافتراضية");
+      qc.invalidateQueries({ queryKey: ["profile"] });
+    },
     onError: (e: any) => toast.error("خطأ", { description: e.message }),
   });
 
@@ -530,7 +548,6 @@ function AdvancedPlaceholder() {
     { icon: Coins, label: "إعدادات الزكاة", desc: "النصاب والعملة المرجعية" },
     { icon: TrendingDown, label: "إعدادات الإهلاك", desc: "طرق الإهلاك للأصول" },
     { icon: RefreshCw, label: "أسعار الصرف", desc: "تحديث تلقائي أو يدوي" },
-    { icon: Bell, label: "الإشعارات", desc: "التنبيهات والتذكيرات" },
     { icon: Download, label: "النسخ الاحتياطي", desc: "تصدير واستيراد البيانات" },
   ];
   return (

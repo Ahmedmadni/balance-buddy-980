@@ -14,6 +14,7 @@ import {
   computeUpcomingEvents, EVENT_LABEL, PRIORITY_LABEL, PRIORITY_TONE,
   type EventType, type EventPriority, type UpcomingEvent,
 } from "@/lib/events/engine";
+import { NotificationCenter } from "@/components/NotificationCenter";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 
@@ -84,6 +85,9 @@ function EventsPage() {
               </TabsTrigger>
             );
           })}
+          <TabsTrigger value="notifications" className="gap-2">
+            <Bell className="h-3.5 w-3.5" /> <span>الإشعارات</span>
+          </TabsTrigger>
         </TabsList>
 
         {sections.map((s) => (
@@ -96,6 +100,9 @@ function EventsPage() {
             />
           </TabsContent>
         ))}
+        <TabsContent value="notifications">
+          <NotificationCenter />
+        </TabsContent>
       </Tabs>
 
       <NewEventDialog open={openNew} onOpenChange={setOpenNew} onCreated={() => qc.invalidateQueries({ queryKey: ["upcoming-events"] })} />
