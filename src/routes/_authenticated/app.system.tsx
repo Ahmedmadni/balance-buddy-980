@@ -25,6 +25,14 @@ import { detectUserFriction } from "@/lib/beta/friction";
 import { calculateBetaHealth } from "@/lib/beta/health-score";
 import { detectReleaseBlockers } from "@/lib/beta/release-blockers";
 import { BetaFeedbackDashboard } from "@/components/BetaFeedbackDashboard";
+import { auditAppMetadata } from "@/lib/release/metadata-audit";
+import { auditAndroidRelease } from "@/lib/release/android-audit";
+import { auditIOSRelease } from "@/lib/release/ios-audit";
+import { auditPWA } from "@/lib/release/pwa-audit";
+import { generateStoreAssetsChecklist, type StoreAssetStatus } from "@/lib/release/store-assets";
+import { auditCompliance } from "@/lib/release/compliance-audit";
+import { auditProductionEnvironment } from "@/lib/release/production-audit";
+import { generateLaunchChecklist } from "@/lib/release/launch-checklist";
 import { formatMoney } from "@/lib/format";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -57,6 +65,12 @@ import {
   MessageSquareWarning,
   ShieldAlert,
   MousePointerClick,
+  Rocket,
+  Apple,
+  Globe,
+  Scale,
+  Server,
+  Image,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
@@ -155,6 +169,15 @@ function SystemPage() {
   const betaHealth = useQuery({ queryKey: ["beta-health"], queryFn: calculateBetaHealth });
   const releaseBlockers = useQuery({ queryKey: ["beta-blockers"], queryFn: detectReleaseBlockers });
   const friction = detectUserFriction();
+
+  const metadataAudit = auditAppMetadata();
+  const androidAudit = auditAndroidRelease();
+  const iosAudit = auditIOSRelease();
+  const pwaAudit = useQuery({ queryKey: ["release-pwa"], queryFn: auditPWA });
+  const storeAssets = generateStoreAssetsChecklist();
+  const complianceAudit = useQuery({ queryKey: ["release-compliance"], queryFn: auditCompliance });
+  const prodEnvAudit = useQuery({ queryKey: ["release-prod-env"], queryFn: auditProductionEnvironment });
+  const launchChecklist = useQuery({ queryKey: ["release-launch"], queryFn: generateLaunchChecklist });
 
   const recommendations: string[] = [];
   if (health.data?.status === "error")
@@ -705,6 +728,168 @@ function SystemPage() {
         </div>
       </Section>
 
+      {/* Release Engineering */}
+      <Section title="هندسة الإطلاق وجاهزية المتاجر (Release Engineering)" icon={Rocket}>
+        <div className="space-y-5">
+          <div>
+            <div className="text-xs font-semibold text-muted-foreground mb-2">
+              قائمة مراحل الإطلاق (Launch Checklist)
+            </div>
+            {launchChecklist.isLoading ? (
+              <SkeletonRows />
+            ) : (
+              <div className="space-y-3">
+                <div className="flex flex-wrap gap-2">
+                  {launchChecklist.data!.stages.map((s) => (
+                    <div
+                      key={s.id}
+                      className={cn(
+                        "rounded-full border px-3 py-1.5 text-xs font-semibold",
+                        s.ready
+                          ? "border-success/40 bg-success/10 text-success"
+                          : "border-border bg-muted/40 text-muted-foreground",
+                        launchChecklist.data!.currentStage === s.id && "ring-2 ring-primary",
+                      )}
+                    >
+                      {s.label} {s.ready ? "✓" : ""}
+                    </div>
+                  ))}
+                </div>
+                <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+                  {launchChecklist.data!.stages.map((s) => (
+                    <div key={s.id} className="rounded-xl border bg-card/50 p-2.5 text-xs space-y-1">
+                      <div className="flex items-center justify-between font-semibold">
+                        <span>{s.label}</span>
+                        {s.ready ? (
+                          <CheckCircle2 className="h-3.5 w-3.5 text-success" />
+                        ) : (
+                          <XCircle className="h-3.5 w-3.5 text-muted-foreground" />
+                        )}
+                      </div>
+                      <ul className="space-y-0.5">
+                        {s.requirements.map((r, i) => (
+                          <li
+                            key={i}
+                            className="flex items-start gap-1.5 text-[11px] text-muted-foreground"
+                          >
+                            <span className="shrink-0 mt-0.5">
+                              {r.met ? (
+                                <CheckCircle2 className="h-3 w-3 text-success" />
+                              ) : (
+                                <XCircle className="h-3 w-3 text-muted-foreground" />
+                              )}
+                            </span>
+                            <span>
+                              {r.label} — {r.detail}
+                            </span>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+
+          <div className="grid gap-3 sm:grid-cols-3">
+            <PlatformReadinessCard
+              icon={Smartphone}
+              label="Android Ready"
+              score={androidAudit.score}
+              sub={`${androidAudit.readyCount}/${androidAudit.totalCount} فحص`}
+            />
+            <PlatformReadinessCard
+              icon={Apple}
+              label="iOS Ready"
+              score={iosAudit.score}
+              sub={`${iosAudit.readyCount}/${iosAudit.totalCount} فحص`}
+            />
+            <PlatformReadinessCard
+              icon={Globe}
+              label="PWA Ready"
+              score={pwaAudit.data?.score ?? 0}
+              sub={
+                pwaAudit.data
+                  ? pwaAudit.data.installable
+                    ? "قابل للتثبيت"
+                    : "غير قابل للتثبيت بعد"
+                  : "..."
+              }
+            />
+          </div>
+
+          <div>
+            <div className="text-xs font-semibold text-muted-foreground mb-2">
+              بيانات التطبيق الوصفية (App Metadata) — {metadataAudit.configuredCount}/
+              {metadataAudit.totalCount}
+            </div>
+            <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
+              {metadataAudit.items.map((item) => (
+                <div key={item.id} className="rounded-xl border bg-card/50 p-2.5 text-xs space-y-1">
+                  <div className="flex items-center justify-between">
+                    <span className="font-semibold">{item.label}</span>
+                    {STATUS_ICON(item.status)}
+                  </div>
+                  <div className="text-[11px] text-muted-foreground truncate" dir="ltr">
+                    {item.value}
+                  </div>
+                  <div className="text-[10px] text-muted-foreground">{item.detail}</div>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <div>
+            <div className="text-xs font-semibold text-muted-foreground mb-2 flex items-center gap-1.5">
+              <Smartphone className="h-3.5 w-3.5" /> تدقيق Android — {androidAudit.score}/100
+            </div>
+            <CheckGrid items={androidAudit.items} />
+          </div>
+
+          <div>
+            <div className="text-xs font-semibold text-muted-foreground mb-2 flex items-center gap-1.5">
+              <Apple className="h-3.5 w-3.5" /> تدقيق iOS — {iosAudit.score}/100
+            </div>
+            <CheckGrid items={iosAudit.items} />
+          </div>
+
+          <div>
+            <div className="text-xs font-semibold text-muted-foreground mb-2 flex items-center gap-1.5">
+              <Globe className="h-3.5 w-3.5" /> تدقيق PWA
+              {pwaAudit.data ? ` — ${pwaAudit.data.score}/100` : ""}
+            </div>
+            {pwaAudit.data ? <CheckGrid items={pwaAudit.data.items} /> : <SkeletonRows />}
+          </div>
+
+          <div>
+            <div className="text-xs font-semibold text-muted-foreground mb-2 flex items-center gap-1.5">
+              <Image className="h-3.5 w-3.5" /> قائمة أصول المتجر (Store Assets)
+            </div>
+            <div className="grid gap-3 sm:grid-cols-2">
+              <StoreAssetGroupCard title="Android" group={storeAssets.android} />
+              <StoreAssetGroupCard title="iOS" group={storeAssets.ios} />
+            </div>
+          </div>
+
+          <div>
+            <div className="text-xs font-semibold text-muted-foreground mb-2 flex items-center gap-1.5">
+              <Scale className="h-3.5 w-3.5" /> الامتثال والخصوصية (Compliance)
+              {complianceAudit.data ? ` — ${complianceAudit.data.score}/100` : ""}
+            </div>
+            {complianceAudit.data ? <CheckGrid items={complianceAudit.data.items} /> : <SkeletonRows />}
+          </div>
+
+          <div>
+            <div className="text-xs font-semibold text-muted-foreground mb-2 flex items-center gap-1.5">
+              <Server className="h-3.5 w-3.5" /> بيئة الإنتاج (Production Environment)
+              {prodEnvAudit.data ? ` — ${prodEnvAudit.data.score}/100` : ""}
+            </div>
+            {prodEnvAudit.data ? <CheckGrid items={prodEnvAudit.data.items} /> : <SkeletonRows />}
+          </div>
+        </div>
+      </Section>
+
       {/* Integrity */}
       <Section title="سلامة البيانات (Integrity)" icon={Bug}>
         {integrity.isLoading ? (
@@ -779,6 +964,10 @@ function SystemPage() {
             qc.invalidateQueries({ queryKey: ["beta-coverage"] });
             qc.invalidateQueries({ queryKey: ["beta-health"] });
             qc.invalidateQueries({ queryKey: ["beta-blockers"] });
+            qc.invalidateQueries({ queryKey: ["release-pwa"] });
+            qc.invalidateQueries({ queryKey: ["release-compliance"] });
+            qc.invalidateQueries({ queryKey: ["release-prod-env"] });
+            qc.invalidateQueries({ queryKey: ["release-launch"] });
           }}
         >
           <RefreshCw className="h-4 w-4 ml-1" /> إعادة الفحص
@@ -859,6 +1048,93 @@ function CoverageBadge({ status }: { status: FeatureCoverageStatus }) {
   };
   const m = map[status];
   return <span className={cn("text-[10px] font-semibold", m.cls)}>{m.label}</span>;
+}
+
+function CheckGrid({
+  items,
+}: {
+  items: { id: string; label: string; status: HealthStatus; detail: string }[];
+}) {
+  return (
+    <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+      {items.map((item) => (
+        <div key={item.id} className={cn("rounded-xl border p-2.5 text-xs space-y-1", STATUS_TONE[item.status])}>
+          <div className="flex items-center justify-between">
+            <span className="font-semibold">{item.label}</span>
+            {STATUS_ICON(item.status)}
+          </div>
+          <div className="text-[11px] text-muted-foreground">{item.detail}</div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function PlatformReadinessCard({
+  icon: Icon,
+  label,
+  score,
+  sub,
+}: {
+  icon: any;
+  label: string;
+  score: number;
+  sub: string;
+}) {
+  return (
+    <div className="rounded-2xl border bg-card p-4 space-y-1.5">
+      <div className="flex items-center gap-2 text-xs font-semibold text-muted-foreground">
+        <Icon className="h-4 w-4" /> {label}
+      </div>
+      <div className="text-3xl font-black tabular-nums text-primary">
+        {score}
+        <span className="text-sm text-muted-foreground">/100</span>
+      </div>
+      <div className="text-[11px] text-muted-foreground">{sub}</div>
+    </div>
+  );
+}
+
+function StoreAssetGroupCard({
+  title,
+  group,
+}: {
+  title: string;
+  group: {
+    items: { id: string; label: string; status: StoreAssetStatus; detail: string }[];
+    readyCount: number;
+    totalCount: number;
+  };
+}) {
+  return (
+    <div className="rounded-2xl border bg-card p-3.5 space-y-2">
+      <div className="flex items-center justify-between text-xs font-semibold">
+        <span>{title}</span>
+        <span className="text-muted-foreground">
+          {group.readyCount}/{group.totalCount}
+        </span>
+      </div>
+      <ul className="space-y-1">
+        {group.items.map((item) => (
+          <li key={item.id} className="flex items-start gap-1.5 text-[11px]">
+            <span className="shrink-0 mt-0.5">
+              {item.status === "ready" ? (
+                <CheckCircle2 className="h-3 w-3 text-success" />
+              ) : (
+                <XCircle className="h-3 w-3 text-muted-foreground" />
+              )}
+            </span>
+            <span>
+              <span className={item.status === "ready" ? "text-foreground" : "text-muted-foreground"}>
+                {item.label}
+              </span>{" "}
+              — <span className="text-muted-foreground">{item.detail}</span>
+            </span>
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
 }
 
 function MetricCard({ icon: Icon, label, value }: { icon: any; label: string; value: string }) {

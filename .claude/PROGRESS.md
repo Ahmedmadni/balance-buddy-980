@@ -7,7 +7,8 @@
 آخر مراجعة: 2026-07-03 (فرع `claude/project-setup-plan-4fz4w9`) — أُضيف القسم 5 (Notification
 Delivery Engine)، القسم 7 (Analytics & Insights Engine)، القسم 9 (Production Hardening)، القسم 11
 (Mobile Packaging & Cross-Platform Readiness)، القسم 13 (Ads Production Readiness)، القسم 15
-(UX Polish & Beta Testing Readiness)، والقسم 17 (Closed Beta Operations Framework).
+(UX Polish & Beta Testing Readiness)، القسم 17 (Closed Beta Operations Framework)، والقسم 19
+(Release Engineering & Store Readiness).
 
 ---
 
@@ -275,7 +276,35 @@ Mixpanel/Amplitude/Hotjar/Session Replay/تخزين سحابي أُضيف — ا
 
 ---
 
-## 18. كيف تُحدَّث هذه الوثيقة
+## 19. Prompt 22 — Release Engineering & Store Readiness (منجز)
+
+تهيئة "رصد" للإطلاق الفعلي على Android وiOS والويب: تدقيق بيانات التطبيق الوصفية، تدقيق إصدار
+Android/iOS، تدقيق PWA، قائمة أصول المتجر، تدقيق الامتثال والخصوصية، تدقيق بيئة الإنتاج، وقائمة
+مراحل الإطلاق (5 مراحل). صفر جداول جديدة، صفر migrations، صفر تعديل على أي منطق مالي أو محرك أعمال.
+
+| الملف | الدور |
+|---|---|
+| `src/lib/release/metadata-config.ts` | إعدادات مركزية **Placeholders فقط** (نفس نمط `ads/ad-config.ts`): `BUILD_NUMBER`, `PRIVACY_POLICY_URL`, `TERMS_URL`, `SUPPORT_URL`, `WEBSITE_URL` — لا رابط حقيقي واحد منها موجود فعلياً في المشروع حتى الآن (تحقّق حقيقي بالبحث). |
+| `src/lib/release/metadata-audit.ts` | `auditAppMetadata()` — 8 بنود: App Name/Package Name (نسخة ثابتة موثَّقة من `capacitor.config.ts`، لم تُستورد حيّاً لتفادي اعتمادية `@capacitor/cli` غير المثبَّتة في بعض البيئات)، Version (حيّ من `package.json`)، Build Number، و4 روابط — **4 من 8 لا تزال placeholder**. |
+| `src/lib/release/android-audit.ts` | `auditAndroidRelease()` — 10 فحوصات. حقيقة جوهرية موثَّقة: **لا يوجد مجلد `android/` في هذا المستودع** (`bun run android:add` لم يُشغَّل بعد)، و`allowMixedContent: true` وكائن `server` (Live Reload) لا يزالان نشطين في `capacitor.config.ts` — كلاهما يجب تعطيله قبل بناء AAB فعلي. AdMob IDs يُعاد استخدامه من `ads/audit.ts`. |
+| `src/lib/release/ios-audit.ts` | `auditIOSRelease()` — 9 فحوصات. حقيقة جوهرية أكثر خطورة: **لا يوجد أي إعداد iOS إطلاقاً** — لا مجلد `ios/`، لا كائن `ios:` في `capacitor.config.ts`، ولا خطوات iOS موثَّقة في `MOBILE_BUILD.md` (Android فقط). |
+| `src/lib/release/pwa-audit.ts` | `auditPWA()` — التدقيق الوحيد شبه الكامل **runtime حقيقي**: يجلب `/manifest.webmanifest` فعلياً عبر `fetch` ويحلّل حقوله، يتحقق من تسجيل Service Worker حقيقي عبر `navigator.serviceWorker.getRegistrations()`. النتيجة الحقيقية: **لا Service Worker في المشروع إطلاقاً** → `installability: false` رغم أن `manifest.webmanifest` نفسه مكتمل وصحيح. |
+| `src/lib/release/store-assets.ts` | `generateStoreAssetsChecklist()` — Android (6 بنود) وiOS (5 بنود). الجاهز فعلياً: الأيقونة فقط (من `resources/icon.png`) على كلا المنصّتين؛ كل الباقي (Feature Graphic، لقطات الشاشة، الأوصاف، Metadata) غير موجود. |
+| `src/lib/release/compliance-audit.ts` | `auditCompliance()` — 8 بنود. يُعيد استخدام Ads Audit (`consent_ready` من `mobile/readiness.ts`) وBackup Engine (`loadLastBackup`). حقيقة موثَّقة: **لا آلية حذف حساب/بيانات كاملة** (Data Deletion) — يوجد فقط حذف عناصر فردية، وهو ثغرة امتثال GDPR/CCPA حقيقية. |
+| `src/lib/release/production-audit.ts` | `auditProductionEnvironment()` — 9 بنود. Storage وAuth فحصان **runtime حقيقيان** (استدعاء فعلي لـ `supabase.storage.from("attachments").list()` و`supabase.auth.getUser()`)؛ الباقي (Supabase/RLS/Backup/Notifications/Ads/Mobile/Analytics) يُعاد استخدامه بالكامل من محركات موجودة. |
+| `src/lib/release/launch-checklist.ts` | `generateLaunchChecklist()` — 5 مراحل (Pre-Beta → Closed Beta → Open Beta → Soft Launch → Production Launch)، كل مرحلة مبنية على شروط حقيقية من `calculateReleaseReadiness()` (Prompt 20)، `calculateBetaHealth()` (Prompt 21)، `runSystemHealthCheck()`، `validateFinancialIntegrity()`، وتدقيقات هذا الـ Prompt — بلا أي إعادة حساب لمنطقها. |
+| `src/routes/_authenticated/app.system.tsx` | قسم **هندسة الإطلاق وجاهزية المتاجر (Release Engineering)** جديد: شارات مراحل الإطلاق، بطاقات Android/iOS/PWA Ready، بيانات التطبيق الوصفية، تفصيل كل تدقيق، قائمة أصول المتجر، الامتثال، وبيئة الإنتاج. |
+
+**تقرير الإغلاق (الأسئلة العشرة) — أيضاً في نهاية رسالة الجلسة:** صفر جداول جديدة، صفر migrations،
+Schema Freeze محفوظ بالكامل، كل محرك مُعاد استخدامه فعلياً (Mobile Readiness/Ads Audit/Release
+Readiness/Beta Health/System Health/Integrity/Backup Engine) دون تكرار منطقه، لا Play Console APIs/
+App Store APIs/Firebase/Crashlytics/RevenueCat/Real Ads SDK/Real Push SDK أُضيف، ولا تغيير في أي
+سلوك مالي قائم. الفجوات الحقيقية المكتشفة (لا Service Worker، لا منصّة iOS، لا آلية حذف بيانات، 4
+روابط قانونية/دعم لا تزال placeholder) موثَّقة بالكامل وستحتاج عملاً بشرياً فعلياً قبل أي إطلاق حقيقي.
+
+---
+
+## 20. كيف تُحدَّث هذه الوثيقة
 
 - عند إنجاز بند من "الفجوات" أعلاه: انقله إلى قسم "منجزة" مع رابط الملف/الالتزام (commit).
 - عند بدء خطة تطوير جديدة (سواء مطروحة من المستخدم أو من `.lovable/plan.md` مستقبلاً): أضف قسماً
