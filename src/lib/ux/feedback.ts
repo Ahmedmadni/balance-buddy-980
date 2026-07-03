@@ -82,3 +82,44 @@ export const FEEDBACK_TYPE_LABEL: Record<FeedbackType, string> = {
   question: "سؤال",
   rating: "تقييم",
 };
+
+// =============================================================
+// PART 4 (Prompt 21) — Beta Feedback Dashboard helpers: sorting,
+// filtering, and JSON export. Still purely local — no network call.
+// =============================================================
+
+export type FeedbackSortBy = "newest" | "oldest" | "rating";
+
+export function sortBetaFeedback(
+  entries: BetaFeedbackEntry[],
+  sortBy: FeedbackSortBy = "newest",
+): BetaFeedbackEntry[] {
+  const sorted = [...entries];
+  if (sortBy === "oldest") return sorted.sort((a, b) => +new Date(a.createdAt) - +new Date(b.createdAt));
+  if (sortBy === "rating") return sorted.sort((a, b) => (b.rating ?? 0) - (a.rating ?? 0));
+  return sorted.sort((a, b) => +new Date(b.createdAt) - +new Date(a.createdAt));
+}
+
+export function filterBetaFeedback(
+  entries: BetaFeedbackEntry[],
+  filter: { type?: FeedbackType } = {},
+): BetaFeedbackEntry[] {
+  if (!filter.type) return entries;
+  return entries.filter((e) => e.type === filter.type);
+}
+
+export function exportBetaFeedbackAsJson(entries: BetaFeedbackEntry[] = loadBetaFeedback()): string {
+  return JSON.stringify(entries, null, 2);
+}
+
+export function downloadBetaFeedbackJson(entries: BetaFeedbackEntry[] = loadBetaFeedback()): void {
+  const blob = new Blob([exportBetaFeedbackAsJson(entries)], { type: "application/json" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = `rasd-beta-feedback-${new Date().toISOString().slice(0, 10)}.json`;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 500);
+}

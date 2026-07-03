@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Link } from "@tanstack/react-router";
 import { Button } from "@/components/ui/button";
 import {
@@ -40,6 +40,7 @@ import {
 } from "@/lib/ux/feedback";
 import { createAuditEntry } from "@/lib/system/audit";
 import { captureApplicationError } from "@/lib/system/errors";
+import { recordDialogOpened, recordDialogSaved } from "@/lib/beta/session";
 
 const PLATFORM_LABEL: Record<ReturnType<typeof getPlatform>, string> = {
   android: "أندرويد",
@@ -187,6 +188,10 @@ function FeedbackDialog({
   const [message, setMessage] = useState("");
   const [rating, setRating] = useState(5);
 
+  useEffect(() => {
+    if (open) recordDialogOpened("beta_feedback");
+  }, [open]);
+
   function submit() {
     if (!message.trim() && type !== "rating") {
       toast.error("اكتب رسالة أولاً");
@@ -194,6 +199,7 @@ function FeedbackDialog({
     }
     submitBetaFeedback(type, message.trim(), { rating: type === "rating" ? rating : undefined });
     createAuditEntry("export", `إرسال ملاحظة تجريبية (${FEEDBACK_TYPE_LABEL[type]})`);
+    recordDialogSaved("beta_feedback");
     toast.success("شكراً — تم حفظ ملاحظتك محلياً");
     setMessage("");
     onOpenChange(false);

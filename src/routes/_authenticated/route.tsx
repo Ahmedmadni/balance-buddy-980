@@ -12,6 +12,7 @@ import { PageTransition } from "@/components/motion/PageTransition";
 import { cn } from "@/lib/utils";
 import { useEffect, useState } from "react";
 import { processPendingNotifications } from "@/lib/notifications/engine";
+import { trackBetaSession, recordPageVisit, finalizeCurrentPage } from "@/lib/beta/session";
 
 export const Route = createFileRoute("/_authenticated")({
   ssr: false,
@@ -100,6 +101,18 @@ function AppLayout() {
   }
 
   const pathname = useRouterState({ select: (s) => s.location.pathname });
+
+  // Local-only Beta session/usage tracker (localStorage) — no analytics SDK,
+  // no network call. See src/lib/beta/session.ts.
+  useEffect(() => {
+    trackBetaSession();
+    const onBeforeUnload = () => finalizeCurrentPage();
+    window.addEventListener("beforeunload", onBeforeUnload);
+    return () => window.removeEventListener("beforeunload", onBeforeUnload);
+  }, []);
+  useEffect(() => {
+    recordPageVisit(pathname);
+  }, [pathname]);
 
   return (
     <div className="min-h-screen bg-muted/30 dark:bg-background">

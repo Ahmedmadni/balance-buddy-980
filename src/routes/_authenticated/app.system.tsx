@@ -19,6 +19,12 @@ import { auditQuickActions } from "@/lib/ux/quick-actions";
 import { auditAccessibility } from "@/lib/ux/accessibility";
 import { auditResponsiveLayouts } from "@/lib/ux/responsive";
 import { getContextualHints } from "@/lib/ux/hints";
+import { getBetaUserChecklist } from "@/lib/beta/checklist";
+import { auditFeatureCoverage, type FeatureCoverageStatus } from "@/lib/beta/feature-coverage";
+import { detectUserFriction } from "@/lib/beta/friction";
+import { calculateBetaHealth } from "@/lib/beta/health-score";
+import { detectReleaseBlockers } from "@/lib/beta/release-blockers";
+import { BetaFeedbackDashboard } from "@/components/BetaFeedbackDashboard";
 import { formatMoney } from "@/lib/format";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -46,6 +52,11 @@ import {
   Award,
   LayoutGrid,
   Monitor,
+  FlaskConical,
+  ListChecks,
+  MessageSquareWarning,
+  ShieldAlert,
+  MousePointerClick,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
@@ -138,6 +149,12 @@ function SystemPage() {
   const quickActions = auditQuickActions();
   const a11y = auditAccessibility();
   const responsive = auditResponsiveLayouts();
+
+  const betaChecklist = useQuery({ queryKey: ["beta-checklist"], queryFn: getBetaUserChecklist });
+  const featureCoverage = useQuery({ queryKey: ["beta-coverage"], queryFn: auditFeatureCoverage });
+  const betaHealth = useQuery({ queryKey: ["beta-health"], queryFn: calculateBetaHealth });
+  const releaseBlockers = useQuery({ queryKey: ["beta-blockers"], queryFn: detectReleaseBlockers });
+  const friction = detectUserFriction();
 
   const recommendations: string[] = [];
   if (health.data?.status === "error")
@@ -538,6 +555,156 @@ function SystemPage() {
         </div>
       </Section>
 
+      {/* Beta Operations */}
+      <Section title="عمليات الاختبار المغلق (Beta Operations)" icon={FlaskConical}>
+        <div className="space-y-5">
+          <div>
+            <div className="text-xs font-semibold text-muted-foreground mb-2 flex items-center gap-1.5">
+              <ListChecks className="h-3.5 w-3.5" /> إتمام قائمة المختبر (Beta Completion) —{" "}
+              {betaChecklist.data ? `${betaChecklist.data.completionPercent}%` : "..."}
+            </div>
+            <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
+              {betaChecklist.data?.items.map((item) => (
+                <div
+                  key={item.id}
+                  className={cn(
+                    "flex items-center justify-between gap-2 rounded-xl border p-2.5 text-xs",
+                    item.done ? "border-success/30 bg-success/5" : "border-border bg-card/50",
+                  )}
+                >
+                  <span>{item.label}</span>
+                  {item.done ? (
+                    <CheckCircle2 className="h-3.5 w-3.5 text-success shrink-0" />
+                  ) : (
+                    <XCircle className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+                  )}
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <div>
+            <div className="text-xs font-semibold text-muted-foreground mb-2">
+              تغطية الميزات (Feature Coverage)
+              {featureCoverage.data
+                ? ` — ${featureCoverage.data.coveredCount} مغطاة، ${featureCoverage.data.untestedCount} غير مختبرة، ${featureCoverage.data.neverUsedCount} لم تُستخدم`
+                : ""}
+            </div>
+            <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-5">
+              {featureCoverage.data?.items.map((item) => (
+                <div key={item.id} className="rounded-xl border bg-card/50 p-2.5 text-xs space-y-1">
+                  <div className="flex items-center justify-between">
+                    <span className="font-semibold">{item.label}</span>
+                    <CoverageBadge status={item.status} />
+                  </div>
+                  <div className="text-[11px] text-muted-foreground">{item.detail}</div>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <div>
+            <div className="text-xs font-semibold text-muted-foreground mb-2">صحة Beta (Beta Health Score)</div>
+            {betaHealth.isLoading ? (
+              <SkeletonRows />
+            ) : (
+              <div className="space-y-3">
+                <div className="flex items-center gap-4 rounded-2xl border bg-muted/30 p-4">
+                  <div className="text-4xl font-black tabular-nums text-primary">
+                    {betaHealth.data!.totalScore}
+                  </div>
+                  <div>
+                    <div className="text-sm font-bold">
+                      Beta Health Score: {betaHealth.data!.totalScore}/100
+                    </div>
+                    <div className="text-xs text-muted-foreground">{betaHealth.data!.label}</div>
+                  </div>
+                </div>
+                <div className="grid gap-2.5 sm:grid-cols-2 lg:grid-cols-3">
+                  {betaHealth.data!.categories.map((c) => (
+                    <div key={c.id} className="rounded-2xl border bg-card p-3.5 space-y-1.5">
+                      <div className="flex items-center justify-between text-xs font-semibold">
+                        <span>{c.label}</span>
+                        <span className="tabular-nums text-muted-foreground">{c.score}/100</span>
+                      </div>
+                      <div className="h-1.5 rounded-full bg-muted overflow-hidden">
+                        <div className="h-full bg-primary" style={{ width: `${c.score}%` }} />
+                      </div>
+                      <div className="text-[10px] text-muted-foreground">{c.detail}</div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+
+          <div>
+            <div className="text-xs font-semibold text-muted-foreground mb-2 flex items-center gap-1.5">
+              <ShieldAlert className="h-3.5 w-3.5" /> عوائق الإطلاق (Release Blockers)
+              {releaseBlockers.data ? ` — ${releaseBlockers.data.blockingCount} عائق نشط` : ""}
+            </div>
+            <ul className="space-y-1.5">
+              {releaseBlockers.data?.blockers.map((b) => (
+                <li
+                  key={b.id}
+                  className={cn(
+                    "flex items-start gap-2 rounded-xl border p-2.5 text-xs",
+                    b.blocking ? "border-destructive/30 bg-destructive/5" : "border-success/30 bg-success/5",
+                  )}
+                >
+                  {b.blocking ? (
+                    <XCircle className="h-3.5 w-3.5 text-destructive shrink-0 mt-0.5" />
+                  ) : (
+                    <CheckCircle2 className="h-3.5 w-3.5 text-success shrink-0 mt-0.5" />
+                  )}
+                  <span>
+                    <span className="font-semibold">{b.label}:</span> {b.detail}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          </div>
+
+          <div>
+            <div className="text-xs font-semibold text-muted-foreground mb-2">
+              ملخص الملاحظات (Feedback Summary)
+            </div>
+            <BetaFeedbackDashboard />
+          </div>
+
+          <div>
+            <div className="text-xs font-semibold text-muted-foreground mb-2 flex items-center gap-1.5">
+              <MousePointerClick className="h-3.5 w-3.5" /> نقاط الاحتكاك (Friction Points) —{" "}
+              {friction.signals.length} إشارة
+            </div>
+            {friction.signals.length === 0 ? (
+              <div className="rounded-xl border border-dashed p-3 text-center text-xs text-muted-foreground">
+                لا توجد إشارات احتكاك مسجَّلة بعد
+              </div>
+            ) : (
+              <ul className="space-y-1.5">
+                {friction.signals.map((s) => (
+                  <li
+                    key={s.id}
+                    className={cn(
+                      "flex items-start gap-2 rounded-xl border p-2.5 text-xs",
+                      s.severity === "high"
+                        ? "border-destructive/30 bg-destructive/5"
+                        : "border-warning/30 bg-warning/5",
+                    )}
+                  >
+                    <MessageSquareWarning className="h-3.5 w-3.5 shrink-0 mt-0.5" />
+                    <span>
+                      <span className="font-semibold">{s.label}:</span> {s.detail}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+        </div>
+      </Section>
+
       {/* Integrity */}
       <Section title="سلامة البيانات (Integrity)" icon={Bug}>
         {integrity.isLoading ? (
@@ -608,6 +775,10 @@ function SystemPage() {
             qc.invalidateQueries({ queryKey: ["system-offline"] });
             qc.invalidateQueries({ queryKey: ["ux-readiness"] });
             qc.invalidateQueries({ queryKey: ["ux-hints"] });
+            qc.invalidateQueries({ queryKey: ["beta-checklist"] });
+            qc.invalidateQueries({ queryKey: ["beta-coverage"] });
+            qc.invalidateQueries({ queryKey: ["beta-health"] });
+            qc.invalidateQueries({ queryKey: ["beta-blockers"] });
           }}
         >
           <RefreshCw className="h-4 w-4 ml-1" /> إعادة الفحص
@@ -677,6 +848,16 @@ function QualityBadge({ quality }: { quality: EmptyStateQuality }) {
     missing: { label: "مفقودة", cls: "text-destructive" },
   };
   const m = map[quality];
+  return <span className={cn("text-[10px] font-semibold", m.cls)}>{m.label}</span>;
+}
+
+function CoverageBadge({ status }: { status: FeatureCoverageStatus }) {
+  const map: Record<FeatureCoverageStatus, { label: string; cls: string }> = {
+    covered: { label: "مغطاة", cls: "text-success" },
+    untested: { label: "غير مختبرة", cls: "text-warning" },
+    never_used: { label: "لم تُستخدم", cls: "text-muted-foreground" },
+  };
+  const m = map[status];
   return <span className={cn("text-[10px] font-semibold", m.cls)}>{m.label}</span>;
 }
 

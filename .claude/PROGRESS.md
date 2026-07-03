@@ -6,8 +6,8 @@
 
 آخر مراجعة: 2026-07-03 (فرع `claude/project-setup-plan-4fz4w9`) — أُضيف القسم 5 (Notification
 Delivery Engine)، القسم 7 (Analytics & Insights Engine)، القسم 9 (Production Hardening)، القسم 11
-(Mobile Packaging & Cross-Platform Readiness)، القسم 13 (Ads Production Readiness)، والقسم 15
-(UX Polish & Beta Testing Readiness).
+(Mobile Packaging & Cross-Platform Readiness)، القسم 13 (Ads Production Readiness)، القسم 15
+(UX Polish & Beta Testing Readiness)، والقسم 17 (Closed Beta Operations Framework).
 
 ---
 
@@ -249,7 +249,33 @@ person_ledger/system_events/v_account_statement/أي Trigger/RLS)، كل محر�
 
 ---
 
-## 16. كيف تُحدَّث هذه الوثيقة
+## 17. Prompt 21 — Closed Beta Operations Framework (منجز)
+
+تهيئة تشغيلية لإطلاق Beta مغلقة فعلية: قائمة تحقق للمختبر، متتبّع جلسات محلي، تدقيق تغطية ميزات،
+لوحة ملاحظات تفاعلية (ترتيب/تصفية/تصدير)، اكتشاف نقاط احتكاك، درجة صحة Beta، وعوائق إطلاق. صفر
+جداول جديدة، صفر migrations، صفر تعديل على أي منطق مالي.
+
+| الملف | الدور |
+|---|---|
+| `src/lib/beta/session.ts` | **الأساس**: `trackBetaSession()` محرك تتبّع استخدام محلي بالكامل (`localStorage`، لا SDK تحليلات) — عدد الجلسات، مدة كل جلسة (heartbeat)، الصفحات المفتوحة ومدة كل زيارة، ووظائف/نوافذ مستخدَمة عبر `recordFeatureUse()`/`recordDialogOpened()`/`recordDialogSaved()`. جلسة جديدة تبدأ بعد 30 دقيقة خمول. مُوصَّل في `route.tsx` (تتبّع تنقّل + heartbeat + `beforeunload`) و`QuickActionsRow.tsx` (نقرات البلاطات + نافذة التخصيص) و`HelpSection.tsx` (نافذة الملاحظات). |
+| `src/lib/beta/checklist.ts` | `getBetaUserChecklist()` — 8 بنود (محفظة/عملية/أصل/دين من Supabase الفعلي، نسخة احتياطية من `loadLastBackup()`، وفتح الزكاة/الرؤى/الإعدادات من الجلسات المحلية المتتبَّعة)، يحسب **Beta Completion %**. |
+| `src/lib/beta/feature-coverage.ts` | `auditFeatureCoverage()` — 10 مجالات (Wallets/Expenses/Debts/Investments/Assets/Zakat/Reports/Notifications/Backup/Insights) مصنَّفة **Covered / Untested / Never Used** حسب وجود بيانات حقيقية + زيارة الصفحة محلياً. Reports/Insights بلا جدول بيانات مخصّص فمصدرهما زيارة الصفحة فقط (موثَّق في الكود). |
+| `src/lib/ux/feedback.ts` | تمديد محرك Prompt 20: `sortBetaFeedback()`، `filterBetaFeedback()`، `exportBetaFeedbackAsJson()`، `downloadBetaFeedbackJson()` (نفس نمط `downloadDiagnosticReport`). |
+| `src/components/BetaFeedbackDashboard.tsx` | لوحة ملاحظات Beta تفاعلية كاملة: ملخص حسب النوع + متوسط تقييم، ترتيب (الأحدث/الأقدم/التقييم)، تصفية حسب النوع، تصدير JSON، حذف فردي. |
+| `src/lib/beta/friction.ts` | `detectUserFriction()` — يُعيد استخدام 3 محركات فعلية: مغادرة سريعة من إحصاءات الجلسات، صفحات بلا إجراء من `auditEmptyStates()` (quality="missing")، عمليات >ضغطتين من `auditQuickActions()`؛ زائد إشارة رابعة حقيقية جزئية (نوافذ أُغلقت دون حفظ) من نوافذ مُدرَّجة صراحةً (الملاحظات + تخصيص الإجراءات السريعة) — موثَّق كتغطية جزئية وليست شاملة. |
+| `src/lib/beta/health-score.ts` | `calculateBetaHealth()` — 6 فئات موزونة (Usage 15، Completion 20، Stability 20، Feedback 15، Accessibility 15، Mobile Usage 15) تُخرج **Beta Health Score XX/100**، كل فئة تُعيد استخدام محرك فعلي (Session Tracker/Checklist/System Health/Feedback Log/Accessibility Audit). |
+| `src/lib/beta/release-blockers.ts` | `detectReleaseBlockers()` — 7 فحوصات (Empty States/Mobile/Accessibility/Backup/Notifications/Ads/Help Pages) كلها تُعيد استخدام تدقيقات موجودة فعلياً، بلا تكرار منطق. |
+| `src/routes/_authenticated/app.system.tsx` | قسم **عمليات الاختبار المغلق (Beta Operations)** جديد يجمع الستة: Beta Completion، Feature Coverage، Beta Health Score، Release Blockers، لوحة الملاحظات (`BetaFeedbackDashboard`)، ونقاط الاحتكاك. |
+
+**تقرير الإغلاق (الأسئلة العشرة) — أيضاً في نهاية رسالة الجلسة:** صفر جداول جديدة، صفر migrations،
+Schema Freeze محفوظ بالكامل، كل محرك مُعاد استخدامه فعلياً (Help/Feedback/Release Readiness/Mobile
+Readiness/Ads Audit/Notifications/System Health/Performance)، لا Firebase Analytics/PostHog/
+Mixpanel/Amplitude/Hotjar/Session Replay/تخزين سحابي أُضيف — التتبّع بالكامل محلي في `localStorage`
+بلا أي معرّف مستخدم يُرسَل لأي خادم، ولا تغيير في أي سلوك مالي قائم.
+
+---
+
+## 18. كيف تُحدَّث هذه الوثيقة
 
 - عند إنجاز بند من "الفجوات" أعلاه: انقله إلى قسم "منجزة" مع رابط الملف/الالتزام (commit).
 - عند بدء خطة تطوير جديدة (سواء مطروحة من المستخدم أو من `.lovable/plan.md` مستقبلاً): أضف قسماً
