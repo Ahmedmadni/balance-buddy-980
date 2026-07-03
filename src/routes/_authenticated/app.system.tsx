@@ -41,6 +41,27 @@ import { auditConsentReadiness } from "@/lib/compliance/consent-readiness";
 import { auditProductionConfig } from "@/lib/compliance/production-config-audit";
 import { auditDisasterRecovery } from "@/lib/compliance/disaster-recovery-audit";
 import { runFinalProductionAudit } from "@/lib/release/final-audit";
+import { auditFeatureFlags } from "@/lib/features/audit";
+import { auditCrashReporting } from "@/lib/crash/audit";
+import { auditRemoteConfig } from "@/lib/remote-config/audit";
+import { loadRemoteConfig } from "@/lib/remote-config/engine";
+import { auditEmergencyMode } from "@/lib/emergency/audit";
+import {
+  enableMaintenanceMode,
+  disableMaintenanceMode,
+  disableAds,
+  enableAds,
+  disableNotifications,
+  enableNotifications,
+  disableBeta,
+  enableBeta,
+} from "@/lib/emergency/actions";
+import { getCurrentReleaseChannel, auditReleaseChannel, RELEASE_CHANNEL_LABEL } from "@/lib/release/channels";
+import { auditStoreReadiness } from "@/lib/release/store-readiness";
+import { evaluateProductionGate } from "@/lib/release/production-gate";
+import { processPendingNotifications } from "@/lib/notifications/engine";
+import { loadLastBackup } from "@/lib/backup/engine";
+import { verifyBackupIntegrity } from "@/lib/backup/integrity";
 import { formatMoney } from "@/lib/format";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -87,6 +108,13 @@ import {
   Download,
   Flag,
   TrendingUp,
+  ToggleLeft,
+  AlertOctagon,
+  Radio,
+  Siren,
+  GitBranch,
+  Store,
+  ShieldQuestion,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -218,6 +246,36 @@ function SystemPage() {
   const [legalDoc, setLegalDoc] = useState<"privacy" | "terms" | null>(null);
 
   const finalAudit = useQuery({ queryKey: ["release-final-audit"], queryFn: runFinalProductionAudit });
+
+  // ----- Prompt 25: Production Safety & Operations Layer -----
+  const featureFlagsAudit = auditFeatureFlags();
+  const crashAudit = auditCrashReporting();
+  const remoteConfigQuery = useQuery({
+    queryKey: ["remote-config"],
+    queryFn: async () => {
+      await loadRemoteConfig();
+      return auditRemoteConfig();
+    },
+  });
+  const notifHealth = useQuery({
+    queryKey: ["notification-health"],
+    queryFn: () => processPendingNotifications(),
+  });
+  const [emergencyState, setEmergencyState] = useState(() => auditEmergencyMode());
+  function refreshEmergencyState() {
+    setEmergencyState(auditEmergencyMode());
+  }
+  const releaseChannel = getCurrentReleaseChannel();
+  const releaseChannelAudit = auditReleaseChannel();
+  const storeReadiness = useQuery({ queryKey: ["store-readiness"], queryFn: auditStoreReadiness });
+  const productionGate = useQuery({ queryKey: ["production-gate"], queryFn: evaluateProductionGate });
+  const backupHealth = useQuery({
+    queryKey: ["backup-health-ops"],
+    queryFn: async () => {
+      const bundle = await loadLastBackup();
+      return bundle ? verifyBackupIntegrity(bundle) : null;
+    },
+  });
 
   const recommendations: string[] = [];
   if (health.data?.status === "error")
@@ -1201,6 +1259,257 @@ function SystemPage() {
         )}
       </Section>
 
+      {/* Production Operations (Prompt 25) */}
+      <Section title="عمليات الإنتاج (Production Operations)" icon={Siren}>
+        <div className="space-y-5">
+          <div>
+            <div className="text-xs font-semibold text-muted-foreground mb-2 flex items-center gap-1.5">
+              <AlertOctagon className="h-3.5 w-3.5" /> حالة الأعطال (Crash Status) — المزوّد النشط: {crashAudit.activeProvider}
+            </div>
+            <div className="grid gap-2.5 sm:grid-cols-3">
+              <MetricCard icon={AlertOctagon} label="عدد الأخطاء" value={String(crashAudit.errorCount)} />
+              <MetricCard icon={Gauge} label="معدل الأخطاء (24 ساعة)" value={String(crashAudit.errorRatePerDay)} />
+              <MetricCard
+                icon={AlertTriangle}
+                label="آخر خطأ"
+                value={crashAudit.lastError ? crashAudit.lastError.message.slice(0, 40) : "لا يوجد"}
+              />
+            </div>
+          </div>
+
+          <div>
+            <div className="text-xs font-semibold text-muted-foreground mb-2 flex items-center gap-1.5">
+              <ToggleLeft className="h-3.5 w-3.5" /> أعلام الميزات (Feature Flags)
+            </div>
+            <div className="grid gap-2.5 sm:grid-cols-3 lg:grid-cols-5">
+              <MetricCard icon={ToggleLeft} label="عدد الميزات" value={String(featureFlagsAudit.total)} />
+              <MetricCard icon={CheckCircle2} label="المفعلة" value={String(featureFlagsAudit.enabledCount)} />
+              <MetricCard icon={XCircle} label="المعطلة" value={String(featureFlagsAudit.disabledCount)} />
+              <MetricCard icon={FlaskConical} label="Beta" value={String(featureFlagsAudit.betaCount)} />
+              <MetricCard icon={Award} label="Premium" value={String(featureFlagsAudit.premiumCount)} />
+            </div>
+          </div>
+
+          <div>
+            <div className="text-xs font-semibold text-muted-foreground mb-2 flex items-center gap-1.5">
+              <Radio className="h-3.5 w-3.5" /> الإعدادات عن بُعد (Remote Config)
+            </div>
+            {remoteConfigQuery.data ? (
+              <div className="grid gap-2.5 sm:grid-cols-3">
+                <MetricCard
+                  icon={CheckCircle2}
+                  label="حالة التحميل"
+                  value={remoteConfigQuery.data.loaded ? "محمَّل" : "لم يُحمَّل بعد"}
+                />
+                <MetricCard icon={Database} label="عدد المفاتيح" value={String(remoteConfigQuery.data.keyCount)} />
+                <MetricCard
+                  icon={RefreshCw}
+                  label="آخر تحديث"
+                  value={
+                    remoteConfigQuery.data.lastUpdate
+                      ? new Date(remoteConfigQuery.data.lastUpdate).toLocaleString("ar")
+                      : "—"
+                  }
+                />
+              </div>
+            ) : (
+              <SkeletonRows />
+            )}
+          </div>
+
+          <div>
+            <div className="text-xs font-semibold text-muted-foreground mb-2 flex items-center gap-1.5">
+              <HardDrive className="h-3.5 w-3.5" /> سلامة النسخ الاحتياطي (Backup Health)
+            </div>
+            {backupHealth.isLoading ? (
+              <SkeletonRows />
+            ) : backupHealth.data ? (
+              <div className="grid gap-2.5 sm:grid-cols-3">
+                <MetricCard
+                  icon={backupHealth.data.valid ? CheckCircle2 : XCircle}
+                  label="الحالة"
+                  value={backupHealth.data.valid ? "سليمة" : "بها أخطاء"}
+                />
+                <MetricCard icon={Gauge} label="درجة التوافق" value={`${backupHealth.data.score}/100`} />
+                <MetricCard
+                  icon={Database}
+                  label="إجمالي السجلات"
+                  value={String(backupHealth.data.statistics.totalRecords)}
+                />
+              </div>
+            ) : (
+              <div className="rounded-xl border border-dashed p-3 text-center text-xs text-muted-foreground">
+                لا نسخة احتياطية محلية بعد
+              </div>
+            )}
+          </div>
+
+          <div>
+            <div className="text-xs font-semibold text-muted-foreground mb-2 flex items-center gap-1.5">
+              <Bell className="h-3.5 w-3.5" /> سلامة الإشعارات (Notification Health)
+            </div>
+            {notifHealth.isLoading ? (
+              <SkeletonRows />
+            ) : notifHealth.data ? (
+              <div className="grid gap-2.5 sm:grid-cols-4">
+                <MetricCard icon={Bell} label="أحداث مفحوصة" value={String(notifHealth.data.scanned)} />
+                <MetricCard icon={CheckCircle2} label="أُرسلت" value={String(notifHealth.data.sent)} />
+                <MetricCard icon={AlertTriangle} label="تم تخطّيها" value={String(notifHealth.data.skipped)} />
+                <MetricCard icon={XCircle} label="فشلت" value={String(notifHealth.data.failed)} />
+              </div>
+            ) : (
+              <SkeletonRows />
+            )}
+          </div>
+
+          <div>
+            <div className="text-xs font-semibold text-muted-foreground mb-2 flex items-center gap-1.5">
+              <Siren className="h-3.5 w-3.5" /> وضع الطوارئ (Emergency Mode) — مفاتيح استشارية محلية فقط، لا
+              تُعطّل المحرك المالي أو النسخ الاحتياطي أو المصادقة أبداً (لا دالة لذلك في هذا التطبيق)
+            </div>
+            <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
+              <EmergencyToggle
+                label="وضع الصيانة"
+                active={emergencyState.state.maintenanceMode}
+                onEnable={enableMaintenanceMode}
+                onDisable={disableMaintenanceMode}
+                refresh={refreshEmergencyState}
+              />
+              <EmergencyToggle
+                label="تعطيل الإعلانات"
+                active={emergencyState.state.adsDisabled}
+                onEnable={disableAds}
+                onDisable={enableAds}
+                refresh={refreshEmergencyState}
+              />
+              <EmergencyToggle
+                label="تعطيل الإشعارات"
+                active={emergencyState.state.notificationsDisabled}
+                onEnable={disableNotifications}
+                onDisable={enableNotifications}
+                refresh={refreshEmergencyState}
+              />
+              <EmergencyToggle
+                label="تعطيل ميزات Beta"
+                active={emergencyState.state.betaDisabled}
+                onEnable={disableBeta}
+                onDisable={enableBeta}
+                refresh={refreshEmergencyState}
+              />
+            </div>
+          </div>
+        </div>
+      </Section>
+
+      {/* Production Gate (Prompt 25) */}
+      <Section title="بوابة الإنتاج (Production Gate)" icon={GitBranch}>
+        {productionGate.isLoading ? (
+          <SkeletonRows />
+        ) : (
+          <div className="space-y-5">
+            <div
+              className={cn(
+                "flex items-center gap-4 rounded-2xl border p-4",
+                productionGate.data!.productionReady
+                  ? "border-success/30 bg-success/5"
+                  : "border-warning/30 bg-warning/5",
+              )}
+            >
+              <div className="text-4xl font-black tabular-nums text-primary">{productionGate.data!.score}</div>
+              <div>
+                <div className="text-sm font-bold flex items-center gap-2">
+                  Production Gate Score: {productionGate.data!.score}/100
+                  {productionGate.data!.productionReady ? (
+                    <span className="inline-flex items-center gap-1 rounded-full bg-success/15 px-2 py-0.5 text-[10px] font-semibold text-success">
+                      <CheckCircle2 className="h-3 w-3" /> البوابة مفتوحة
+                    </span>
+                  ) : (
+                    <span className="inline-flex items-center gap-1 rounded-full bg-warning/15 px-2 py-0.5 text-[10px] font-semibold text-warning">
+                      <AlertTriangle className="h-3 w-3" /> البوابة مغلقة
+                    </span>
+                  )}
+                </div>
+                <div className="text-xs text-muted-foreground">
+                  {productionGate.data!.blockers.length} عائق حرج، {productionGate.data!.warnings.length} تحذير
+                </div>
+              </div>
+            </div>
+
+            <div className="grid gap-2.5 sm:grid-cols-2 lg:grid-cols-3">
+              <MetricCard icon={GitBranch} label="القناة الحالية (Release Channel)" value={RELEASE_CHANNEL_LABEL[releaseChannel]} />
+              <MetricCard
+                icon={Store}
+                label="جاهزية المتاجر (Store Readiness)"
+                value={storeReadiness.data ? `${storeReadiness.data.score}/100` : "..."}
+              />
+              <MetricCard
+                icon={ShieldQuestion}
+                label="حالة الامتثال (Compliance)"
+                value={complianceAudit.data ? `${complianceAudit.data.score}/100` : "..."}
+              />
+            </div>
+
+            <div className="rounded-xl border bg-card/50 p-2.5 text-xs text-muted-foreground">{releaseChannelAudit.detail}</div>
+
+            <div>
+              <div className="text-xs font-semibold text-muted-foreground mb-2">قائمة تدقيق البوابة (Checklist)</div>
+              <CheckGrid items={productionGate.data!.checklist} />
+            </div>
+
+            {storeReadiness.data && (
+              <div>
+                <div className="text-xs font-semibold text-muted-foreground mb-2">تفصيل جاهزية المتاجر</div>
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <div className="rounded-2xl border bg-card p-3.5 space-y-2">
+                    <div className="text-xs font-bold flex items-center justify-between">
+                      <span>Google Play</span>
+                      <span className="text-muted-foreground">{storeReadiness.data.android.score}/100</span>
+                    </div>
+                    <CheckGrid items={storeReadiness.data.android.checks} />
+                  </div>
+                  <div className="rounded-2xl border bg-card p-3.5 space-y-2">
+                    <div className="text-xs font-bold flex items-center justify-between">
+                      <span>Apple App Store</span>
+                      <span className="text-muted-foreground">{storeReadiness.data.ios.score}/100</span>
+                    </div>
+                    <CheckGrid items={storeReadiness.data.ios.checks} />
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {productionGate.data!.blockers.length > 0 && (
+              <div>
+                <div className="text-xs font-semibold text-muted-foreground mb-2">عوائق حرجة (Critical Blockers)</div>
+                <ul className="space-y-1.5">
+                  {productionGate.data!.blockers.map((b, i) => (
+                    <li
+                      key={i}
+                      className="flex items-start gap-2 rounded-xl border border-destructive/30 bg-destructive/5 p-2.5 text-xs"
+                    >
+                      <XCircle className="h-3.5 w-3.5 text-destructive shrink-0 mt-0.5" /> {b}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+
+            <div>
+              <div className="text-xs font-semibold text-muted-foreground mb-2 flex items-center gap-1.5">
+                <TrendingUp className="h-3.5 w-3.5" /> التوصيات
+              </div>
+              <div className="rounded-xl border bg-muted/30 p-3 space-y-1.5">
+                {productionGate.data!.recommendations.map((r, i) => (
+                  <div key={i} className="text-xs text-muted-foreground">
+                    • {r}
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        )}
+      </Section>
+
       <div className="flex justify-end">
         <Button
           variant="outline"
@@ -1225,6 +1534,12 @@ function SystemPage() {
             qc.invalidateQueries({ queryKey: ["compliance-prod-config"] });
             qc.invalidateQueries({ queryKey: ["compliance-disaster-recovery"] });
             qc.invalidateQueries({ queryKey: ["release-final-audit"] });
+            qc.invalidateQueries({ queryKey: ["remote-config"] });
+            qc.invalidateQueries({ queryKey: ["notification-health"] });
+            qc.invalidateQueries({ queryKey: ["store-readiness"] });
+            qc.invalidateQueries({ queryKey: ["production-gate"] });
+            qc.invalidateQueries({ queryKey: ["backup-health-ops"] });
+            refreshEmergencyState();
           }}
         >
           <RefreshCw className="h-4 w-4 ml-1" /> إعادة الفحص
@@ -1305,6 +1620,45 @@ function CoverageBadge({ status }: { status: FeatureCoverageStatus }) {
   };
   const m = map[status];
   return <span className={cn("text-[10px] font-semibold", m.cls)}>{m.label}</span>;
+}
+
+function EmergencyToggle({
+  label,
+  active,
+  onEnable,
+  onDisable,
+  refresh,
+}: {
+  label: string;
+  active: boolean;
+  onEnable: () => void;
+  onDisable: () => void;
+  refresh: () => void;
+}) {
+  return (
+    <div className={cn("rounded-2xl border p-3.5 space-y-2", active ? "border-warning/30 bg-warning/5" : "border-border bg-card/50")}>
+      <div className="flex items-center justify-between text-xs font-semibold">
+        <span>{label}</span>
+        {active ? (
+          <AlertTriangle className="h-3.5 w-3.5 text-warning" />
+        ) : (
+          <CheckCircle2 className="h-3.5 w-3.5 text-success" />
+        )}
+      </div>
+      <div className="text-[11px] text-muted-foreground">{active ? "مفعَّل الآن" : "غير مفعَّل"}</div>
+      <Button
+        size="sm"
+        variant="outline"
+        className="w-full h-7 text-[11px]"
+        onClick={() => {
+          (active ? onDisable : onEnable)();
+          refresh();
+        }}
+      >
+        {active ? "إيقاف" : "تفعيل"}
+      </Button>
+    </div>
+  );
 }
 
 function CheckGrid({

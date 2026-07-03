@@ -9,8 +9,9 @@ Delivery Engine)، القسم 7 (Analytics & Insights Engine)، القسم 9 (Pr
 (Mobile Packaging & Cross-Platform Readiness)، القسم 13 (Ads Production Readiness)، القسم 15
 (UX Polish & Beta Testing Readiness)، القسم 17 (Closed Beta Operations Framework)، القسم 19
 (Release Engineering & Store Readiness)، القسم 21 (Compliance, Privacy & Production Hardening)،
-والقسم 23 (Production Hardening & Compliance Remediation — Safe Mode، أول Prompt يُصلح Backup Engine
-فعلياً بدل الاكتفاء بالتقرير عنه).
+القسم 23 (Production Hardening & Compliance Remediation — Safe Mode، أول Prompt يُصلح Backup Engine
+فعلياً بدل الاكتفاء بالتقرير عنه)، والقسم 25 (Production Safety & Operations Layer — أعلام ميزات،
+تقارير أعطال، إعدادات عن بُعد، وضع طوارئ، وبوابة إنتاج نهائية).
 
 ---
 
@@ -364,7 +365,34 @@ v_account_statement/Triggers/RLS/Views/المحركات المالية — بل�
 
 ---
 
-## 24. كيف تُحدَّث هذه الوثيقة
+## 25. Prompt 25 — Production Safety & Operations Layer (Safe Mode) (منجز)
+
+بناء طبقة تشغيل وإدارة إنتاج (Operations Layer) كاملة: أعلام ميزات، تجريد تقارير أعطال، إعدادات عن
+بُعد، قنوات إصدار، جاهزية متاجر، وبوابة إنتاج نهائية تجمع كل تدقيقات الجلسة. على عكس Prompt 24، لم
+يُعدَّل أي محرك موجود هذه المرة — الملف الوحيد المعدَّل هو `app.system.tsx` (توسيع UI معتاد). صفر
+جداول جديدة، صفر migrations، صفر تعديل على transactions/investment_transactions/investments/
+person_ledger/system_events/v_account_statement/أي Trigger/RLS/View/محرك مالي/زكاة/إهلاك/نسخ
+احتياطي/إشعارات.
+
+| الملف | الدور |
+|---|---|
+| `src/lib/features/{types,storage,config,engine,audit}.ts` | **PART 1** — محرك أعلام ميزات كامل: 7 أنواع (always/development/internal/beta/premium/production/disabled)، `enableFeature()`/`disableFeature()`/`isFeatureEnabled()`/`getFeatureState()`، دعم Rollout % عبر Bucket جهاز ثابت مُولَّد مرة واحدة. سجل ثابت من 8 ميزات حقيقية مبنية عبر الجلسة (لوحة الرؤى، أماكن الإعلانات، لوحة ملاحظات Beta، صفحة /app/system نفسها، إلخ). |
+| `src/lib/crash/{context,provider,local,audit}.ts` | **PART 2** — واجهة `captureError()`/`captureException()`/`captureMessage()`/`setUser()`/`setContext()`/`clearContext()` قابلة للتوصيل بمزوّد. `LocalCrashProvider` (الوحيد الفعّال) يُعيد استخدام `captureApplicationError()` من `system/errors.ts` (Prompt 17) بدل سجل ثانٍ منفصل. `SentryProviderStub`/`FirebaseCrashlyticsStub` بلا أي SDK محمَّل. |
+| `src/lib/remote-config/{config,engine,audit}.ts` | **PART 3** — 6 مفاتيح (`ads_enabled`, `premium_enabled`, `notifications_enabled`, `maintenance_mode`, `beta_features`, `rollout_percentage`)، مصدر `LocalStorageConfigSource` وحيد حالياً خلف واجهة `RemoteConfigSource` قابلة للاستبدال لاحقاً بـ Supabase/Firebase/JSON CDN دون تغيير أي كود مستدعٍ. |
+| `src/lib/emergency/{mode,actions,audit}.ts` | **PART 5** — مفاتيح طوارئ محلية استشارية فقط (صيانة/إعلانات/إشعارات/Beta) — **لا تلمس** كود المحركات الفعلية (بلا تعديل ads/notifications engines)، فقط تُخزَّن وتُعرَض في اللوحة ليتصرّف المشغِّل يدوياً. **لا توجد دالة واحدة** لتعطيل المحرك المالي أو النسخ الاحتياطي أو المصادقة — بالتصميم، مذكور صراحة في تعليق الكود. |
+| `src/lib/release/channels.ts` | **PART 6** — `getCurrentReleaseChannel()`/`setReleaseChannel()`/`auditReleaseChannel()` — القناة الافتراضية مُشتقّة من إشارة حقيقية (`import.meta.env.DEV`) لا تخمين. |
+| `src/lib/release/store-readiness.ts` | **PART 7** — `auditStoreReadiness()`: 6 فحوصات Google Play (Privacy Policy/Data Safety/Ads Declaration/Target SDK/Backup/Notifications) و6 فحوصات Apple (Privacy Manifest/ATT/In-App Purchases/Notifications/Account Deletion/Legal URLs)، كلها تُعيد استخدام عناصر حقيقية من `metadata-audit.ts`/`android-audit.ts`/`ios-audit.ts`/`compliance-audit.ts` (Prompt 22-23) دون إعادة اشتقاقها. اكتشاف مهم: **Account Deletion = error** فعلياً وفق دليل Apple 5.1.1(v) (معاينة فقط، بلا تنفيذ). |
+| `src/lib/release/production-gate.ts` | **PART 8** — `evaluateProductionGate()`: بوابة نهائية تُعيد استخدام 9 تقارير حقيقية (Final Audit، Compliance، Release Checklist، Beta Health، Feature Coverage، Mobile Audit، Ads Audit، Backup Integrity، Release Blockers) لإنتاج `{productionReady, score, blockers, warnings, recommendations, checklist}`. |
+| `src/routes/_authenticated/app.system.tsx` | **PART 4 + 9** — قسمان جديدان: **عمليات الإنتاج (Production Operations)** (حالة الأعطال، أعلام الميزات، الإعدادات عن بُعد، سلامة النسخ الاحتياطي عبر `verifyBackupIntegrity()`، سلامة الإشعارات عبر `processPendingNotifications()`، أزرار تفعيل/تعطيل وضع الطوارئ)، و**بوابة الإنتاج (Production Gate)** (Production Score بارز، القناة الحالية، جاهزية المتاجر بالتفصيل، حالة الامتثال، قائمة تدقيق البوابة، العوائق الحرجة، التوصيات). |
+
+**تقرير الإغلاق (الأسئلة العشرة+ الإضافية) — أيضاً في نهاية رسالة الجلسة:** صفر جداول جديدة، صفر
+migrations، Schema Freeze محفوظ بالكامل (لا تعديل على أي محرك مالي/زكاة/إهلاك/نسخ احتياطي/إشعارات
+هذه المرة — الملف الوحيد المُعدَّل هو `app.system.tsx`)، Feature Flags/Crash Reporting/Remote
+Config/Emergency Controls/Production Gate جميعها جاهزة وتعمل فعلياً، ولا تغيير في أي سلوك مالي قائم.
+
+---
+
+## 26. كيف تُحدَّث هذه الوثيقة
 
 - عند إنجاز بند من "الفجوات" أعلاه: انقله إلى قسم "منجزة" مع رابط الملف/الالتزام (commit).
 - عند بدء خطة تطوير جديدة (سواء مطروحة من المستخدم أو من `.lovable/plan.md` مستقبلاً): أضف قسماً
