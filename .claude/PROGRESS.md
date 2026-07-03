@@ -5,8 +5,8 @@
 حدّث هذا الملف كلما اكتمل بند أو استُجد بند جديد.
 
 آخر مراجعة: 2026-07-02 (فرع `claude/project-setup-plan-4fz4w9`) — أُضيف القسم 5 (Notification
-Delivery Engine)، القسم 7 (Analytics & Insights Engine)، القسم 9 (Production Hardening)، والقسم 11
-(Mobile Packaging & Cross-Platform Readiness) في نفس اليوم.
+Delivery Engine)، القسم 7 (Analytics & Insights Engine)، القسم 9 (Production Hardening)، القسم 11
+(Mobile Packaging & Cross-Platform Readiness)، والقسم 13 (Ads Production Readiness) في نفس اليوم.
 
 ---
 
@@ -197,7 +197,30 @@ Capacitor — Ads/iOS AdMob لا يزال placeholder)، ولا تغيير في 
 
 ---
 
-## 12. كيف تُحدَّث هذه الوثيقة
+## 13. Prompt 19 — Monetization & Ads Production Readiness (منجز)
+
+تحويل بنية الإعلانات من Placeholder فقط إلى بنية جاهزة للإنتاج (بدون تحميل أي SDK حقيقي أو عرض أي
+إعلان). صفر جداول جديدة، صفر migrations، صفر تعديل على أي منطق مالي.
+
+| الملف | الدور |
+|---|---|
+| `src/lib/ads/placements.ts` | **مصدر الحقيقة الوحيد** لكل الأماكن الإعلانية (AdPlacement, AdFormat, AD_PLACEMENTS, PLACEMENT_FORMAT). `ad-config.ts` أصبح يعيد تصديرها بدل تعريفها محلياً (توافق كامل للخلف — لا حاجة لتعديل أي مستورد قديم). |
+| `src/lib/ads/audit.ts` | `auditAdsConfiguration()` — يقارن معرّفات AdSense/AdMob (Web/Android/iOS + كل مكان إعلاني) بأنماط الـ placeholder المعروفة (`ca-app-pub-XXX...`, أرقام AdSense التسلسلية `000000000N`, معرّفات Google الاختبارية الرسمية). |
+| `src/lib/ads/rules.ts` | `evaluateAdVisibility()` — استُخرجت من منطق `AdSlot.tsx` نفسه (Premium/Test Mode/Platform/User Preferences/Placement Rules) لتصبح دالة نقية قابلة لإعادة الاستخدام والاختبار؛ `AdSlot.tsx` الآن يستدعيها بدل تكرار المنطق — نفس السلوك بالضبط (تحقّق عبر جدول الحقيقة). |
+| `src/lib/ads/simulation.ts` | `simulateAdRevenue()` — حساب حسابي بحت (DAU × ظهور × eCPM/CTR)، بدون أي اتصال خارجي أو بيانات مستخدمين حقيقية. |
+| `src/lib/ads/premium.ts` | `validatePremiumExperience()` — يتحقق عبر `evaluateAdVisibility()` نفسها أن كل الأماكن الإعلانية (Web/Android/iOS) مخفية لمستخدم Premium، وأن `NoopAdProvider` هو الوحيد المستخدم. |
+| `src/lib/mobile/readiness.ts` | `checkAdMobReadiness()` أصبح يُعيد استخدام `auditAdsConfiguration()` بدل تكرار منطق كشف الـ placeholder. أُضيفت 3 بنود جديدة لـ `generateReleaseChecklist()`: **Ads Production Ready** (كل الأماكن بمعرّفات حقيقية)، **Premium Ready** (`validatePremiumExperience()`)، **Consent Ready** (تحذير دائم بالتصميم — لا آلية Consent موجودة عمداً). |
+| `src/routes/_authenticated/app.system.tsx` | قسم **حالة الإعلانات (Ads Status)** جديد داخل `/app/system` الموجودة: الحالة العامة (AdSense/AdMob/Test/Premium)، الأماكن (مفعّلة/معاينة فقط/مخفية)، ومحاكاة الإيرادات التفاعلية (تقدير فقط). |
+| `src/lib/ads/ad-config.ts`, `ad-context.tsx` | تنظيف بسيط بلا تغيير سلوك: `AdPlacement`/`AdFormat`/`PLACEMENT_FORMAT` أُزيلت من هنا (أصبحت في `placements.ts`)، وأُضيفت `loadAdPrefs()` مُصدَّرة يعيد `ad-context.tsx` استخدامها بدل نسخة خاصة مكرَّرة. |
+
+**تقرير الإغلاق (الأسئلة العشرة) — أيضاً في نهاية رسالة الجلسة:** صفر جداول جديدة، صفر migrations،
+Schema Freeze محفوظ بالكامل، `AdSlot`/`AdProvider`/`AdSettings`/Mobile Platform Layer/System
+Diagnostics/Performance Engine جميعها أُعيد استخدامها بلا تكرار منطق، لا SDK حقيقي أو Consent أو
+Tracking أُضيف، ولا تغيير في أي سلوك مالي قائم.
+
+---
+
+## 14. كيف تُحدَّث هذه الوثيقة
 
 - عند إنجاز بند من "الفجوات" أعلاه: انقله إلى قسم "منجزة" مع رابط الملف/الالتزام (commit).
 - عند بدء خطة تطوير جديدة (سواء مطروحة من المستخدم أو من `.lovable/plan.md` مستقبلاً): أضف قسماً

@@ -9,6 +9,7 @@ import {
   PLACEMENT_FORMAT, WEB_ADSENSE_SLOTS, ANDROID_ADMOB_UNITS, IOS_ADMOB_UNITS,
   type AdPlacement, type AdPlatform,
 } from "@/lib/ads/ad-config";
+import { evaluateAdVisibility } from "@/lib/ads/rules";
 import { cn } from "@/lib/utils";
 
 type Props = {
@@ -30,22 +31,14 @@ export function AdSlot({ slot, platform = "auto", enabled = true, className }: P
   const { prefs, platform: detected } = useAds();
   const active: AdPlatform = platform === "auto" ? detected : platform;
 
-  // Premium users never see ads
-  if (prefs.premium) return null;
-  // Master kill switch
-  if (!enabled) return null;
-  if (!prefs.enabled && !prefs.showPlaceholder) return null;
+  const visibility = evaluateAdVisibility({ placement: slot, prefs, platform: active, placementEnabled: enabled });
+  if (!visibility.visible) return null;
 
   const format = PLACEMENT_FORMAT[slot];
-  if (format === "interstitial" || format === "reward") return null;
-
   const slotId =
     active === "android" ? ANDROID_ADMOB_UNITS[slot] :
     active === "ios" ? IOS_ADMOB_UNITS[slot] :
     WEB_ADSENSE_SLOTS[slot];
-
-  // Hidden in production unless explicitly enabled
-  if (!prefs.showPlaceholder && !prefs.enabled) return null;
 
   return (
     <div

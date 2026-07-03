@@ -7,14 +7,9 @@
 // cache, the System Health engine, and computeFinancialInsights() —
 // nothing here recomputes any of that differently.
 // =============================================================
-import {
-  WEB_ADSENSE_CLIENT,
-  ANDROID_ADMOB_APP,
-  ANDROID_ADMOB_UNITS,
-  IOS_ADMOB_APP,
-  IOS_ADMOB_UNITS,
-  TEST_IDS,
-} from "@/lib/ads/ad-config";
+import { loadAdPrefs } from "@/lib/ads/ad-config";
+import { auditAdsConfiguration, type AdsConfigurationAudit } from "@/lib/ads/audit";
+import { validatePremiumExperience } from "@/lib/ads/premium";
 import { loadNotificationSettings, CHANNEL_AVAILABLE } from "@/lib/notifications/config";
 import { loadLastBackup } from "@/lib/backup/engine";
 import { runSystemHealthCheck, type HealthStatus } from "@/lib/system/health";
@@ -22,7 +17,11 @@ import { computeFinancialInsights } from "@/lib/insights/engine";
 import { auditMobileCompatibility, checkOfflineCapabilities } from "./compatibility";
 import { captureApplicationError } from "@/lib/system/errors";
 
-// ----- PART 7: AdMob Readiness -----
+// ----- PART 7 (Prompt 18): AdMob Readiness -----
+// Thin wrapper over auditAdsConfiguration() (src/lib/ads/audit.ts), the
+// single source of truth for placeholder-vs-real ID detection — kept
+// here only for its existing narrower {web,android,ios}.configured shape
+// used elsewhere in this file.
 
 export interface AdMobPlatformReadiness {
   configured: boolean; // app id / client id no longer looks like a placeholder
@@ -36,36 +35,16 @@ export interface AdMobReadiness {
   ios: AdMobPlatformReadiness;
 }
 
-function looksLikePlaceholder(id: string): boolean {
-  return /X{4,}/.test(id) || Object.values(TEST_IDS).includes(id);
+function toPlatformReadiness(a: AdsConfigurationAudit[keyof Pick<AdsConfigurationAudit, "web" | "android" | "ios">]): AdMobPlatformReadiness {
+  return { configured: a.configured, usingTestIds: a.usingTestId, detail: a.detail };
 }
 
 export function checkAdMobReadiness(): AdMobReadiness {
-  const androidConfigured = !looksLikePlaceholder(ANDROID_ADMOB_APP);
-  const iosConfigured = !looksLikePlaceholder(IOS_ADMOB_APP);
-  const webConfigured = !looksLikePlaceholder(WEB_ADSENSE_CLIENT);
+  const audit = auditAdsConfiguration();
   return {
-    web: {
-      configured: webConfigured,
-      usingTestIds: !webConfigured,
-      detail: webConfigured
-        ? "معرّف AdSense حقيقي مُعدّ"
-        : "لا يزال معرّف AdSense مكاناً محجوزاً (placeholder)",
-    },
-    android: {
-      configured: androidConfigured,
-      usingTestIds: !androidConfigured,
-      detail: androidConfigured
-        ? `App ID مُعدّ — ${Object.keys(ANDROID_ADMOB_UNITS).length} وحدة إعلانية معرّفة`
-        : "App ID لا يزال placeholder — استبدله في src/lib/ads/ad-config.ts قبل الإطلاق",
-    },
-    ios: {
-      configured: iosConfigured,
-      usingTestIds: !iosConfigured,
-      detail: iosConfigured
-        ? `App ID مُعدّ — ${Object.keys(IOS_ADMOB_UNITS).length} وحدة إعلانية معرّفة`
-        : "App ID لا يزال placeholder — استبدله في src/lib/ads/ad-config.ts قبل الإطلاق",
-    },
+    web: toPlatformReadiness(audit.web),
+    android: toPlatformReadiness(audit.android),
+    ios: toPlatformReadiness(audit.ios),
   };
 }
 
@@ -187,6 +166,41 @@ export async function generateReleaseChecklist(): Promise<ReleaseChecklist> {
       detail: "توجد نتائج غير سليمة في الفحص الصحي — راجع /app/system قبل الإطلاق",
     });
   }
+
+  // ----- Prompt 19: Ads Production Ready / Premium Ready / Consent Ready -----
+  const adsAudit = auditAdsConfiguration();
+  const configuredPlacements = adsAudit.placements.filter(
+    (p) => p.webSlotConfigured && p.androidUnitConfigured && p.iosUnitConfigured,
+  ).length;
+  items.push({
+    id: "ads_production",
+    label: "Ads Production Ready",
+    status:
+      adsAudit.web.configured && adsAudit.android.configured && adsAudit.ios.configured && configuredPlacements === adsAudit.placements.length
+        ? "ok"
+        : "warning",
+    detail: `${configuredPlacements}/${adsAudit.placements.length} مكان إعلاني بمعرّفات حقيقية — Web: ${adsAudit.web.configured ? "جاهز" : "placeholder"}، Android: ${adsAudit.android.configured ? "جاهز" : "placeholder"}، iOS: ${adsAudit.ios.configured ? "جاهز" : "placeholder"}`,
+  });
+
+  const adPrefs = loadAdPrefs();
+  const premiumCheck = validatePremiumExperience(adPrefs);
+  items.push({
+    id: "premium_ready",
+    label: "Premium Ready",
+    status: premiumCheck.valid ? "ok" : "warning",
+    detail: premiumCheck.checks.map((c) => `${c.pass ? "✓" : "✗"} ${c.label}`).join(" — "),
+  });
+
+  // No consent SDK exists by design (explicitly out of scope) — real ads
+  // require one in GDPR-applicable regions, so this can never read "ok"
+  // until that flow is actually built; reporting anything else would be
+  // dishonest, not just cautious.
+  items.push({
+    id: "consent_ready",
+    label: "Consent Ready",
+    status: "warning",
+    detail: "لا توجد آلية موافقة (Consent) مُنفَّذة بعد — مطلوبة قبل عرض إعلانات حقيقية في مناطق GDPR/CCPA. لم تُبنَ عمداً في هذه المرحلة.",
+  });
 
   const overallStatus = items.reduce<HealthStatus>((acc, i) => worst(acc, i.status), "ok");
   return { items, overallStatus, generatedAt: new Date().toISOString() };

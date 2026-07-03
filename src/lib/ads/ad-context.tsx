@@ -2,7 +2,7 @@
 // AdContext — exposes preferences + active provider to the tree.
 // =============================================================
 import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
-import { AD_PREFS_KEY, DEFAULT_AD_PREFS, type AdPrefs } from "./ad-config";
+import { AD_PREFS_KEY, DEFAULT_AD_PREFS, loadAdPrefs, type AdPrefs } from "./ad-config";
 import { NoopAdProvider, detectPlatform, type AdProvider } from "./ad-provider";
 
 type AdCtx = {
@@ -14,14 +14,8 @@ type AdCtx = {
 
 const Ctx = createContext<AdCtx | null>(null);
 
-function loadPrefs(): AdPrefs {
-  if (typeof localStorage === "undefined") return DEFAULT_AD_PREFS;
-  try { return { ...DEFAULT_AD_PREFS, ...JSON.parse(localStorage.getItem(AD_PREFS_KEY) || "{}") }; }
-  catch { return DEFAULT_AD_PREFS; }
-}
-
 export function AdProviderRoot({ children }: { children: ReactNode }) {
-  const [prefs, setPrefsState] = useState<AdPrefs>(() => loadPrefs());
+  const [prefs, setPrefsState] = useState<AdPrefs>(() => loadAdPrefs());
   const platform = useMemo(detectPlatform, []);
 
   useEffect(() => {

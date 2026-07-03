@@ -7,6 +7,16 @@ import { loadNotificationLog } from "@/lib/notifications/store";
 import { loadNotificationSettings } from "@/lib/notifications/config";
 import { getPlatform, isNative } from "@/lib/mobile/platform";
 import { auditMobileCompatibility, checkOfflineCapabilities } from "@/lib/mobile/compatibility";
+import { useAds } from "@/lib/ads/ad-context";
+import { auditAdsConfiguration } from "@/lib/ads/audit";
+import { evaluateAdVisibility } from "@/lib/ads/rules";
+import { validatePremiumExperience } from "@/lib/ads/premium";
+import { simulateAdRevenue, DEFAULT_REVENUE_ASSUMPTIONS, type RevenueSimulationInput } from "@/lib/ads/simulation";
+import { AD_PLACEMENTS } from "@/lib/ads/placements";
+import { formatMoney } from "@/lib/format";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { useState } from "react";
 import { cn } from "@/lib/utils";
 import {
   ShieldCheck,
@@ -25,6 +35,8 @@ import {
   RefreshCw,
   Smartphone,
   WifiOff,
+  Megaphone,
+  Coins,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
@@ -90,6 +102,20 @@ function SystemPage() {
 
   const mobileCompat = auditMobileCompatibility();
   const compatById = (id: string) => mobileCompat.items.find((i) => i.id === id);
+
+  const { prefs: adPrefs, platform: adPlatform } = useAds();
+  const adsAudit = auditAdsConfiguration();
+  const premiumCheck = validatePremiumExperience(adPrefs);
+  const placementVisibility = AD_PLACEMENTS.map((p) => ({
+    def: p,
+    visibility: evaluateAdVisibility({ placement: p.id, prefs: adPrefs, platform: adPlatform }),
+  }));
+  const enabledPlacements = placementVisibility.filter((p) => p.visibility.visible && p.visibility.reason === "eligible");
+  const previewPlacements = placementVisibility.filter((p) => p.visibility.visible && p.visibility.reason === "placeholder_preview");
+  const hiddenPlacements = placementVisibility.filter((p) => !p.visibility.visible);
+
+  const [revenueInput, setRevenueInput] = useState<RevenueSimulationInput>(DEFAULT_REVENUE_ASSUMPTIONS);
+  const revenue = simulateAdRevenue(revenueInput);
 
   const notifSettings = loadNotificationSettings();
   const notifLog = loadNotificationLog();
@@ -272,6 +298,68 @@ function SystemPage() {
                 </span>
               </li>
             </ul>
+          </div>
+        </div>
+      </Section>
+
+      {/* Ads */}
+      <Section title="حالة الإعلانات (Ads Status)" icon={Megaphone}>
+        <div className="space-y-5">
+          <div>
+            <div className="text-xs font-semibold text-muted-foreground mb-2">الحالة العامة</div>
+            <div className="grid gap-2.5 sm:grid-cols-3 lg:grid-cols-5">
+              <MetricCard icon={Megaphone} label="AdSense (Web) جاهز" value={adsAudit.web.configured ? "نعم" : "لا — placeholder"} />
+              <MetricCard icon={Smartphone} label="AdMob (Android) جاهز" value={adsAudit.android.configured ? "نعم" : "لا — placeholder"} />
+              <MetricCard icon={Smartphone} label="AdMob (iOS) جاهز" value={adsAudit.ios.configured ? "نعم" : "لا — placeholder"} />
+              <MetricCard icon={Bug} label="وضع الاختبار (Test Mode)" value={adPrefs.testMode ? "مفعّل" : "معطّل"} />
+              <MetricCard icon={ShieldCheck} label="وضع Premium" value={adPrefs.premium ? "مفعّل" : "معطّل"} />
+            </div>
+            {!premiumCheck.valid && adPrefs.premium && (
+              <div className="mt-2 flex items-start gap-2 rounded-xl border border-destructive/30 bg-destructive/5 p-2.5 text-xs">
+                <XCircle className="h-3.5 w-3.5 text-destructive shrink-0 mt-0.5" />
+                مستخدم Premium لكن فحص تجربة Premium لم يمرّ بالكامل — راجع validatePremiumExperience().
+              </div>
+            )}
+          </div>
+
+          <div>
+            <div className="text-xs font-semibold text-muted-foreground mb-2">
+              الأماكن الإعلانية ({AD_PLACEMENTS.length}) — على منصة {adPlatform}
+            </div>
+            <div className="grid gap-2.5 sm:grid-cols-3">
+              <MetricCard icon={CheckCircle2} label="مفعّلة (Enabled)" value={String(enabledPlacements.length)} />
+              <MetricCard icon={AlertTriangle} label="معاينة فقط (Disabled)" value={String(previewPlacements.length)} />
+              <MetricCard icon={XCircle} label="مخفية (Hidden)" value={String(hiddenPlacements.length)} />
+            </div>
+          </div>
+
+          <div>
+            <div className="text-xs font-semibold text-muted-foreground mb-2">
+              محاكاة الإيرادات (Simulation) — تقدير افتراضي، لا اتصال بأي خدمة خارجية
+            </div>
+            <div className="grid gap-2.5 sm:grid-cols-4 mb-3">
+              <div>
+                <Label className="text-[11px]">مستخدمون نشطون يومياً</Label>
+                <Input type="number" min={0} value={revenueInput.dailyActiveUsers} onChange={(e) => setRevenueInput((r) => ({ ...r, dailyActiveUsers: Math.max(0, Number(e.target.value) || 0) }))} className="h-8" dir="ltr" />
+              </div>
+              <div>
+                <Label className="text-[11px]">ظهور/مستخدم/يوم</Label>
+                <Input type="number" min={0} value={revenueInput.impressionsPerUserPerDay} onChange={(e) => setRevenueInput((r) => ({ ...r, impressionsPerUserPerDay: Math.max(0, Number(e.target.value) || 0) }))} className="h-8" dir="ltr" />
+              </div>
+              <div>
+                <Label className="text-[11px]">CTR (%)</Label>
+                <Input type="number" min={0} step={0.1} value={revenueInput.ctr * 100} onChange={(e) => setRevenueInput((r) => ({ ...r, ctr: Math.max(0, Number(e.target.value) || 0) / 100 }))} className="h-8" dir="ltr" />
+              </div>
+              <div>
+                <Label className="text-[11px]">eCPM ($)</Label>
+                <Input type="number" min={0} step={0.1} value={revenueInput.eCPM} onChange={(e) => setRevenueInput((r) => ({ ...r, eCPM: Math.max(0, Number(e.target.value) || 0) }))} className="h-8" dir="ltr" />
+              </div>
+            </div>
+            <div className="grid gap-2.5 sm:grid-cols-3">
+              <MetricCard icon={Gauge} label="ظهور يومي متوقع" value={revenue.dailyImpressions.toLocaleString("ar")} />
+              <MetricCard icon={Coins} label="إيراد يومي تقديري" value={formatMoney(revenue.estimatedDailyRevenue, "USD")} />
+              <MetricCard icon={Coins} label="إيراد شهري تقديري" value={formatMoney(revenue.estimatedMonthlyRevenue, "USD")} />
+            </div>
           </div>
         </div>
       </Section>
