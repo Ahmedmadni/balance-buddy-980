@@ -28,7 +28,9 @@ export interface DeletionPlanReport {
 // Mirrors backup/engine.ts's ALL_TABLES — verified 2026-07-03. Duplicated
 // as a read-only static list here rather than imported, since engine.ts
 // doesn't export it and this module must never touch write paths there.
-const DB_TABLES = [
+// Exported so deletion-report.ts (Prompt 24) can reuse the same list
+// instead of re-declaring it a third time.
+export const DB_TABLES = [
   "profiles",
   "categories",
   "wallet_tx_categories",
@@ -50,7 +52,7 @@ const DB_TABLES = [
 ] as const;
 
 // Every rasd.* localStorage key verified in use across the app (2026-07-03).
-const LOCAL_STORAGE_KEYS = [
+export const LOCAL_STORAGE_KEYS = [
   "rasd.localPrefs.v1",
   "rasd.reminderPrefs.v1",
   "dashboard.quickActions.v1",

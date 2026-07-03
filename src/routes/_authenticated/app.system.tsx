@@ -40,6 +40,7 @@ import { generateDeletionPlan } from "@/lib/compliance/data-deletion-plan";
 import { auditConsentReadiness } from "@/lib/compliance/consent-readiness";
 import { auditProductionConfig } from "@/lib/compliance/production-config-audit";
 import { auditDisasterRecovery } from "@/lib/compliance/disaster-recovery-audit";
+import { runFinalProductionAudit } from "@/lib/release/final-audit";
 import { formatMoney } from "@/lib/format";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -84,6 +85,8 @@ import {
   Settings2,
   LifeBuoy,
   Download,
+  Flag,
+  TrendingUp,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -213,6 +216,8 @@ function SystemPage() {
   const productionConfig = useQuery({ queryKey: ["compliance-prod-config"], queryFn: auditProductionConfig });
   const disasterRecovery = useQuery({ queryKey: ["compliance-disaster-recovery"], queryFn: auditDisasterRecovery });
   const [legalDoc, setLegalDoc] = useState<"privacy" | "terms" | null>(null);
+
+  const finalAudit = useQuery({ queryKey: ["release-final-audit"], queryFn: runFinalProductionAudit });
 
   const recommendations: string[] = [];
   if (health.data?.status === "error")
@@ -1113,6 +1118,89 @@ function SystemPage() {
         )}
       </Section>
 
+      {/* Production Final Audit */}
+      <Section title="التدقيق النهائي للإنتاج (Production Final Audit)" icon={Flag}>
+        {finalAudit.isLoading ? (
+          <SkeletonRows />
+        ) : (
+          <div className="space-y-5">
+            <div
+              className={cn(
+                "flex items-center gap-4 rounded-2xl border p-4",
+                finalAudit.data!.productionReady ? "border-success/30 bg-success/5" : "border-warning/30 bg-warning/5",
+              )}
+            >
+              <div className="text-4xl font-black tabular-nums text-primary">
+                {finalAudit.data!.score}
+              </div>
+              <div>
+                <div className="text-sm font-bold flex items-center gap-2">
+                  Production Score: {finalAudit.data!.score}/100
+                  {finalAudit.data!.productionReady ? (
+                    <span className="inline-flex items-center gap-1 rounded-full bg-success/15 px-2 py-0.5 text-[10px] font-semibold text-success">
+                      <CheckCircle2 className="h-3 w-3" /> جاهز للإنتاج
+                    </span>
+                  ) : (
+                    <span className="inline-flex items-center gap-1 rounded-full bg-warning/15 px-2 py-0.5 text-[10px] font-semibold text-warning">
+                      <AlertTriangle className="h-3 w-3" /> غير جاهز بعد
+                    </span>
+                  )}
+                </div>
+                <div className="text-xs text-muted-foreground">
+                  {finalAudit.data!.blockers.length} عائق حرج، {finalAudit.data!.warnings.length} تحذير
+                </div>
+              </div>
+            </div>
+
+            <div className="grid gap-2.5 sm:grid-cols-2 lg:grid-cols-3">
+              {finalAudit.data!.categories.map((c) => (
+                <div key={c.id} className="rounded-2xl border bg-card p-3.5 space-y-1.5">
+                  <div className="flex items-center justify-between text-xs font-semibold">
+                    <span>{c.label}</span>
+                    <span className="tabular-nums text-muted-foreground">{c.score}/100</span>
+                  </div>
+                  <div className="h-1.5 rounded-full bg-muted overflow-hidden">
+                    <div className="h-full bg-primary" style={{ width: `${c.score}%` }} />
+                  </div>
+                  <div className="text-[10px] text-muted-foreground">{c.detail}</div>
+                </div>
+              ))}
+            </div>
+
+            {finalAudit.data!.blockers.length > 0 && (
+              <div>
+                <div className="text-xs font-semibold text-muted-foreground mb-2">
+                  عوائق الإطلاق (Release Blockers)
+                </div>
+                <ul className="space-y-1.5">
+                  {finalAudit.data!.blockers.map((b, i) => (
+                    <li
+                      key={i}
+                      className="flex items-start gap-2 rounded-xl border border-destructive/30 bg-destructive/5 p-2.5 text-xs"
+                    >
+                      <XCircle className="h-3.5 w-3.5 text-destructive shrink-0 mt-0.5" /> {b}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+
+            <div>
+              <div className="text-xs font-semibold text-muted-foreground mb-2 flex items-center gap-1.5">
+                <TrendingUp className="h-3.5 w-3.5" /> الإجراءات المُوصى بها
+              </div>
+              <div className="rounded-xl border bg-muted/30 p-3 space-y-1.5">
+                {finalAudit.data!.recommendations.map((r, i) => (
+                  <div key={i} className="text-xs text-muted-foreground">
+                    • {r}
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        )}
+      </Section>
+
       <div className="flex justify-end">
         <Button
           variant="outline"
@@ -1136,6 +1224,7 @@ function SystemPage() {
             qc.invalidateQueries({ queryKey: ["compliance-consent"] });
             qc.invalidateQueries({ queryKey: ["compliance-prod-config"] });
             qc.invalidateQueries({ queryKey: ["compliance-disaster-recovery"] });
+            qc.invalidateQueries({ queryKey: ["release-final-audit"] });
           }}
         >
           <RefreshCw className="h-4 w-4 ml-1" /> إعادة الفحص

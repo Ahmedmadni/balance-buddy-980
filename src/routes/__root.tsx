@@ -15,6 +15,7 @@ import { Toaster } from "@/components/ui/sonner";
 import { AdProviderRoot } from "@/lib/ads/ad-context";
 import { createAuditEntry } from "@/lib/system/audit";
 import { initErrorTracking } from "@/lib/system/errors";
+import { registerServiceWorker } from "@/lib/pwa/register";
 
 function NotFoundComponent() {
   return (
@@ -103,6 +104,7 @@ function RootComponent() {
       document.documentElement.style.colorScheme = theme;
     } catch {}
     initErrorTracking();
+    registerServiceWorker();
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event) => {
       if (event !== "SIGNED_IN" && event !== "SIGNED_OUT" && event !== "USER_UPDATED") return;
       if (event === "SIGNED_IN") createAuditEntry("login", "تسجيل دخول");

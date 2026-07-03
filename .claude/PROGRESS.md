@@ -8,7 +8,9 @@
 Delivery Engine)، القسم 7 (Analytics & Insights Engine)، القسم 9 (Production Hardening)، القسم 11
 (Mobile Packaging & Cross-Platform Readiness)، القسم 13 (Ads Production Readiness)، القسم 15
 (UX Polish & Beta Testing Readiness)، القسم 17 (Closed Beta Operations Framework)، القسم 19
-(Release Engineering & Store Readiness)، والقسم 21 (Compliance, Privacy & Production Hardening).
+(Release Engineering & Store Readiness)، القسم 21 (Compliance, Privacy & Production Hardening)،
+والقسم 23 (Production Hardening & Compliance Remediation — Safe Mode، أول Prompt يُصلح Backup Engine
+فعلياً بدل الاكتفاء بالتقرير عنه).
 
 ---
 
@@ -332,7 +334,37 @@ prefs لا تُصدَّران أبداً) — موثَّق بالكامل دون
 
 ---
 
-## 22. كيف تُحدَّث هذه الوثيقة
+## 23. Prompt 24 — Production Hardening & Compliance Remediation (Safe Mode) (منجز)
+
+على عكس Prompts 20-23، سمح هذا الـ Prompt صراحةً بتعديل Backup Engine لإصلاح الثغرات الحقيقية التي
+اكتشفها Prompt 23 (بدل الاكتفاء بالتقرير عنها). أُصلح Backup Engine فعلياً، أُضيف تحقق سلامة نسخ
+احتياطي، Service Worker حقيقي أول مرة، مدير موافقات محلي حقيقي، 4 صفحات قانونية منشورة فعلياً على
+Routes عامة، تقرير حذف حساب مفصّل (معاينة فقط)، ومحرك تدقيق نهائي للإنتاج. صفر جداول جديدة، صفر
+migrations، صفر تعديل على transactions/investment_transactions/investments/person_ledger/
+system_events/v_account_statement/أي Trigger/RLS/View/محرك مالي.
+
+| الملف | الدور |
+|---|---|
+| `src/lib/backup/engine.ts` (معدَّل) | **PART 1 — إصلاح فعلي**: `LOCAL_KEYS` أصبحت تضم المفاتيح الحقيقية الصحيحة (`dashboard.quickActions.v1`, `rasd.adPrefs.v1`, `rasd.notificationSettings.v1`, `rasd.notificationLog.v1`, `rasd.betaSessions.v1`, `rasd.betaFeedback.v1`) **بجانب** المفاتيح القديمة الخاطئة (لم تُحذف — توافق خلفي)؛ الاستيراد يعمل تلقائياً مع أي شكل نسخة (قديمة أو جديدة) لأنه يكرر `Object.entries(bundle.local)` عاماً بلا تغيير. نوع `BackupBundle.local` صُحِّح إلى `Record<string, unknown>` ليطابق الشكل الفعلي وقت التشغيل. |
+| `src/lib/backup/integrity.ts` | **PART 2** — `verifyBackupIntegrity()`: checksum حقيقي (SHA-256 عبر SubtleCrypto مع fallback)، مطابقة عدد السجلات المعلَن بالفعلي، أقسام مفقودة/غير متطابقة، فحص إصدار المخطط، ودرجة توافق 0-100. |
+| `public/sw.js` + `src/lib/pwa/register.ts` | **PART 3** — أول Service Worker حقيقي في المشروع: تخزين مؤقت Stale-While-Revalidate لأصول ثابتة نفس المصدر فقط (أيقونات/خطوط/manifest) — **يستبعد صراحة** طلبات التنقّل (HTML)، أي أصل عابر للمصدر (يشمل Supabase تلقائياً)، وأي طلب غير GET. `registerServiceWorker()` مُوصَّل في `__root.tsx` (يعمل مرة واحدة عند إقلاع التطبيق، يتخطّى النسخة الأصلية عبر Capacitor). |
+| `src/lib/consent/consent.ts` + `audit.ts` | **PART 4** — مدير موافقات محلي حقيقي أول مرة (4 فئات: analytics/ads/personalization/diagnostics)، بافتراضي Opt-In=false للجميع (لا شيء يُفترض موافَقاً عليه). `auditConsentManager()` يقيّم الآلية نفسها مقابل GDPR/CCPA/PDPL (يحلّ محل الحقائق القديمة في `auditConsentReadiness()` من Prompt 23 التي افترضت عدم وجود آلية أصلاً). |
+| `src/lib/compliance/cookie-policy.ts` | مولّد جديد (نفس نمط Prompt 23): يوثّق أن التطبيق لا يستخدم كوكيز إطلاقاً (الجلسة في localStorage). |
+| `src/components/legal/LegalPageShell.tsx` + `src/routes/legal/{privacy,terms,cookies,data-export}.tsx` | **PART 5** — 4 صفحات عامة منشورة فعلياً (بلا حراسة مصادقة، بلا جدول جديد، بلا API): تعرض المستندات المولَّدة من Prompt 23/24 مباشرة من دوال `generate*()` الحقيقية، مع تنويه "مسودة تلقائية". صفحة `/legal/data-export` تعرض أيضاً نتائج `auditUserDataExport()` الحيّة. |
+| `src/lib/compliance/deletion-report.ts` | **PART 6** — `generateAccountDeletionReport()`: يبني على `generateDeletionPlan()` (Prompt 23) ويضيف عدّ صفوف حقيقي لكل جدول (`count`/`head:true` فقط، **لا `.delete()` إطلاقاً**) لتقدير زمن تنفيذ افتراضي، زائد قائمة مخاطر مُصنَّفة (فشل جزئي، ملفات يتيمة، بقاء حساب Auth). |
+| `src/lib/release/final-audit.ts` | **PART 7** — `runFinalProductionAudit()`: 9 فئات موزونة (سلامة مالية 20، نسخ احتياطي 10، إشعارات 10، إعلانات 10، امتثال 15، جوال 10، PWA 10، إتاحة وصول 5، إتمام Beta 10) كلها من محركات حقيقية موجودة، زائد Blockers/Warnings/Recommendations مُشتقّة. |
+| `src/routes/_authenticated/app.system.tsx` | **PART 8** — قسم **التدقيق النهائي للإنتاج (Production Final Audit)** جديد: Production Score بارز + شارة "جاهز/غير جاهز"، شبكة الفئات التسع، عوائق الإطلاق، والإجراءات المُوصى بها. |
+
+**تقرير الإغلاق (الأسئلة العشرة+ الإضافية) — أيضاً في نهاية رسالة الجلسة:** صفر جداول جديدة، صفر
+migrations، Schema Freeze محفوظ بالكامل (Backup Engine عُدِّل بإذن صريح من هذا الـ Prompt فقط، وبقي
+كل شيء آخر — transactions/investment_transactions/investments/person_ledger/system_events/
+v_account_statement/Triggers/RLS/Views/المحركات المالية — بلا أي لمسة)، إصلاح Backup Engine مكتمل
+(المفاتيح الصحيحة مُضافة مع توافق خلفي كامل)، PWA أصبح قابلاً للتثبيت (Service Worker حقيقي مسجَّل)،
+الصفحات القانونية منشورة فعلياً على `/legal/*`، ولا تغيير في أي سلوك مالي قائم.
+
+---
+
+## 24. كيف تُحدَّث هذه الوثيقة
 
 - عند إنجاز بند من "الفجوات" أعلاه: انقله إلى قسم "منجزة" مع رابط الملف/الالتزام (commit).
 - عند بدء خطة تطوير جديدة (سواء مطروحة من المستخدم أو من `.lovable/plan.md` مستقبلاً): أضف قسماً
