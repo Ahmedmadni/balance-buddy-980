@@ -424,7 +424,37 @@ Freeze محفوظ بالكامل، Account Deletion جاهز كمعاينة كا
 
 ---
 
-## 28. كيف تُحدَّث هذه الوثيقة
+## 29. Prompt 27 — Production Deployment, Store Operations & Launch Execution (منجز)
+
+الانتقال من "تطبيق جاهز تقنياً" إلى "تطبيق قابل للنشر والإطلاق الفعلي": ملفات بيئة إنتاج، خطوط أنابيب
+إصدار Android/iOS كاملة (تدقيق + خطة تنفيذ خطوة بخطوة)، محرك بيانات وصفية لمتجرَي Google Play وApple
+App Store (نصوص حقيقية مبنية على الميزات الفعلية للتطبيق، مع تحقق من حدود الأحرف)، بنية دعم وتواصل،
+خطة تنفيذ حذف حساب فعلي مستقبلية (توثيقية بحتة — بلا service_role وبلا تنفيذ)، مراقبة/رصد شامل، ومحرك
+Go/No-Go نهائي. صفر جداول جديدة، صفر migrations، صفر تعديل على transactions/investment_transactions/
+investments/person_ledger/system_events/v_account_statement/أي Trigger/RLS/View/محرك مالي/زكاة/إهلاك/
+**Backup Engine/Notification Engine** (كلاهما مجمَّد صراحةً في هذا البرومبت، بخلاف الاستثناء لمرة واحدة في Prompt 24).
+
+| الملف | الدور |
+|---|---|
+| `src/lib/deployment/{environment,validation,checklist}.ts` | **PART 1** — `getCurrentEnvironment()`/`setCurrentEnvironment()` (development/staging/beta/production، افتراضي من `import.meta.env.DEV` الفعلي)، `validateEnvironment()` يفحص Supabase URL/Key حيّاً + روابط قانونية/دعم/موقع عبر `metadata-config.ts` + معرّفات إعلانات عبر `auditAdsConfiguration()`، مع Analytics IDs معلَنة بصدق كـ "غير قابلة للتطبيق" (لا SDK تحليلات في التطبيق). `generateEnvironmentChecklist()` يجمعهما. |
+| `src/lib/android/{audit,release,checklist}.ts` | **PART 2** — `auditAndroidProduction()` يبني على `auditAndroidRelease()` (Prompt 22) ويضيف App Bundle/Signing/Deep Links/Play Console Readiness. `generateAndroidReleasePlan()` خطة تنفيذ من 9 خطوات مرتّبة (إضافة منصّة → توليد أصول → تعطيل Live Reload → keystore → رفع versionCode → مراجعة Manifest → بناء AAB → تعبئة القائمة → الإرسال). `checklist.ts` بنود Play Console اليدوية (تصنيف المحتوى، نموذج أمان البيانات، إلخ). |
+| `src/lib/ios/{audit,release,checklist}.ts` | **PART 3** — `auditIOSProduction()` يبني على `auditIOSRelease()` (Prompt 22) ويضيف Apple Sign-In Readiness (حقيقة مُتحقَّقة: `signInWithOAuth("apple")` مدعوم في `lovable/index.ts` لكن غير مفعَّل في واجهة `auth.tsx`)، Push Readiness (حقيقة: `NotificationProvider.sendPush` لا يزال Noop، لا APNs)، Associated Domains، Privacy Manifest، App Store Connect Readiness. `generateIOSReleasePlan()`/`checklist.ts` بنفس نمط Android. |
+| `src/lib/store/{descriptions,screenshots,metadata}.ts` | **PART 4** — نصوص تسويقية حقيقية مبنية على ميزات التطبيق الفعلية فقط (محافظ/مصاريف/ديون/متكررة/أصول موحّدة/زكاة/تقارير/تذكيرات) — لا ميزات مختلَقة. `validateStoreCopyLengths()` يتحقق فعلياً من حدود Google Play (عنوان ≤30، وصف قصير ≤80، وصف كامل ≤4000) وApple (عنوان فرعي ≤30، نص ترويجي ≤170). `generateStoreMetadata()` يجمع النصوص + `generateScreenshotsReport()` (يعيد استخدام `generateStoreAssetsChecklist()` من Prompt 22 بدل إعادة الفحص) في حمولتَي Google Play/Apple كاملتين. |
+| `src/lib/support/{config,audit}.ts` | **PART 5** — `getSupportConfig()` يُعيد تصدير روابط `metadata-config.ts` + `SUPPORT_EMAIL` جديد (لا يزال placeholder بصدق — لا صندوق دعم حقيقي بعد). `auditSupportInfrastructure()` يفحص البريد/النطاق/صفحات الدعم/الصفحات القانونية (الأخيرة عبر `validateLegalLinks()` مباشرة). |
+| `src/lib/account-deletion/execution.ts` | **PART 6** — توثيقي بحت، لا `service_role`، لا تنفيذ فعلي: `generateServerDeletionSpec()` (6 خطوات لمعالج خادم مستقبلي)، `generateSupabaseDeletionPlan()` (ترتيب حذف 18 جدولاً بالعكس حسب تبعيات المفاتيح الأجنبية، يعيد استخدام `DB_TABLES`/`LOCAL_STORAGE_KEYS` من Prompt 23)، `generateEdgeFunctionRequirements()` (متطلبات Edge Function مستقبلية: JWT، rate limiting، idempotency، سجل تدقيق منفصل، تأكيد بريدي). |
+| `src/lib/monitoring/{config,audit}.ts` | **PART 7** — `getMonitoringConfig()` سجل صادق لكل فئة رصد (Crash/Analytics/Performance/Errors/Notifications/Backups) يوثّق أن الكل محلي بالتصميم — لا Sentry/Firebase/PostHog. `auditObservability()` يُركِّب `auditCrashReporting()`/`collectPerformanceMetrics()`/`loadNotificationSettings()`/`verifyBackupIntegrity()` الموجودة فعلياً بدل إعادة حسابها. |
+| `src/lib/release/go-no-go.ts` | **PART 9** — `evaluateLaunchDecision()` القمة النهائية: يُركِّب `runFinalProductionAudit()`/`evaluateProductionGate()`/`computeLaunchBlockers()`/`performFinalAudit()` + تدقيقات Android/iOS/Support الجديدة في قرار واحد `GO`/`NO_GO`/`BETA_ONLY`. iOS متعمَّد استبعاده من شرط `GO` (لا منصّة iOS مضافة أصلاً في هذا المشروع) — يظهر كتحذير لا كعائق. |
+| `src/routes/_authenticated/app.system.tsx` | **PART 8** — قسم **Production Launch Center** جديد: بطاقة قرار Go/No-Go بارزة، البنية التحتية (Environment/Support/Monitoring)، Android (جاهزية إصدار + جاهزية متجر)، iOS (نفس البنية)، الامتثال (Privacy/Consent/Account Deletion)، والإنتاج (النتيجة النهائية/العوائق المتبقية/جاهزية الإطلاق التقديرية) + توصيات. |
+
+**تقرير الإغلاق (16 سؤالاً) — أيضاً في نهاية رسالة الجلسة:** صفر جداول جديدة، صفر migrations، Schema
+Freeze محفوظ بالكامل بما فيه Backup Engine وNotification Engine (مجمَّدان صراحةً هذه المرة)، خطوط أنابيب
+Android/iOS موثَّقة بالكامل مع فجوات حقيقية غير مُخفاة (لا iOS platform، لا keystore توقيع)، بيانات متجر
+حقيقية جاهزة للصق المباشر، بنية دعم مُعرَّفة (لا يزال Support Email/URL placeholder بصدق)، خطة حذف حساب
+تنفيذية موثَّقة بالكامل بلا أي تنفيذ فعلي، ومحرك Go/No-Go يُصدر قراراً واحداً واضحاً مبنياً على كل ما سبق.
+
+---
+
+## 30. كيف تُحدَّث هذه الوثيقة
 
 - عند إنجاز بند من "الفجوات" أعلاه: انقله إلى قسم "منجزة" مع رابط الملف/الالتزام (commit).
 - عند بدء خطة تطوير جديدة (سواء مطروحة من المستخدم أو من `.lovable/plan.md` مستقبلاً): أضف قسماً

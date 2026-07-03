@@ -66,6 +66,15 @@ import { computeLaunchBlockers } from "@/lib/release/blockers";
 import { generateReleaseCertificate } from "@/lib/release/certificate";
 import { performFinalAudit } from "@/lib/release/final-check";
 import { processPendingNotifications } from "@/lib/notifications/engine";
+import { generateEnvironmentChecklist } from "@/lib/deployment/checklist";
+import { auditAndroidProduction } from "@/lib/android/audit";
+import { generateAndroidReleasePlan } from "@/lib/android/release";
+import { auditIOSProduction } from "@/lib/ios/audit";
+import { generateIOSReleasePlan } from "@/lib/ios/release";
+import { generateStoreMetadata } from "@/lib/store/metadata";
+import { auditSupportInfrastructure } from "@/lib/support/audit";
+import { auditObservability } from "@/lib/monitoring/audit";
+import { evaluateLaunchDecision } from "@/lib/release/go-no-go";
 import { loadLastBackup } from "@/lib/backup/engine";
 import { verifyBackupIntegrity } from "@/lib/backup/integrity";
 import { formatMoney } from "@/lib/format";
@@ -123,6 +132,10 @@ import {
   ShieldQuestion,
   BadgeCheck,
   FileCheck2,
+  Compass,
+  Mail,
+  Target,
+  Layers,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -298,6 +311,17 @@ function SystemPage() {
     queryFn: generateReleaseCertificate,
   });
   const finalAuditCheck = useQuery({ queryKey: ["final-audit-check"], queryFn: performFinalAudit });
+
+  // ----- Prompt 27: Production Deployment, Store Operations & Launch Execution -----
+  const environmentChecklist = generateEnvironmentChecklist();
+  const androidProduction = auditAndroidProduction();
+  const androidReleasePlan = generateAndroidReleasePlan();
+  const iosProduction = auditIOSProduction();
+  const iosReleasePlan = generateIOSReleasePlan();
+  const storeMetadata = generateStoreMetadata();
+  const supportInfraAudit = auditSupportInfrastructure();
+  const observability = useQuery({ queryKey: ["monitoring-observability"], queryFn: auditObservability });
+  const goNoGo = useQuery({ queryKey: ["release-go-no-go"], queryFn: evaluateLaunchDecision });
 
   const recommendations: string[] = [];
   if (health.data?.status === "error")
@@ -1655,6 +1679,242 @@ function SystemPage() {
         </div>
       </Section>
 
+      {/* Production Launch Center (Prompt 27) */}
+      <Section title="Production Launch Center" icon={Compass}>
+        <div className="space-y-5">
+          <div
+            className={cn(
+              "flex items-center gap-4 rounded-2xl border p-4",
+              goNoGo.data?.decision === "GO"
+                ? "border-success/30 bg-success/5"
+                : goNoGo.data?.decision === "BETA_ONLY"
+                  ? "border-warning/30 bg-warning/5"
+                  : "border-destructive/30 bg-destructive/5",
+            )}
+          >
+            <div className="text-4xl font-black tabular-nums text-primary">
+              {goNoGo.data ? goNoGo.data.score : "..."}
+            </div>
+            <div>
+              <div className="text-sm font-bold flex items-center gap-2">
+                Go / No-Go Score: {goNoGo.data ? `${goNoGo.data.score}/100` : "..."}
+                {goNoGo.data && (
+                  <span
+                    className={cn(
+                      "inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold",
+                      goNoGo.data.decision === "GO"
+                        ? "bg-success/15 text-success"
+                        : goNoGo.data.decision === "BETA_ONLY"
+                          ? "bg-warning/15 text-warning"
+                          : "bg-destructive/15 text-destructive",
+                    )}
+                  >
+                    <Target className="h-3 w-3" /> {goNoGo.data.decision}
+                  </span>
+                )}
+              </div>
+              <div className="text-xs text-muted-foreground">
+                {goNoGo.data
+                  ? `${goNoGo.data.blockers.length} عائق حرج، ${goNoGo.data.warnings.length} تحذير`
+                  : "جارٍ التقييم..."}
+              </div>
+            </div>
+          </div>
+
+          <div>
+            <div className="text-xs font-semibold text-muted-foreground mb-2 flex items-center gap-1.5">
+              <Layers className="h-3.5 w-3.5" /> البنية التحتية (Infrastructure)
+            </div>
+            <div className="grid gap-3 sm:grid-cols-3">
+              <div className="rounded-2xl border bg-card p-3.5 space-y-2">
+                <div className="text-xs font-bold flex items-center justify-between">
+                  <span>البيئة (Environment)</span>
+                  <span className="text-muted-foreground">{environmentChecklist.score}/100</span>
+                </div>
+                <div className="text-[11px] text-muted-foreground">{environmentChecklist.environment}</div>
+                <CheckGrid items={environmentChecklist.items} />
+              </div>
+              <div className="rounded-2xl border bg-card p-3.5 space-y-2">
+                <div className="text-xs font-bold flex items-center justify-between">
+                  <span className="flex items-center gap-1.5">
+                    <Mail className="h-3.5 w-3.5" /> الدعم (Support)
+                  </span>
+                  <span className="text-muted-foreground">{supportInfraAudit.score}/100</span>
+                </div>
+                <CheckGrid items={supportInfraAudit.items} />
+              </div>
+              <div className="rounded-2xl border bg-card p-3.5 space-y-2">
+                <div className="text-xs font-bold flex items-center justify-between">
+                  <span>المراقبة (Monitoring)</span>
+                  <span className="text-muted-foreground">
+                    {observability.data ? `${observability.data.score}/100` : "..."}
+                  </span>
+                </div>
+                {observability.data ? (
+                  <CheckGrid
+                    items={observability.data.categories.map((c) => ({
+                      id: c.id,
+                      label: c.label,
+                      status: c.status,
+                      detail: c.detail,
+                    }))}
+                  />
+                ) : (
+                  <SkeletonRows />
+                )}
+              </div>
+            </div>
+          </div>
+
+          <div>
+            <div className="text-xs font-semibold text-muted-foreground mb-2 flex items-center gap-1.5">
+              <Smartphone className="h-3.5 w-3.5" /> Android
+            </div>
+            <div className="grid gap-3 sm:grid-cols-2">
+              <div className="rounded-2xl border bg-card p-3.5 space-y-2">
+                <div className="text-xs font-bold flex items-center justify-between">
+                  <span>جاهزية الإصدار (Release Readiness)</span>
+                  <span className="text-muted-foreground">{androidProduction.score}/100</span>
+                </div>
+                <div className="text-[11px] text-muted-foreground">
+                  خطة الإصدار: {androidReleasePlan.completedCount}/{androidReleasePlan.totalCount} خطوة مكتملة
+                </div>
+                <CheckGrid items={androidProduction.items} />
+              </div>
+              <div className="rounded-2xl border bg-card p-3.5 space-y-2">
+                <div className="text-xs font-bold flex items-center justify-between">
+                  <span>جاهزية المتجر (Store Readiness)</span>
+                  <span className="text-muted-foreground">
+                    {storeMetadata.googlePlay.screenshotsReady ? "لقطات جاهزة" : "لا لقطات بعد"}
+                  </span>
+                </div>
+                <div className="text-[11px] text-muted-foreground space-y-1">
+                  <div>العنوان: {storeMetadata.googlePlay.title}</div>
+                  <div>الفئة: {storeMetadata.googlePlay.category}</div>
+                  <div>
+                    الوصف القصير ({storeMetadata.googlePlay.shortDescription.length}/80 حرفاً):{" "}
+                    {storeMetadata.googlePlay.shortDescription}
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div>
+            <div className="text-xs font-semibold text-muted-foreground mb-2 flex items-center gap-1.5">
+              <Apple className="h-3.5 w-3.5" /> iOS
+            </div>
+            <div className="grid gap-3 sm:grid-cols-2">
+              <div className="rounded-2xl border bg-card p-3.5 space-y-2">
+                <div className="text-xs font-bold flex items-center justify-between">
+                  <span>جاهزية الإصدار (Release Readiness)</span>
+                  <span className="text-muted-foreground">{iosProduction.score}/100</span>
+                </div>
+                <div className="text-[11px] text-muted-foreground">
+                  خطة الإصدار: {iosReleasePlan.completedCount}/{iosReleasePlan.totalCount} خطوة مكتملة
+                </div>
+                <CheckGrid items={iosProduction.items} />
+              </div>
+              <div className="rounded-2xl border bg-card p-3.5 space-y-2">
+                <div className="text-xs font-bold flex items-center justify-between">
+                  <span>جاهزية المتجر (Store Readiness)</span>
+                  <span className="text-muted-foreground">
+                    {storeMetadata.appleAppStore.screenshotsReady ? "لقطات جاهزة" : "لا لقطات بعد"}
+                  </span>
+                </div>
+                <div className="text-[11px] text-muted-foreground space-y-1">
+                  <div>العنوان الفرعي: {storeMetadata.appleAppStore.subtitle}</div>
+                  <div>الفئة: {storeMetadata.appleAppStore.category}</div>
+                  <div dir="ltr" className="truncate">
+                    Support: {storeMetadata.appleAppStore.supportUrl}
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div>
+            <div className="text-xs font-semibold text-muted-foreground mb-2 flex items-center gap-1.5">
+              <Scale className="h-3.5 w-3.5" /> الامتثال (Compliance)
+            </div>
+            <CheckGrid
+              items={[
+                {
+                  id: "privacy",
+                  label: "Privacy",
+                  status: legalLinks.checks.find((c) => c.id === "privacy")?.status ?? "warning",
+                  detail: legalLinks.checks.find((c) => c.id === "privacy")?.detail ?? "...",
+                },
+                {
+                  id: "consent",
+                  label: "Consent",
+                  status: consentManagerAudit.record.bannerShown ? "ok" : "warning",
+                  detail: consentManagerAudit.record.bannerShown
+                    ? "المستخدم اتّخذ قراراً فعلياً"
+                    : "لم يُتَّخذ قرار بعد في هذه الجلسة",
+                },
+                {
+                  id: "account_deletion",
+                  label: "Account Deletion",
+                  status: accountDeletionAudit.data
+                    ? accountDeletionAudit.data.items.every((i) => i.status === "ok")
+                      ? "ok"
+                      : "warning"
+                    : "warning",
+                  detail: "خطة معاينة كاملة — لا تنفيذ فعلي بلا Edge Function مستقبلية",
+                },
+              ]}
+            />
+          </div>
+
+          <div>
+            <div className="text-xs font-semibold text-muted-foreground mb-2 flex items-center gap-1.5">
+              <Rocket className="h-3.5 w-3.5" /> الإنتاج (Production)
+            </div>
+            <div className="grid gap-2.5 sm:grid-cols-3">
+              <MetricCard
+                icon={Flag}
+                label="النتيجة النهائية (Final Score)"
+                value={goNoGo.data ? `${goNoGo.data.score}/100` : "..."}
+              />
+              <MetricCard
+                icon={AlertOctagon}
+                label="العوائق المتبقية (Remaining Blockers)"
+                value={goNoGo.data ? String(goNoGo.data.blockers.length) : "..."}
+              />
+              <MetricCard
+                icon={Target}
+                label="جاهزية الإطلاق التقديرية"
+                value={
+                  goNoGo.data
+                    ? goNoGo.data.decision === "GO"
+                      ? "جاهز للإطلاق الفعلي"
+                      : goNoGo.data.decision === "BETA_ONLY"
+                        ? "جاهز لـ Beta فقط"
+                        : "غير جاهز بعد"
+                    : "..."
+                }
+              />
+            </div>
+          </div>
+
+          {goNoGo.data && (
+            <div>
+              <div className="text-xs font-semibold text-muted-foreground mb-2 flex items-center gap-1.5">
+                <TrendingUp className="h-3.5 w-3.5" /> التوصيات
+              </div>
+              <div className="rounded-xl border bg-muted/30 p-3 space-y-1.5">
+                {goNoGo.data.recommendations.map((r, i) => (
+                  <div key={i} className="text-xs text-muted-foreground">
+                    • {r}
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      </Section>
+
       <div className="flex justify-end">
         <Button
           variant="outline"
@@ -1688,6 +1948,8 @@ function SystemPage() {
             qc.invalidateQueries({ queryKey: ["launch-blockers"] });
             qc.invalidateQueries({ queryKey: ["release-certificate"] });
             qc.invalidateQueries({ queryKey: ["final-audit-check"] });
+            qc.invalidateQueries({ queryKey: ["monitoring-observability"] });
+            qc.invalidateQueries({ queryKey: ["release-go-no-go"] });
             refreshEmergencyState();
           }}
         >
