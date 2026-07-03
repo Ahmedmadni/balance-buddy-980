@@ -5,7 +5,8 @@
 حدّث هذا الملف كلما اكتمل بند أو استُجد بند جديد.
 
 آخر مراجعة: 2026-07-02 (فرع `claude/project-setup-plan-4fz4w9`) — أُضيف القسم 5 (Notification
-Delivery Engine)، القسم 7 (Analytics & Insights Engine)، والقسم 9 (Production Hardening) في نفس اليوم.
+Delivery Engine)، القسم 7 (Analytics & Insights Engine)، القسم 9 (Production Hardening)، والقسم 11
+(Mobile Packaging & Cross-Platform Readiness) في نفس اليوم.
 
 ---
 
@@ -170,7 +171,33 @@ NULL)`، أي أنها **تُستبعد دائماً** من هذا العرض ع
 
 ---
 
-## 10. كيف تُحدَّث هذه الوثيقة
+## 11. Prompt 18 — Mobile Packaging & Cross-Platform Readiness (منجز)
+
+طبقة Mobile Runtime مستقلة فوق النظام الحالي: كشف منصة، تدقيق توافق، طبقة خدمات جهاز (تخزين/
+إشعارات/مشاركة/ملفات)، جاهزية عدم الاتصال، جاهزية AdMob (تحقق إعدادات فقط)، وقائمة تحقق إطلاق. صفر
+جداول جديدة، صفر migrations، صفر تعديل على أي منطق مالي/زكاة/إهلاك/استثمار/Analytics/Notifications
+Engine/Backup Engine.
+
+| الملف | الدور |
+|---|---|
+| `src/lib/mobile/platform.ts` | `isAndroid/isIOS/isNative/isWeb/getPlatform()` — يقرأ `window.Capacitor` وقت التشغيل (بلا استيراد ثابت)، ويستخدم `detectPlatform()` الموجودة في `ad-provider.ts` كبديل عند التشغيل على الويب بدل تكرار منطق فحص User-Agent. |
+| `src/lib/mobile/compatibility.ts` | `auditMobileCompatibility()` (localStorage, IndexedDB, تصدير/استيراد ملفات، إشعارات، كاميرا، صلاحية تخزين، Deep Links، Share API) و`checkOfflineCapabilities()` — يعيد استخدام `collectPerformanceMetrics()`, `loadNotificationLog()`, `loadLastBackup()` بدل قياسها من جديد. |
+| `src/lib/mobile/providers.ts` | `DeviceStorageProvider` / `DeviceNotificationProvider` / `DeviceShareProvider` / `DeviceFileProvider` — تنفيذ Web حقيقي + تنفيذ Capacitor كـ Stub (نفس نمط `NotificationProvider`). تصدير الملفات يُفوَّض مباشرة لـ `exportUserData/downloadJSON` من محرك النسخ الاحتياطي بدل إعادة كتابته. |
+| `src/lib/mobile/readiness.ts` | `checkAdMobReadiness()` (يقرأ `ad-config.ts` فقط، لا يحمّل أي SDK) و`generateReleaseChecklist()` (Android/iOS/Notifications/Ads/Backup/Offline/Analytics Ready) — يعيد استخدام `computeFinancialInsights()` و`runSystemHealthCheck()`. |
+| `src/lib/mobile/version.ts` | `APP_VERSION` مقروء من `package.json` (أُضيف له حقل `version` لأول مرة) بدل نص ثابت يمكن أن ينحرف عن الحقيقة. |
+| `src/components/MobileSettingsSection.tsx` | تبويب "الجهاز" الجديد داخل `app.settings.tsx` — المنصة، إصدار التطبيق، مساحة التخزين، إذن الإشعارات، مجلد التصدير، تشخيص التوافق. |
+| `src/routes/_authenticated/app.system.tsx` | قسم **تشخيص الجهاز (Mobile Diagnostics)** جديد داخل `/app/system` الموجودة (Device: منصة/نظام تشغيل/بيئة تشغيل/تخزين/ذاكرة، Mobile Features: إشعارات/ملفات/مشاركة/Deep Links/Offline). |
+| `tsconfig.json` | إضافة `resolveJsonModule: true` فقط — لتمكين قراءة `package.json` من `version.ts`. |
+
+**تقرير الإغلاق (الأسئلة العشرة) — أيضاً في نهاية رسالة الجلسة:** صفر جداول جديدة، صفر migrations،
+Schema Freeze محفوظ بالكامل، إعادة استخدام `AdProvider`/`NotificationProvider`/Backup
+Engine/System Health Engine/Performance Metrics/Analytics Engine كما هي دون تعديل، متوافق مع
+Android (منصّة مبنية فعلياً في المشروع) وجاهز بنيوياً لـ iOS (لا توجد منصة iOS مُضافة بعد في
+Capacitor — Ads/iOS AdMob لا يزال placeholder)، ولا تغيير في أي سلوك مالي قائم.
+
+---
+
+## 12. كيف تُحدَّث هذه الوثيقة
 
 - عند إنجاز بند من "الفجوات" أعلاه: انقله إلى قسم "منجزة" مع رابط الملف/الالتزام (commit).
 - عند بدء خطة تطوير جديدة (سواء مطروحة من المستخدم أو من `.lovable/plan.md` مستقبلاً): أضف قسماً

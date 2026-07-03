@@ -5,6 +5,8 @@ import { validateFinancialIntegrity } from "@/lib/system/integrity";
 import { collectPerformanceMetrics } from "@/lib/system/performance";
 import { loadNotificationLog } from "@/lib/notifications/store";
 import { loadNotificationSettings } from "@/lib/notifications/config";
+import { getPlatform, isNative } from "@/lib/mobile/platform";
+import { auditMobileCompatibility, checkOfflineCapabilities } from "@/lib/mobile/compatibility";
 import { cn } from "@/lib/utils";
 import {
   ShieldCheck,
@@ -21,6 +23,8 @@ import {
   Bug,
   Lightbulb,
   RefreshCw,
+  Smartphone,
+  WifiOff,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
@@ -47,6 +51,29 @@ function bytesToHuman(b: number | null | undefined): string {
   return `${(b / (1024 * 1024)).toFixed(2)} MB`;
 }
 
+const PLATFORM_LABEL: Record<ReturnType<typeof getPlatform>, string> = {
+  android: "أندرويد",
+  ios: "iOS",
+  web: "ويب",
+};
+
+function detectOsLabel(): string {
+  if (typeof navigator === "undefined") return "—";
+  const ua = navigator.userAgent || "";
+  if (/android/i.test(ua)) return "Android";
+  if (/iphone|ipad|ipod/i.test(ua)) return "iOS";
+  if (/windows/i.test(ua)) return "Windows";
+  if (/mac os/i.test(ua)) return "macOS";
+  if (/linux/i.test(ua)) return "Linux";
+  return "غير معروف";
+}
+
+function memoryEstimate(): string {
+  const mem = (performance as unknown as { memory?: { usedJSHeapSize: number; jsHeapSizeLimit: number } }).memory;
+  if (!mem) return "غير متاح في هذا المتصفح/WebView";
+  return `${bytesToHuman(mem.usedJSHeapSize)} من ${bytesToHuman(mem.jsHeapSizeLimit)}`;
+}
+
 function SystemPage() {
   const qc = useQueryClient();
 
@@ -56,6 +83,13 @@ function SystemPage() {
     queryFn: validateFinancialIntegrity,
   });
   const perf = useQuery({ queryKey: ["system-performance"], queryFn: collectPerformanceMetrics });
+  const offline = useQuery({
+    queryKey: ["system-offline"],
+    queryFn: () => checkOfflineCapabilities(qc.getQueryCache().getAll().length),
+  });
+
+  const mobileCompat = auditMobileCompatibility();
+  const compatById = (id: string) => mobileCompat.items.find((i) => i.id === id);
 
   const notifSettings = loadNotificationSettings();
   const notifLog = loadNotificationLog();
@@ -197,6 +231,51 @@ function SystemPage() {
         )}
       </Section>
 
+      {/* Mobile Diagnostics */}
+      <Section title="تشخيص الجهاز (Mobile Diagnostics)" icon={Smartphone}>
+        <div className="grid gap-4 lg:grid-cols-2">
+          <div>
+            <div className="text-xs font-semibold text-muted-foreground mb-2">الجهاز</div>
+            <div className="grid gap-2.5 sm:grid-cols-2">
+              <MetricCard icon={Smartphone} label="المنصة" value={`${PLATFORM_LABEL[mobileCompat.platform]}${mobileCompat.isNative ? " (أصلي)" : ""}`} />
+              <MetricCard icon={Smartphone} label="نظام التشغيل" value={detectOsLabel()} />
+              <MetricCard icon={Smartphone} label="بيئة التشغيل" value={isNative() ? "Capacitor WebView" : "متصفح ويب"} />
+              <MetricCard icon={HardDrive} label="التخزين (IndexedDB وذاكرة مؤقتة)" value={bytesToHuman(perf.data?.storageEstimate.usageBytes)} />
+              <MetricCard icon={Cpu} label="تقدير الذاكرة (JS Heap)" value={memoryEstimate()} />
+            </div>
+          </div>
+          <div>
+            <div className="text-xs font-semibold text-muted-foreground mb-2">ميزات الجهاز (Mobile Features)</div>
+            <ul className="space-y-1.5">
+              {[
+                { id: "notifications", label: "الإشعارات" },
+                { id: "file_export", label: "نظام الملفات (تصدير/استيراد)" },
+                { id: "share", label: "المشاركة (Share API)" },
+                { id: "deep_links", label: "الروابط العميقة (Deep Links)" },
+              ].map((f) => {
+                const item = compatById(f.id);
+                return (
+                  <li key={f.id} className="flex items-center justify-between gap-2 rounded-xl border bg-card/50 p-2.5 text-xs">
+                    <span>{f.label}</span>
+                    <span className={cn("flex items-center gap-1.5 font-medium", item?.supported ? "text-success" : "text-muted-foreground")}>
+                      {item?.supported ? <CheckCircle2 className="h-3.5 w-3.5" /> : <XCircle className="h-3.5 w-3.5" />}
+                      {item?.detail ?? "—"}
+                    </span>
+                  </li>
+                );
+              })}
+              <li className="flex items-center justify-between gap-2 rounded-xl border bg-card/50 p-2.5 text-xs">
+                <span className="flex items-center gap-1.5"><WifiOff className="h-3.5 w-3.5" /> وضع عدم الاتصال (Offline)</span>
+                <span className={cn("flex items-center gap-1.5 font-medium", offline.data?.ready ? "text-success" : "text-warning")}>
+                  {offline.data?.ready ? <CheckCircle2 className="h-3.5 w-3.5" /> : <AlertTriangle className="h-3.5 w-3.5" />}
+                  {offline.isLoading ? "جارٍ التحقق..." : offline.data?.ready ? "جاهز (توجد نسخة احتياطية محلية)" : "لا توجد نسخة احتياطية محلية بعد"}
+                </span>
+              </li>
+            </ul>
+          </div>
+        </div>
+      </Section>
+
       {/* Integrity */}
       <Section title="سلامة البيانات (Integrity)" icon={Bug}>
         {integrity.isLoading ? (
@@ -264,6 +343,7 @@ function SystemPage() {
             qc.invalidateQueries({ queryKey: ["system-health"] });
             qc.invalidateQueries({ queryKey: ["system-integrity"] });
             qc.invalidateQueries({ queryKey: ["system-performance"] });
+            qc.invalidateQueries({ queryKey: ["system-offline"] });
           }}
         >
           <RefreshCw className="h-4 w-4 ml-1" /> إعادة الفحص

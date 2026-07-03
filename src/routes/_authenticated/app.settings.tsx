@@ -12,7 +12,7 @@ import { CURRENCIES } from "@/lib/format";
 import {
   Plus, Trash2, Pencil, Search, Settings as SettingsIcon, Wallet as WalletIcon,
   Tags, Contact as ContactIcon, Archive, ArchiveRestore, ExternalLink, ChevronLeft,
-  Bell, Download, Coins, TrendingDown, RefreshCw, Megaphone, DatabaseBackup, ShieldCheck,
+  Bell, Download, Coins, TrendingDown, RefreshCw, Megaphone, DatabaseBackup, ShieldCheck, Smartphone,
 } from "lucide-react";
 import { BackupRestoreSection } from "@/components/BackupRestoreSection";
 import { toast } from "sonner";
@@ -26,6 +26,7 @@ import { AdSlot } from "@/components/ads/AdSlot";
 import { ReminderSettingsSection } from "@/components/ReminderSettingsSection";
 import { NotificationSettingsSection } from "@/components/NotificationSettingsSection";
 import { SystemToolsSection } from "@/components/SystemToolsSection";
+import { MobileSettingsSection } from "@/components/MobileSettingsSection";
 import { createAuditEntry } from "@/lib/system/audit";
 
 export const Route = createFileRoute("/_authenticated/app/settings")({
@@ -78,6 +79,7 @@ function SettingsPage() {
           <TabsTrigger value="backup" className="gap-1.5"><DatabaseBackup className="h-4 w-4" />النسخ الاحتياطي</TabsTrigger>
           <TabsTrigger value="advanced" className="gap-1.5 text-muted-foreground"><Bell className="h-4 w-4" />متقدم</TabsTrigger>
           <TabsTrigger value="system" className="gap-1.5"><ShieldCheck className="h-4 w-4" />النظام</TabsTrigger>
+          <TabsTrigger value="mobile" className="gap-1.5"><Smartphone className="h-4 w-4" />الجهاز</TabsTrigger>
           <TabsTrigger value="ads" className="gap-1.5"><Megaphone className="h-4 w-4" />الإعلانات</TabsTrigger>
         </TabsList>
 
@@ -90,6 +92,7 @@ function SettingsPage() {
         <TabsContent value="backup"><BackupRestoreSection /></TabsContent>
         <TabsContent value="advanced"><AdvancedPlaceholder /></TabsContent>
         <TabsContent value="system"><SystemToolsSection /></TabsContent>
+        <TabsContent value="mobile"><MobileSettingsSection /></TabsContent>
         <TabsContent value="ads"><AdsSection /></TabsContent>
 
       </Tabs>
