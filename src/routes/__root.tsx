@@ -16,6 +16,7 @@ import { AdProviderRoot } from "@/lib/ads/ad-context";
 import { createAuditEntry } from "@/lib/system/audit";
 import { initErrorTracking } from "@/lib/system/errors";
 import { registerServiceWorker } from "@/lib/pwa/register";
+import { ConsentBanner } from "@/components/ConsentBanner";
 
 function NotFoundComponent() {
   return (
@@ -120,6 +121,7 @@ function RootComponent() {
       <AdProviderRoot>
         <Outlet />
         <Toaster position="top-center" richColors closeButton />
+        <ConsentBanner />
       </AdProviderRoot>
     </QueryClientProvider>
   );

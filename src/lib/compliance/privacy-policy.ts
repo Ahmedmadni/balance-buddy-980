@@ -10,7 +10,7 @@
 // advice — the generator says so explicitly in its output.
 // =============================================================
 import { APP_VERSION } from "@/lib/mobile/version";
-import { SUPPORT_URL } from "@/lib/release/metadata-config";
+import { SUPPORT_URL, COOKIES_URL, DATA_EXPORT_URL } from "@/lib/release/metadata-config";
 
 const APP_NAME = "رصد";
 
@@ -41,7 +41,7 @@ export function generatePrivacyPolicy(): GeneratedPrivacyPolicy {
     {
       id: "local_storage",
       title: "البيانات المخزَّنة محلياً على جهازك",
-      body: `بعض التفضيلات وسجلات التشغيل تُخزَّن محلياً في متصفحك/جهازك فقط (localStorage) ولا تُرسَل لأي خادم: تفضيلات الإشعارات وسجلها، تفضيلات الإعلانات، تفضيلات التذكيرات، اختيار الإجراءات السريعة، ملاحظات الاختبار التجريبي (Beta Feedback)، وإحصاءات جلسات الاستخدام المحلية. يمكنك مسح هذه البيانات في أي وقت من إعدادات المتصفح أو عند إلغاء تثبيت التطبيق.`,
+      body: `بعض التفضيلات وسجلات التشغيل تُخزَّن محلياً في متصفحك/جهازك فقط (localStorage) ولا تُرسَل لأي خادم: تفضيلات الإشعارات وسجلها، تفضيلات الإعلانات، تفضيلات التذكيرات، اختيار الإجراءات السريعة، ملاحظات الاختبار التجريبي (Beta Feedback)، وإحصاءات جلسات الاستخدام المحلية. يمكنك مسح هذه البيانات في أي وقت من إعدادات المتصفح أو عند إلغاء تثبيت التطبيق. تفاصيل كاملة في سياسة ملفات تعريف الارتباط والتخزين المحلي: ${COOKIES_URL}.`,
     },
     {
       id: "notifications",
@@ -66,7 +66,7 @@ export function generatePrivacyPolicy(): GeneratedPrivacyPolicy {
     {
       id: "your_rights",
       title: "حقوقك",
-      body: `يمكنك في أي وقت تصدير كامل بياناتك من الإعدادات. لطلب حذف حسابك وبياناته بالكامل، تواصل معنا عبر ${SUPPORT_URL}.`,
+      body: `يمكنك في أي وقت تصدير كامل بياناتك من الإعدادات، أو مراجعة صفحة حقوق تصدير البيانات: ${DATA_EXPORT_URL}. لطلب حذف حسابك وبياناته بالكامل، افتح "حذف الحساب" من الإعدادات (يعرض معاينة كاملة قبل أي تأكيد) أو تواصل معنا عبر ${SUPPORT_URL}.`,
     },
     {
       id: "contact",

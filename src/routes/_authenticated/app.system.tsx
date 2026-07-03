@@ -59,6 +59,12 @@ import {
 import { getCurrentReleaseChannel, auditReleaseChannel, RELEASE_CHANNEL_LABEL } from "@/lib/release/channels";
 import { auditStoreReadiness } from "@/lib/release/store-readiness";
 import { evaluateProductionGate } from "@/lib/release/production-gate";
+import { auditAccountDeletion } from "@/lib/account-deletion/audit";
+import { auditConsentManager } from "@/lib/consent/audit";
+import { validateLegalLinks } from "@/lib/release/legal-links";
+import { computeLaunchBlockers } from "@/lib/release/blockers";
+import { generateReleaseCertificate } from "@/lib/release/certificate";
+import { performFinalAudit } from "@/lib/release/final-check";
 import { processPendingNotifications } from "@/lib/notifications/engine";
 import { loadLastBackup } from "@/lib/backup/engine";
 import { verifyBackupIntegrity } from "@/lib/backup/integrity";
@@ -115,6 +121,8 @@ import {
   GitBranch,
   Store,
   ShieldQuestion,
+  BadgeCheck,
+  FileCheck2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -276,6 +284,20 @@ function SystemPage() {
       return bundle ? verifyBackupIntegrity(bundle) : null;
     },
   });
+
+  // ----- Prompt 26: Launch Readiness Resolution Center -----
+  const accountDeletionAudit = useQuery({
+    queryKey: ["account-deletion-audit"],
+    queryFn: auditAccountDeletion,
+  });
+  const consentManagerAudit = auditConsentManager();
+  const legalLinks = validateLegalLinks();
+  const launchBlockers = useQuery({ queryKey: ["launch-blockers"], queryFn: computeLaunchBlockers });
+  const releaseCertificate = useQuery({
+    queryKey: ["release-certificate"],
+    queryFn: generateReleaseCertificate,
+  });
+  const finalAuditCheck = useQuery({ queryKey: ["final-audit-check"], queryFn: performFinalAudit });
 
   const recommendations: string[] = [];
   if (health.data?.status === "error")
@@ -1510,6 +1532,129 @@ function SystemPage() {
         )}
       </Section>
 
+      {/* Launch Readiness Resolution Center (Prompt 26) */}
+      <Section title="Launch Readiness Resolution Center" icon={FileCheck2}>
+        <div className="space-y-5">
+          <div className="grid gap-2.5 sm:grid-cols-3">
+            <MetricCard
+              icon={AlertOctagon}
+              label="عوائق الإطلاق غير المحلولة"
+              value={launchBlockers.data ? `${launchBlockers.data.unresolvedCount} (${launchBlockers.data.criticalCount} حرِج)` : "..."}
+            />
+            <MetricCard
+              icon={finalAuditCheck.data?.allPassed ? CheckCircle2 : AlertTriangle}
+              label="التدقيق النهائي (Final Audit)"
+              value={finalAuditCheck.data ? (finalAuditCheck.data.allPassed ? "ناجح بالكامل" : "يحتاج مراجعة") : "..."}
+            />
+            <MetricCard
+              icon={BadgeCheck}
+              label="Release Certificate"
+              value={releaseCertificate.data ? `${releaseCertificate.data.final_score}/100` : "..."}
+            />
+          </div>
+
+          <div>
+            <div className="text-xs font-semibold text-destructive mb-2 flex items-center gap-1.5">
+              <XCircle className="h-3.5 w-3.5" /> Critical
+            </div>
+            <CheckGrid
+              items={[
+                {
+                  id: "account_deletion",
+                  label: "Account Deletion",
+                  status: "error",
+                  detail: accountDeletionAudit.data?.items.find((i) => i.id === "execution_capability")?.detail ?? "معاينة فقط — لا تنفيذ فعلي",
+                },
+                {
+                  id: "legal_links",
+                  label: "Legal Links",
+                  status: legalLinks.checks.some((c) => c.status === "error") ? "error" : legalLinks.checks.some((c) => c.status === "warning") ? "warning" : "ok",
+                  detail: `${legalLinks.score}/100 — ${legalLinks.checks.filter((c) => c.status === "ok").length}/${legalLinks.checks.length} رابط سليم`,
+                },
+                {
+                  id: "consent",
+                  label: "Consent",
+                  status: consentManagerAudit.record.bannerShown ? "ok" : "warning",
+                  detail: consentManagerAudit.record.bannerShown ? "المستخدم اتّخذ قراراً فعلياً عبر شاشة الموافقة" : "لم يُتَّخذ قرار بعد في هذه الجلسة",
+                },
+                {
+                  id: "android",
+                  label: "Android",
+                  status: androidAudit.score === 100 ? "ok" : androidAudit.score >= 60 ? "warning" : "error",
+                  detail: `${androidAudit.score}/100`,
+                },
+                {
+                  id: "ios",
+                  label: "iOS",
+                  status: iosAudit.score === 100 ? "ok" : iosAudit.score >= 60 ? "warning" : "error",
+                  detail: `${iosAudit.score}/100`,
+                },
+                {
+                  id: "store_readiness",
+                  label: "Store Readiness",
+                  status: storeReadiness.data ? (storeReadiness.data.score === 100 ? "ok" : storeReadiness.data.score >= 60 ? "warning" : "error") : "warning",
+                  detail: storeReadiness.data ? `${storeReadiness.data.score}/100` : "...",
+                },
+              ]}
+            />
+          </div>
+
+          <div>
+            <div className="text-xs font-semibold text-warning mb-2 flex items-center gap-1.5">
+              <AlertTriangle className="h-3.5 w-3.5" /> Warning
+            </div>
+            <CheckGrid
+              items={[
+                {
+                  id: "ads",
+                  label: "Ads",
+                  status: adsAudit.web.configured || adsAudit.android.configured || adsAudit.ios.configured ? "ok" : "warning",
+                  detail: adsAudit.web.configured || adsAudit.android.configured || adsAudit.ios.configured ? "منصّة واحدة على الأقل بمعرّفات حقيقية" : "كل المعرّفات لا تزال placeholder",
+                },
+                {
+                  id: "accessibility",
+                  label: "Accessibility",
+                  status: a11y.score >= 80 ? "ok" : a11y.score >= 60 ? "warning" : "error",
+                  detail: `${a11y.score}/100`,
+                },
+                {
+                  id: "empty_states",
+                  label: "Empty States",
+                  status: emptyStates.score >= 80 ? "ok" : emptyStates.score >= 50 ? "warning" : "error",
+                  detail: `${emptyStates.score}/100`,
+                },
+                {
+                  id: "backup_coverage",
+                  label: "Backup Coverage",
+                  status: dataExportAudit.score >= 80 ? "ok" : dataExportAudit.score >= 50 ? "warning" : "error",
+                  detail: `${dataExportAudit.score}/100`,
+                },
+              ]}
+            />
+          </div>
+
+          <div>
+            <div className="text-xs font-semibold text-success mb-2 flex items-center gap-1.5">
+              <CheckCircle2 className="h-3.5 w-3.5" /> Passed
+            </div>
+            {releaseCertificate.data ? (
+              <CheckGrid
+                items={[
+                  { id: "financial_engine", label: "Financial Engine", status: releaseCertificate.data.financial_engine.status, detail: releaseCertificate.data.financial_engine.detail },
+                  { id: "investments", label: "Investments", status: releaseCertificate.data.investments.status, detail: releaseCertificate.data.investments.detail },
+                  { id: "zakat", label: "Zakat", status: releaseCertificate.data.zakat.status, detail: releaseCertificate.data.zakat.detail },
+                  { id: "analytics", label: "Analytics", status: releaseCertificate.data.analytics.status, detail: releaseCertificate.data.analytics.detail },
+                  { id: "notifications", label: "Notifications", status: releaseCertificate.data.notifications.status, detail: releaseCertificate.data.notifications.detail },
+                  { id: "backup", label: "Backup", status: releaseCertificate.data.backup.status, detail: releaseCertificate.data.backup.detail },
+                ]}
+              />
+            ) : (
+              <SkeletonRows />
+            )}
+          </div>
+        </div>
+      </Section>
+
       <div className="flex justify-end">
         <Button
           variant="outline"
@@ -1539,6 +1684,10 @@ function SystemPage() {
             qc.invalidateQueries({ queryKey: ["store-readiness"] });
             qc.invalidateQueries({ queryKey: ["production-gate"] });
             qc.invalidateQueries({ queryKey: ["backup-health-ops"] });
+            qc.invalidateQueries({ queryKey: ["account-deletion-audit"] });
+            qc.invalidateQueries({ queryKey: ["launch-blockers"] });
+            qc.invalidateQueries({ queryKey: ["release-certificate"] });
+            qc.invalidateQueries({ queryKey: ["final-audit-check"] });
             refreshEmergencyState();
           }}
         >

@@ -10,8 +10,10 @@ Delivery Engine)، القسم 7 (Analytics & Insights Engine)، القسم 9 (Pr
 (UX Polish & Beta Testing Readiness)، القسم 17 (Closed Beta Operations Framework)، القسم 19
 (Release Engineering & Store Readiness)، القسم 21 (Compliance, Privacy & Production Hardening)،
 القسم 23 (Production Hardening & Compliance Remediation — Safe Mode، أول Prompt يُصلح Backup Engine
-فعلياً بدل الاكتفاء بالتقرير عنه)، والقسم 25 (Production Safety & Operations Layer — أعلام ميزات،
-تقارير أعطال، إعدادات عن بُعد، وضع طوارئ، وبوابة إنتاج نهائية).
+فعلياً بدل الاكتفاء بالتقرير عنه)، القسم 25 (Production Safety & Operations Layer — أعلام ميزات،
+تقارير أعطال، إعدادات عن بُعد، وضع طوارئ، وبوابة إنتاج نهائية)، والقسم 27 (Account Deletion, Consent
+UI, Production Legal Wiring & Launch Closure — أول شاشة موافقة حقيقية معروضة للمستخدم، وأول ربط فعلي
+للصفحات القانونية داخل التطبيق).
 
 ---
 
@@ -392,7 +394,37 @@ Config/Emergency Controls/Production Gate جميعها جاهزة وتعمل ف�
 
 ---
 
-## 26. كيف تُحدَّث هذه الوثيقة
+## 27. Prompt 26 — Account Deletion, Consent UI, Production Legal Wiring & Launch Closure (منجز)
+
+الحلقة الأخيرة قبل الإطلاق: واجهة معاينة حذف حساب حقيقية (بلا تنفيذ)، شاشة موافقة (Consent Banner)
+حقيقية معروضة للمستخدم فعلياً لأول مرة، ربط الصفحات القانونية المنشورة (Prompt 24) داخل التطبيق
+والتكوين، محرك عوائق إطلاق موحّد، شهادة إصدار، تدقيق نهائي، ولوحة "Launch Readiness Resolution
+Center". صفر جداول جديدة، صفر migrations، صفر تعديل على transactions/investment_transactions/
+investments/person_ledger/system_events/v_account_statement/أي Trigger/RLS/View/محرك مالي/زكاة/إهلاك.
+
+| الملف | الدور |
+|---|---|
+| `src/lib/account-deletion/{flow,audit}.ts` | **PART 1** — `generateDeletionExecutionPlan()`/`validateDeletionReadiness()`/`exportDeletionPackage()` تبني على `generateAccountDeletionReport()` (Prompt 24) لعرض خطوات، حجم بيانات متوقّع، بيانات غير قابلة للحذف من العميل، زمن تقديري، وتحذيرات استرجاع — **بلا أي `.delete()` أو `service_role` أو migration**. `exportDeletionPackage()` يُنتج نسخة احتياطية كاملة + الخطة كملف واحد قابل للتنزيل. |
+| `src/components/AccountDeletionDialog.tsx` | نافذة معاينة كاملة: إحصاءات، خطوات مرقّمة، بيانات غير قابلة للحذف، تحذيرات، زر تصدير حزمة الحذف، وحقل تأكيد نصي ("حذف حسابي") قبل زر "تأكيد الاطّلاع" — لا زر حذف فعلي إطلاقاً. مُوصَّلة في Settings > المساعدة. |
+| `src/lib/consent/preferences.ts` | **PART 2** — يُحوِّل فئات consent.ts الأربع (Prompt 24) + إعدادات الإشعارات الحقيقية إلى 5 فئات واجهة (Essential/Analytics/Ads/Notifications/Personalization)، مع Essential غير قابلة للتعطيل. يُعيد استخدام `loadConsent()`/`saveConsent()` دون تكرار منطقهما. |
+| `src/components/ConsentBanner.tsx` + `ConsentPreferencesDialog.tsx` | **أول شاشة موافقة حقيقية معروضة للمستخدم** — مثبَّتة في `__root.tsx` (تظهر على كل الصفحات حتى يُتَّخذ قرار)، بخيارات قبول الكل / رفض غير الأساسي / تخصيص. |
+| `src/lib/release/metadata-config.ts` (معدَّل) | **PART 3** — `PRIVACY_POLICY_URL`/`TERMS_URL` أصبحا `/legal/privacy`/`/legal/terms` فعلياً (بدل placeholder)، أُضيف `COOKIES_URL`/`DATA_EXPORT_URL` جديدان يشيران لصفحات Prompt 24 المنشورة فعلياً. `SUPPORT_URL`/`WEBSITE_URL` بقيا placeholder بصدق — لا نطاق حقيقي بعد. |
+| `privacy-policy.ts`/`terms-of-service.ts`/`cookie-policy.ts` (معدَّلة) | تحديثات نصية طفيفة تربط بين المستندات (روابط متبادلة حقيقية) وتشير لأدوات حذف الحساب/تفضيلات الخصوصية الجديدة بدل نص عام. |
+| `src/lib/release/legal-links.ts` | `validateLegalLinks()` — يتحقق أن Privacy/Terms/Cookies/Data Export تشير فعلياً لمسارات `/legal/*` داخلية (وليس فقط "غير فارغة")؛ Support يبقى مُعلَناً بصدق كـ placeholder. |
+| `src/lib/release/blockers.ts` | **PART 4** — `computeLaunchBlockers()` يُوحِّد 7 تقارير موجودة (Release Blockers/Production Gate/Launch Checklist/Compliance/PWA/Android/iOS) في قائمة عوائق مسطّحة بشكل `{blocker_id, severity, category, title, description, fix, resolved}`. |
+| `src/lib/release/certificate.ts` | **PART 6** — `generateReleaseCertificate()` يُنتج 11 قسماً (financial_engine/schema_freeze/backup/notifications/investments/depreciation/zakat/analytics/beta/production/compliance) + `final_score`، معظمها من محركات فعلية، وschema_freeze/depreciation/zakat حقائق ثابتة موثَّقة (لم تُعدَّل عبر الجلسة). |
+| `src/lib/release/final-check.ts` | **PART 7** — `performFinalAudit()` يتحقق من Schema Freeze/عدم وجود migrations أو تعديل Triggers/RLS/محركات مالية (حقائق ثابتة موثَّقة بالبناء) + فحصين حيّين (لا روابط قانونية معطوبة، لا عوائق حرجة غير محلولة) عبر `validateLegalLinks()`/`computeLaunchBlockers()`. |
+| `src/components/HelpSection.tsx` (معدَّل) | إضافة زرَّي "تفضيلات الخصوصية" و"حذف الحساب" + قسم روابط للمستندات القانونية الأربعة. |
+| `src/routes/_authenticated/app.system.tsx` | **PART 5** — قسم **Launch Readiness Resolution Center** جديد: Critical (Account Deletion/Legal Links/Consent/Android/iOS/Store Readiness)، Warning (Ads/Accessibility/Empty States/Backup Coverage)، Passed (من `generateReleaseCertificate()` مباشرة: Financial Engine/Investments/Zakat/Analytics/Notifications/Backup) — زائد شريط ملخّص (عوائق غير محلولة، حالة التدقيق النهائي، Release Certificate Score). |
+
+**تقرير الإغلاق (14 سؤالاً) — أيضاً في نهاية رسالة الجلسة:** صفر جداول جديدة، صفر migrations، Schema
+Freeze محفوظ بالكامل، Account Deletion جاهز كمعاينة كاملة (بلا تنفيذ فعلي بالتصميم)، Consent UI جاهز
+ومعروض فعلياً لأول مرة، الروابط القانونية الأربعة (Privacy/Terms/Cookies/Data Export) مربوطة فعلياً
+بصفحات داخلية حقيقية (Support يبقى صادقاً كـ placeholder)، ولا تغيير في أي سلوك مالي قائم.
+
+---
+
+## 28. كيف تُحدَّث هذه الوثيقة
 
 - عند إنجاز بند من "الفجوات" أعلاه: انقله إلى قسم "منجزة" مع رابط الملف/الالتزام (commit).
 - عند بدء خطة تطوير جديدة (سواء مطروحة من المستخدم أو من `.lovable/plan.md` مستقبلاً): أضف قسماً

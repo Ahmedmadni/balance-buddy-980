@@ -7,6 +7,8 @@
 // automatic cloud backup, ad architecture is AdSense/AdMob placeholders.
 // A draft to review with a lawyer before publishing — stated explicitly.
 // =============================================================
+import { PRIVACY_POLICY_URL } from "@/lib/release/metadata-config";
+
 const APP_NAME = "رصد";
 
 export interface TermsSection {
@@ -31,7 +33,7 @@ export function generateTermsOfService(): GeneratedTermsOfService {
     {
       id: "liability",
       title: "حدود المسؤولية",
-      body: `${APP_NAME} أداة مساعدة لإدارة الأموال وتتبّعها، ولا يُعَدّ استشارة مالية أو شرعية مُلزِمة (بما في ذلك حسابات الزكاة المعروضة في التطبيق). أنت المسؤول الوحيد عن دقة البيانات المُدخَلة وعن أي قرار مالي يُبنى على مخرجات التطبيق.`,
+      body: `${APP_NAME} أداة مساعدة لإدارة الأموال وتتبّعها، ولا يُعَدّ استشارة مالية أو شرعية مُلزِمة (بما في ذلك حسابات الزكاة المعروضة في التطبيق). أنت المسؤول الوحيد عن دقة البيانات المُدخَلة وعن أي قرار مالي يُبنى على مخرجات التطبيق. راجع أيضاً سياسة الخصوصية: ${PRIVACY_POLICY_URL}.`,
     },
     {
       id: "backup_responsibility",
@@ -56,7 +58,7 @@ export function generateTermsOfService(): GeneratedTermsOfService {
     {
       id: "termination",
       title: "إنهاء الحساب",
-      body: `يمكنك التوقف عن استخدام ${APP_NAME} في أي وقت. لطلب حذف حسابك وبياناته بالكامل، راجع قسم حذف البيانات في الإعدادات أو تواصل مع الدعم.`,
+      body: `يمكنك التوقف عن استخدام ${APP_NAME} في أي وقت. لطلب حذف حسابك وبياناته بالكامل، افتح "حذف الحساب" من الإعدادات (يعرض معاينة كاملة للبيانات المتأثرة قبل أي تأكيد) أو تواصل مع الدعم.`,
     },
     {
       id: "changes",

@@ -27,6 +27,9 @@ import {
   Bug,
   Lightbulb,
   HelpCircle,
+  ShieldCheck,
+  Trash2,
+  FileText,
 } from "lucide-react";
 import { toast } from "sonner";
 import { APP_VERSION } from "@/lib/mobile/version";
@@ -41,6 +44,8 @@ import {
 import { createAuditEntry } from "@/lib/system/audit";
 import { captureApplicationError } from "@/lib/system/errors";
 import { recordDialogOpened, recordDialogSaved } from "@/lib/beta/session";
+import { ConsentPreferencesDialog } from "./ConsentPreferencesDialog";
+import { AccountDeletionDialog } from "./AccountDeletionDialog";
 
 const PLATFORM_LABEL: Record<ReturnType<typeof getPlatform>, string> = {
   android: "أندرويد",
@@ -51,6 +56,8 @@ const PLATFORM_LABEL: Record<ReturnType<typeof getPlatform>, string> = {
 export function HelpSection() {
   const [exporting, setExporting] = useState(false);
   const [feedbackOpen, setFeedbackOpen] = useState(false);
+  const [consentOpen, setConsentOpen] = useState(false);
+  const [deletionOpen, setDeletionOpen] = useState(false);
   const feedbackCount = loadBetaFeedback().length;
 
   async function exportDiagnostics() {
@@ -105,6 +112,20 @@ export function HelpSection() {
           buttonLabel="إرسال"
           onClick={() => setFeedbackOpen(true)}
         />
+        <ActionRow
+          icon={ShieldCheck}
+          title="تفضيلات الخصوصية"
+          desc="التحكّم بموافقتك على التحليلات، الإعلانات، والتخصيص"
+          buttonLabel="إدارة"
+          onClick={() => setConsentOpen(true)}
+        />
+        <ActionRow
+          icon={Trash2}
+          title="حذف الحساب"
+          desc="معاينة كاملة لما سيتأثر قبل أي طلب حذف فعلي"
+          buttonLabel="عرض"
+          onClick={() => setDeletionOpen(true)}
+        />
       </div>
 
       <div className="rounded-2xl border bg-amber-50/40 dark:bg-amber-950/10 p-3 text-[11px] text-amber-800 dark:text-amber-200 flex gap-2">
@@ -115,7 +136,29 @@ export function HelpSection() {
         </span>
       </div>
 
+      <div>
+        <div className="text-[11px] font-semibold text-muted-foreground mb-2 flex items-center gap-1.5">
+          <FileText className="h-3.5 w-3.5" /> المستندات القانونية
+        </div>
+        <div className="flex flex-wrap gap-2">
+          <Link to="/legal/privacy" className="rounded-full border border-border px-3 py-1.5 text-[11px] text-muted-foreground hover:text-foreground hover:border-primary/40 transition-colors">
+            سياسة الخصوصية
+          </Link>
+          <Link to="/legal/terms" className="rounded-full border border-border px-3 py-1.5 text-[11px] text-muted-foreground hover:text-foreground hover:border-primary/40 transition-colors">
+            شروط الاستخدام
+          </Link>
+          <Link to="/legal/cookies" className="rounded-full border border-border px-3 py-1.5 text-[11px] text-muted-foreground hover:text-foreground hover:border-primary/40 transition-colors">
+            ملفات تعريف الارتباط
+          </Link>
+          <Link to="/legal/data-export" className="rounded-full border border-border px-3 py-1.5 text-[11px] text-muted-foreground hover:text-foreground hover:border-primary/40 transition-colors">
+            تصدير بياناتك
+          </Link>
+        </div>
+      </div>
+
       <FeedbackDialog open={feedbackOpen} onOpenChange={setFeedbackOpen} />
+      <ConsentPreferencesDialog open={consentOpen} onOpenChange={setConsentOpen} />
+      <AccountDeletionDialog open={deletionOpen} onOpenChange={setDeletionOpen} />
     </div>
   );
 }
