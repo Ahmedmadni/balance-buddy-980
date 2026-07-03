@@ -7,8 +7,8 @@
 آخر مراجعة: 2026-07-03 (فرع `claude/project-setup-plan-4fz4w9`) — أُضيف القسم 5 (Notification
 Delivery Engine)، القسم 7 (Analytics & Insights Engine)، القسم 9 (Production Hardening)، القسم 11
 (Mobile Packaging & Cross-Platform Readiness)، القسم 13 (Ads Production Readiness)، القسم 15
-(UX Polish & Beta Testing Readiness)، القسم 17 (Closed Beta Operations Framework)، والقسم 19
-(Release Engineering & Store Readiness).
+(UX Polish & Beta Testing Readiness)، القسم 17 (Closed Beta Operations Framework)، القسم 19
+(Release Engineering & Store Readiness)، والقسم 21 (Compliance, Privacy & Production Hardening).
 
 ---
 
@@ -304,7 +304,35 @@ App Store APIs/Firebase/Crashlytics/RevenueCat/Real Ads SDK/Real Push SDK أُض
 
 ---
 
-## 20. كيف تُحدَّث هذه الوثيقة
+## 21. Prompt 23 — Compliance, Privacy & Production Hardening (منجز)
+
+إزالة العوائق القانونية والتشغيلية قبل الإطلاق: توليد مسودتَي سياسة خصوصية وشروط استخدام حقيقيتين
+من بنية التطبيق الفعلية، تدقيق تصدير بيانات المستخدم، خطة حذف بيانات (معاينة فقط، بلا تنفيذ)،
+جاهزية الموافقات، تدقيق إعدادات الإنتاج، وتدقيق التعافي من الكوارث. صفر جداول جديدة، صفر migrations،
+صفر تعديل على أي منطق مالي أو محرك أعمال (بما فيها Backup/Notifications/Ads Engine نفسها).
+
+| الملف | الدور |
+|---|---|
+| `src/lib/compliance/privacy-policy.ts` | `generatePrivacyPolicy()` — يُولِّد نص سياسة خصوصية حقيقي (Markdown) من 9 أقسام مبنية على حقائق معمارية فعلية: Supabase Auth، تخزين محلي (localStorage)، الإشعارات المحلية، بنية الإعلانات (Placeholders)، النسخ الاحتياطي اليدوي، والتحليلات المحلية بالكامل. يتضمّن تنويهاً صريحاً أنه مسودة تلقائية تحتاج مراجعة قانونية. |
+| `src/lib/compliance/terms-of-service.ts` | `generateTermsOfService()` — 8 أقسام: الاستخدام المقبول، حدود المسؤولية، مسؤولية النسخ الاحتياطي، فقدان البيانات، الإعلانات، الاشتراكات المستقبلية (توثيق صريح أن "Premium" حالياً مجرد تفضيل محلي بلا فوترة فعلية)، إنهاء الحساب، والتعديلات. |
+| `src/lib/compliance/data-export-audit.ts` | `auditUserDataExport()` — **اكتشاف حقيقي مهم** بقراءة `backup/engine.ts` مباشرة: مفتاحا `LOCAL_KEYS` المُعلَنان `"rasd.quickActions.v1"` و`"rasd.ads.v1"` لا يطابقان أي مفتاح localStorage حقيقي مكتوب فعلياً (الحقيقيان: `dashboard.quickActions.v1` في `QuickActionsRow.tsx`، و`rasd.adPrefs.v1` في `ad-config.ts`) — فتفضيلات الإجراءات السريعة والإعلانات **لا تُصدَّر فعلياً** رغم ظهورها في النسخة الاحتياطية. كما أن الإشعارات وجلسات Beta غير مشمولة إطلاقاً. |
+| `src/lib/compliance/data-deletion-plan.ts` | `generateDeletionPlan()` — معاينة **قراءة فقط** (بلا أي `.delete()`/`.remove()` فعلي): سيُحذف (17 جدول Supabase + ملفات Storage + 10 مفاتيح localStorage)، سيبقى (حساب Supabase Auth نفسه — يحتاج Admin API بصلاحية service_role غير متاحة من العميل)، يحتاج تأكيداً (لا Soft Delete، تأكيد صريح مطلوب). |
+| `src/lib/compliance/consent-readiness.ts` | `auditConsentReadiness()` — GDPR/CCPA/Ads Consent (يُعيد استخدام `consent_ready` من `mobile/readiness.ts`)/Analytics Consent/Tracking Consent — الأخيران "ok" فعلياً لأنه لا يوجد ما يستدعي موافقة (لا SDK تحليلات أو تتبّع خارجي). |
+| `src/lib/compliance/production-config-audit.ts` | `auditProductionConfig()` — Supabase URL وEnvironment Variables فحصان **حيّان فعليان** عبر `import.meta.env` (نفس نمط `integrations/supabase/client.ts`)؛ Storage وAuth فحصان حيّان (نداء فعلي)؛ RLS/Ads/Notifications/Mobile مُعاد استخدامها بالكامل. |
+| `src/lib/compliance/disaster-recovery-audit.ts` | `auditDisasterRecovery()` — Backup/Restore/Export/Recovery/Offline Recovery، تُعيد استخدام Backup Engine وSystem Recovery Tools (`verifyDatabase` من Prompt 17) وMobile Offline Capabilities مباشرة دون تكرار منطقها. |
+| `src/routes/_authenticated/app.system.tsx` | قسم **الامتثال والخصوصية وجاهزية التعافي (Compliance)** جديد: بطاقتا سياسة الخصوصية/الشروط (عرض في نافذة + تنزيل .md)، جاهزية الموافقات، تدقيق تصدير البيانات، خطة الحذف (3 أعمدة: سيُحذف/سيبقى/يحتاج تأكيداً)، التعافي من الكوارث، وإعدادات الإنتاج. |
+
+**تقرير الإغلاق (الأسئلة العشرة) — أيضاً في نهاية رسالة الجلسة:** صفر جداول جديدة، صفر migrations،
+Schema Freeze محفوظ بالكامل (بما في ذلك عدم لمس منطق Backup/Notifications/Ads Engine نفسها — فقط
+قراءتها والتقرير عنها)، كل محرك مُعاد استخدامه فعلياً (Backup Engine/Notification Engine/Beta
+Engine/System Health/Release Audit/Mobile Audit) دون تكرار منطقه، لا Legal APIs/Consent SDKs/Real
+GDPR Services/Remote Deletion/Remote Analytics أُضيف، ولا تغيير في أي سلوك مالي قائم. الاكتشاف
+الأهم في هذا الـ Prompt: مفتاحا نسخ احتياطي معطوبان فعلياً في محرك موجود (`quickActions`/`ads`
+prefs لا تُصدَّران أبداً) — موثَّق بالكامل دون تعديل الملف المُعطوب نفسه، احتراماً لتجميد Backup Engine.
+
+---
+
+## 22. كيف تُحدَّث هذه الوثيقة
 
 - عند إنجاز بند من "الفجوات" أعلاه: انقله إلى قسم "منجزة" مع رابط الملف/الالتزام (commit).
 - عند بدء خطة تطوير جديدة (سواء مطروحة من المستخدم أو من `.lovable/plan.md` مستقبلاً): أضف قسماً

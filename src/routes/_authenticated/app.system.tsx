@@ -33,6 +33,13 @@ import { generateStoreAssetsChecklist, type StoreAssetStatus } from "@/lib/relea
 import { auditCompliance } from "@/lib/release/compliance-audit";
 import { auditProductionEnvironment } from "@/lib/release/production-audit";
 import { generateLaunchChecklist } from "@/lib/release/launch-checklist";
+import { generatePrivacyPolicy } from "@/lib/compliance/privacy-policy";
+import { generateTermsOfService } from "@/lib/compliance/terms-of-service";
+import { auditUserDataExport } from "@/lib/compliance/data-export-audit";
+import { generateDeletionPlan } from "@/lib/compliance/data-deletion-plan";
+import { auditConsentReadiness } from "@/lib/compliance/consent-readiness";
+import { auditProductionConfig } from "@/lib/compliance/production-config-audit";
+import { auditDisasterRecovery } from "@/lib/compliance/disaster-recovery-audit";
 import { formatMoney } from "@/lib/format";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -71,8 +78,15 @@ import {
   Scale,
   Server,
   Image,
+  FileText,
+  Trash2,
+  UserCheck,
+  Settings2,
+  LifeBuoy,
+  Download,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 
 export const Route = createFileRoute("/_authenticated/app/system")({
   head: () => ({ meta: [{ title: "تشخيص النظام — رصد" }] }),
@@ -118,6 +132,18 @@ function memoryEstimate(): string {
   const mem = (performance as unknown as { memory?: { usedJSHeapSize: number; jsHeapSizeLimit: number } }).memory;
   if (!mem) return "غير متاح في هذا المتصفح/WebView";
   return `${bytesToHuman(mem.usedJSHeapSize)} من ${bytesToHuman(mem.jsHeapSizeLimit)}`;
+}
+
+function downloadText(filename: string, content: string) {
+  const blob = new Blob([content], { type: "text/markdown;charset=utf-8" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 500);
 }
 
 function SystemPage() {
@@ -178,6 +204,15 @@ function SystemPage() {
   const complianceAudit = useQuery({ queryKey: ["release-compliance"], queryFn: auditCompliance });
   const prodEnvAudit = useQuery({ queryKey: ["release-prod-env"], queryFn: auditProductionEnvironment });
   const launchChecklist = useQuery({ queryKey: ["release-launch"], queryFn: generateLaunchChecklist });
+
+  const privacyPolicy = generatePrivacyPolicy();
+  const termsOfService = generateTermsOfService();
+  const dataExportAudit = auditUserDataExport();
+  const deletionPlan = useQuery({ queryKey: ["compliance-deletion-plan"], queryFn: generateDeletionPlan });
+  const consentReadiness = useQuery({ queryKey: ["compliance-consent"], queryFn: auditConsentReadiness });
+  const productionConfig = useQuery({ queryKey: ["compliance-prod-config"], queryFn: auditProductionConfig });
+  const disasterRecovery = useQuery({ queryKey: ["compliance-disaster-recovery"], queryFn: auditDisasterRecovery });
+  const [legalDoc, setLegalDoc] = useState<"privacy" | "terms" | null>(null);
 
   const recommendations: string[] = [];
   if (health.data?.status === "error")
@@ -890,6 +925,135 @@ function SystemPage() {
         </div>
       </Section>
 
+      {/* Compliance Dashboard */}
+      <Section title="الامتثال والخصوصية وجاهزية التعافي (Compliance)" icon={FileText}>
+        <div className="space-y-5">
+          <div>
+            <div className="text-xs font-semibold text-muted-foreground mb-2">
+              المستندات القانونية (مسودات تلقائية — تحتاج مراجعة قانونية قبل النشر)
+            </div>
+            <div className="grid gap-2.5 sm:grid-cols-2">
+              <div className="flex items-start gap-3 rounded-2xl border bg-card p-3.5">
+                <div className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-primary/10 text-primary">
+                  <FileText className="h-4 w-4" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="text-sm font-semibold">سياسة الخصوصية</div>
+                  <div className="text-[11px] text-muted-foreground mt-0.5">
+                    {privacyPolicy.sections.length} أقسام — مبنية على Auth/Storage محلي/الإشعارات/الإعلانات/النسخ الاحتياطي/التحليلات
+                  </div>
+                </div>
+                <div className="flex gap-1.5 shrink-0">
+                  <Button size="sm" variant="outline" onClick={() => setLegalDoc("privacy")}>
+                    عرض
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => downloadText("rasd-privacy-policy.md", privacyPolicy.markdown)}
+                  >
+                    <Download className="h-3.5 w-3.5" />
+                  </Button>
+                </div>
+              </div>
+              <div className="flex items-start gap-3 rounded-2xl border bg-card p-3.5">
+                <div className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-primary/10 text-primary">
+                  <FileText className="h-4 w-4" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="text-sm font-semibold">شروط الاستخدام</div>
+                  <div className="text-[11px] text-muted-foreground mt-0.5">
+                    {termsOfService.sections.length} أقسام — الاستخدام المقبول/المسؤولية/النسخ الاحتياطي/الإعلانات/الاشتراكات
+                  </div>
+                </div>
+                <div className="flex gap-1.5 shrink-0">
+                  <Button size="sm" variant="outline" onClick={() => setLegalDoc("terms")}>
+                    عرض
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => downloadText("rasd-terms-of-service.md", termsOfService.markdown)}
+                  >
+                    <Download className="h-3.5 w-3.5" />
+                  </Button>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div>
+            <div className="text-xs font-semibold text-muted-foreground mb-2 flex items-center gap-1.5">
+              <UserCheck className="h-3.5 w-3.5" /> جاهزية الموافقات (Consent Readiness)
+              {consentReadiness.data ? ` — ${consentReadiness.data.score}/100` : ""}
+            </div>
+            {consentReadiness.data ? <CheckGrid items={consentReadiness.data.items} /> : <SkeletonRows />}
+          </div>
+
+          <div>
+            <div className="text-xs font-semibold text-muted-foreground mb-2 flex items-center gap-1.5">
+              <Download className="h-3.5 w-3.5" /> تدقيق تصدير بيانات المستخدم (Data Export)
+              {` — ${dataExportAudit.score}/100`}
+            </div>
+            <CheckGrid items={dataExportAudit.items} />
+          </div>
+
+          <div>
+            <div className="text-xs font-semibold text-muted-foreground mb-2 flex items-center gap-1.5">
+              <Trash2 className="h-3.5 w-3.5" /> خطة حذف البيانات (معاينة فقط — لا يُنفَّذ أي حذف)
+            </div>
+            {deletionPlan.data ? (
+              <div className="grid gap-2 sm:grid-cols-3">
+                <DeletionGroupCard
+                  title="سيُحذف"
+                  tone="destructive"
+                  items={deletionPlan.data.items.filter((i) => i.category === "will_delete")}
+                />
+                <DeletionGroupCard
+                  title="سيبقى"
+                  tone="warning"
+                  items={deletionPlan.data.items.filter((i) => i.category === "will_remain")}
+                />
+                <DeletionGroupCard
+                  title="يحتاج تأكيداً"
+                  tone="muted"
+                  items={deletionPlan.data.items.filter((i) => i.category === "needs_confirmation")}
+                />
+              </div>
+            ) : (
+              <SkeletonRows />
+            )}
+          </div>
+
+          <div>
+            <div className="text-xs font-semibold text-muted-foreground mb-2 flex items-center gap-1.5">
+              <LifeBuoy className="h-3.5 w-3.5" /> التعافي من الكوارث (Disaster Recovery)
+              {disasterRecovery.data ? ` — ${disasterRecovery.data.score}/100` : ""}
+            </div>
+            {disasterRecovery.data ? <CheckGrid items={disasterRecovery.data.items} /> : <SkeletonRows />}
+          </div>
+
+          <div>
+            <div className="text-xs font-semibold text-muted-foreground mb-2 flex items-center gap-1.5">
+              <Settings2 className="h-3.5 w-3.5" /> إعدادات الإنتاج (Production Config)
+              {productionConfig.data ? ` — ${productionConfig.data.score}/100` : ""}
+            </div>
+            {productionConfig.data ? <CheckGrid items={productionConfig.data.items} /> : <SkeletonRows />}
+          </div>
+        </div>
+      </Section>
+
+      <Dialog open={legalDoc !== null} onOpenChange={(v) => !v && setLegalDoc(null)}>
+        <DialogContent className="max-h-[80vh] overflow-y-auto sm:max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>{legalDoc === "privacy" ? "سياسة الخصوصية" : "شروط الاستخدام"}</DialogTitle>
+          </DialogHeader>
+          <pre className="whitespace-pre-wrap text-xs leading-relaxed" dir="rtl">
+            {legalDoc === "privacy" ? privacyPolicy.markdown : legalDoc === "terms" ? termsOfService.markdown : ""}
+          </pre>
+        </DialogContent>
+      </Dialog>
+
       {/* Integrity */}
       <Section title="سلامة البيانات (Integrity)" icon={Bug}>
         {integrity.isLoading ? (
@@ -968,6 +1132,10 @@ function SystemPage() {
             qc.invalidateQueries({ queryKey: ["release-compliance"] });
             qc.invalidateQueries({ queryKey: ["release-prod-env"] });
             qc.invalidateQueries({ queryKey: ["release-launch"] });
+            qc.invalidateQueries({ queryKey: ["compliance-deletion-plan"] });
+            qc.invalidateQueries({ queryKey: ["compliance-consent"] });
+            qc.invalidateQueries({ queryKey: ["compliance-prod-config"] });
+            qc.invalidateQueries({ queryKey: ["compliance-disaster-recovery"] });
           }}
         >
           <RefreshCw className="h-4 w-4 ml-1" /> إعادة الفحص
@@ -1066,6 +1234,38 @@ function CheckGrid({
           <div className="text-[11px] text-muted-foreground">{item.detail}</div>
         </div>
       ))}
+    </div>
+  );
+}
+
+function DeletionGroupCard({
+  title,
+  tone,
+  items,
+}: {
+  title: string;
+  tone: "destructive" | "warning" | "muted";
+  items: { id: string; label: string; detail: string }[];
+}) {
+  const toneClass =
+    tone === "destructive"
+      ? "border-destructive/30 bg-destructive/5"
+      : tone === "warning"
+        ? "border-warning/30 bg-warning/5"
+        : "border-border bg-muted/30";
+  return (
+    <div className={cn("rounded-2xl border p-3.5 space-y-2", toneClass)}>
+      <div className="text-xs font-bold">
+        {title} ({items.length})
+      </div>
+      <ul className="space-y-1.5">
+        {items.map((item) => (
+          <li key={item.id} className="text-[11px]">
+            <div className="font-semibold">{item.label}</div>
+            <div className="text-muted-foreground mt-0.5">{item.detail}</div>
+          </li>
+        ))}
+      </ul>
     </div>
   );
 }
