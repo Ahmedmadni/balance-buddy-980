@@ -92,6 +92,14 @@ import { generatePlayStoreSubmission } from "@/lib/store-submission/android";
 import { generateAppStoreSubmission } from "@/lib/store-submission/ios";
 import { generateRC2Certificate } from "@/lib/rc2/certificate";
 import { evaluateRC2Decision } from "@/lib/rc2/decision";
+import { generateSupportOperations } from "@/lib/operations/support";
+import { generateIncidentPlaybook } from "@/lib/operations/incidents";
+import { generateDisasterRecoveryPlan } from "@/lib/operations/disaster";
+import { generatePlayStorePackage } from "@/lib/submission/playstore";
+import { generateAppStorePackage } from "@/lib/submission/appstore";
+import { generateLaunchPackage } from "@/lib/launch/package";
+import { generateLaunchCertificate } from "@/lib/launch/certificate";
+import { generateFinalLaunchDecision } from "@/lib/launch/decision";
 import { loadLastBackup } from "@/lib/backup/engine";
 import { verifyBackupIntegrity } from "@/lib/backup/integrity";
 import { formatMoney } from "@/lib/format";
@@ -156,6 +164,7 @@ import {
   Fingerprint,
   Lock,
   Zap,
+  PackageCheck,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -390,6 +399,22 @@ function SystemPage() {
   });
   const rc2Certificate = useQuery({ queryKey: ["rc2-certificate"], queryFn: generateRC2Certificate });
   const rc2Decision = useQuery({ queryKey: ["rc2-decision"], queryFn: evaluateRC2Decision });
+
+  // ----- Prompt 30: Production Operations, Deployment Assets & Final Launch Package -----
+  const supportOperations = generateSupportOperations();
+  const incidentPlaybook = generateIncidentPlaybook();
+  const disasterRecoveryPlan = useQuery({
+    queryKey: ["disaster-recovery-plan"],
+    queryFn: generateDisasterRecoveryPlan,
+  });
+  const playStorePackage = useQuery({ queryKey: ["playstore-package"], queryFn: generatePlayStorePackage });
+  const appStorePackage = useQuery({ queryKey: ["appstore-package"], queryFn: generateAppStorePackage });
+  const launchPackage = useQuery({ queryKey: ["launch-package"], queryFn: generateLaunchPackage });
+  const launchCertificate = useQuery({ queryKey: ["launch-certificate"], queryFn: generateLaunchCertificate });
+  const finalLaunchDecision = useQuery({
+    queryKey: ["final-launch-decision"],
+    queryFn: generateFinalLaunchDecision,
+  });
 
   const recommendations: string[] = [];
   if (health.data?.status === "error")
@@ -2399,6 +2424,198 @@ function SystemPage() {
         </div>
       </Section>
 
+      {/* Final Launch Package Center (Prompt 30) */}
+      <Section title="Final Launch Package Center" icon={PackageCheck}>
+        <div className="space-y-5">
+          <div
+            className={cn(
+              "flex items-center gap-4 rounded-2xl border p-4",
+              finalLaunchDecision.data?.decision === "GO"
+                ? "border-success/30 bg-success/5"
+                : finalLaunchDecision.data?.decision === "CONDITIONAL_GO"
+                  ? "border-warning/30 bg-warning/5"
+                  : "border-destructive/30 bg-destructive/5",
+            )}
+          >
+            <div className="text-4xl font-black tabular-nums text-primary">
+              {launchCertificate.data ? launchCertificate.data.final_score : "..."}
+            </div>
+            <div>
+              <div className="text-sm font-bold flex items-center gap-2">
+                Final Launch Score:{" "}
+                {launchCertificate.data ? `${launchCertificate.data.final_score}/100` : "..."}
+                {finalLaunchDecision.data && (
+                  <span className="inline-flex items-center gap-1 rounded-full bg-primary/10 px-2 py-0.5 text-[10px] font-semibold text-primary">
+                    {finalLaunchDecision.data.decision}
+                  </span>
+                )}
+              </div>
+              <div className="text-xs text-muted-foreground">
+                {finalLaunchDecision.data
+                  ? `${finalLaunchDecision.data.blockers.length} عائق حرج، ${finalLaunchDecision.data.warnings.length} تحذير`
+                  : "جارٍ التقييم..."}
+              </div>
+            </div>
+          </div>
+
+          <div>
+            <div className="text-xs font-semibold text-muted-foreground mb-2">Release</div>
+            {launchPackage.data ? (
+              <CheckGrid
+                items={[
+                  { id: "rc1", label: "RC1", status: launchPackage.data.rc1.status, detail: launchPackage.data.rc1.detail },
+                  { id: "rc2", label: "RC2", status: launchPackage.data.rc2.status, detail: launchPackage.data.rc2.detail },
+                ]}
+              />
+            ) : (
+              <SkeletonRows />
+            )}
+          </div>
+
+          <div>
+            <div className="text-xs font-semibold text-muted-foreground mb-2">Production</div>
+            {launchPackage.data ? (
+              <CheckGrid
+                items={[
+                  {
+                    id: "production_certificate",
+                    label: "Production Certificate",
+                    status: launchPackage.data.productionCertificate.status,
+                    detail: launchPackage.data.productionCertificate.detail,
+                  },
+                  { id: "security", label: "Security", status: launchPackage.data.security.status, detail: launchPackage.data.security.detail },
+                  { id: "compliance", label: "Compliance", status: launchPackage.data.compliance.status, detail: launchPackage.data.compliance.detail },
+                ]}
+              />
+            ) : (
+              <SkeletonRows />
+            )}
+          </div>
+
+          <div>
+            <div className="text-xs font-semibold text-muted-foreground mb-2">Operations</div>
+            <div className="grid gap-3 sm:grid-cols-3">
+              <div className="rounded-2xl border bg-card p-3.5 space-y-1.5">
+                <div className="text-xs font-bold flex items-center gap-1.5">
+                  <LifeBuoy className="h-3.5 w-3.5" /> Support
+                </div>
+                <ul className="space-y-1">
+                  {supportOperations.sections.map((s) => (
+                    <li key={s.id} className="text-[11px]">
+                      <span className="font-semibold">{s.label}</span>{" "}
+                      <span className="text-muted-foreground">— {s.detail}</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+              <div className="rounded-2xl border bg-card p-3.5 space-y-1.5">
+                <div className="text-xs font-bold flex items-center gap-1.5">
+                  <Siren className="h-3.5 w-3.5" /> Incidents
+                </div>
+                <ul className="space-y-1">
+                  {incidentPlaybook.entries.map((e) => (
+                    <li key={e.id} className="text-[11px]">
+                      <span className="font-semibold">{e.label}</span>{" "}
+                      <span className="text-muted-foreground">— {e.detection}</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+              <div className="rounded-2xl border bg-card p-3.5 space-y-1.5">
+                <div className="text-xs font-bold flex items-center justify-between">
+                  <span className="flex items-center gap-1.5">
+                    <LifeBuoy className="h-3.5 w-3.5" /> Disaster Recovery
+                  </span>
+                  <span className="text-muted-foreground">
+                    {disasterRecoveryPlan.data ? `${disasterRecoveryPlan.data.readinessScore}/100` : "..."}
+                  </span>
+                </div>
+                <ul className="space-y-1">
+                  {disasterRecoveryPlan.data?.procedures.map((p) => (
+                    <li key={p.id} className="text-[11px]">
+                      <span className="font-semibold">{p.label}</span>{" "}
+                      <span className="text-muted-foreground">— {p.steps}</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            </div>
+          </div>
+
+          <div>
+            <div className="text-xs font-semibold text-muted-foreground mb-2">Stores</div>
+            <div className="grid gap-3 sm:grid-cols-2">
+              <div className="rounded-2xl border bg-card p-3.5 space-y-1.5">
+                <div className="text-xs font-bold flex items-center justify-between">
+                  <span>Play Store</span>
+                  {playStorePackage.data?.submissionReady ? (
+                    <CheckCircle2 className="h-3.5 w-3.5 text-success" />
+                  ) : (
+                    <XCircle className="h-3.5 w-3.5 text-destructive" />
+                  )}
+                </div>
+                <ul className="space-y-1">
+                  {playStorePackage.data?.blockers.map((b, i) => (
+                    <li key={i} className="text-[11px] text-muted-foreground">• {b}</li>
+                  ))}
+                </ul>
+              </div>
+              <div className="rounded-2xl border bg-card p-3.5 space-y-1.5">
+                <div className="text-xs font-bold flex items-center justify-between">
+                  <span>App Store</span>
+                  {appStorePackage.data?.submissionReady ? (
+                    <CheckCircle2 className="h-3.5 w-3.5 text-success" />
+                  ) : (
+                    <XCircle className="h-3.5 w-3.5 text-destructive" />
+                  )}
+                </div>
+                <ul className="space-y-1">
+                  {appStorePackage.data?.blockers.map((b, i) => (
+                    <li key={i} className="text-[11px] text-muted-foreground">• {b}</li>
+                  ))}
+                </ul>
+              </div>
+            </div>
+          </div>
+
+          <div>
+            <div className="text-xs font-semibold text-muted-foreground mb-2">Launch</div>
+            {launchPackage.data ? (
+              <CheckGrid
+                items={[
+                  { id: "android", label: "Android", status: launchPackage.data.android.status, detail: launchPackage.data.android.detail },
+                  { id: "ios", label: "iOS", status: launchPackage.data.ios.status, detail: launchPackage.data.ios.detail },
+                  { id: "store_readiness", label: "Store Readiness", status: launchPackage.data.storeReadiness.status, detail: launchPackage.data.storeReadiness.detail },
+                  { id: "support_pkg", label: "Support", status: launchPackage.data.support.status, detail: launchPackage.data.support.detail },
+                  { id: "monitoring_pkg", label: "Monitoring", status: launchPackage.data.monitoring.status, detail: launchPackage.data.monitoring.detail },
+                  { id: "backup_pkg", label: "Backup", status: launchPackage.data.backup.status, detail: launchPackage.data.backup.detail },
+                ]}
+              />
+            ) : (
+              <SkeletonRows />
+            )}
+          </div>
+
+          {finalLaunchDecision.data && (
+            <div className="rounded-xl border bg-muted/30 p-3 space-y-1.5">
+              <div className="text-xs font-semibold text-muted-foreground flex items-center gap-1.5">
+                <TrendingUp className="h-3.5 w-3.5" /> Final Decision Recommendation
+              </div>
+              <div className="text-xs text-muted-foreground">{finalLaunchDecision.data.recommendation}</div>
+              {finalLaunchDecision.data.blockers.length > 0 && (
+                <ul className="space-y-1 pt-1">
+                  {finalLaunchDecision.data.blockers.map((b, i) => (
+                    <li key={i} className="flex items-start gap-2 text-xs text-destructive">
+                      <XCircle className="h-3.5 w-3.5 shrink-0 mt-0.5" /> {b}
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+          )}
+        </div>
+      </Section>
+
       <div className="flex justify-end">
         <Button
           variant="outline"
@@ -2448,6 +2665,12 @@ function SystemPage() {
             qc.invalidateQueries({ queryKey: ["ios-store-submission"] });
             qc.invalidateQueries({ queryKey: ["rc2-certificate"] });
             qc.invalidateQueries({ queryKey: ["rc2-decision"] });
+            qc.invalidateQueries({ queryKey: ["disaster-recovery-plan"] });
+            qc.invalidateQueries({ queryKey: ["playstore-package"] });
+            qc.invalidateQueries({ queryKey: ["appstore-package"] });
+            qc.invalidateQueries({ queryKey: ["launch-package"] });
+            qc.invalidateQueries({ queryKey: ["launch-certificate"] });
+            qc.invalidateQueries({ queryKey: ["final-launch-decision"] });
             refreshEmergencyState();
           }}
         >

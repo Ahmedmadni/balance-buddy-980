@@ -505,7 +505,32 @@ Freeze محفوظ بالكامل بما فيه Release Candidate Engine وProduc
 
 ---
 
-## 34. كيف تُحدَّث هذه الوثيقة
+## 35. Prompt 30 — Production Operations, Deployment Assets & Final Launch Package (منجز)
+
+آخر برومبت هندسي كبير في المشروع: طبقة تشغيل وإطلاق نهائية (Runbooks لكل منصّة، حزم تقديم للمتاجر،
+دليل عمليات دعم، كتاب لعب استجابة حوادث، خطة تعافي من الكوارث)، مُجمَّعة كلها في حزمة إطلاق نهائية واحدة
+وقرار GO/CONDITIONAL_GO/NO_GO. تجميد إضافي صريح: RC Engine وRC2 Engine وProduction Certificate Engine
+(محركات Prompt 28-29) أُضيفت لقائمة الممنوعات، ولم يُعدَّل أي منها.
+
+| الملف | الدور |
+|---|---|
+| `src/lib/runbooks/{android,ios}.ts` | **PART 1-2** — `generateAndroidReleaseRunbook()`/`generateIOSReleaseRunbook()`: 8 خطوات تشغيل مرتّبة لكل منصّة (Keystore → Production Release / Xcode → App Store Release)، مع `done` مُشتقّة من `android-production/keystore.ts` وiOS `project.ts` (Prompt 29) لا مُخمَّنة. |
+| `src/lib/submission/{playstore,appstore}.ts` | **PART 3-4** — `generatePlayStorePackage()`/`generateAppStorePackage()` يُركِّبان `store/metadata.ts` (Prompt 27) + تدقيقات المنصّة (Prompt 27/29) + الروابط القانونية في حزمة تقديم واحدة لكل متجر، مع Release Notes وApp Review Notes حقيقيَين مكتوبين خصيصاً لهذا التطبيق (لا حساب تجريبي جاهز — يوضَّح صراحة للمراجع). |
+| `src/lib/operations/support.ts` | **PART 5** — `generateSupportOperations()` يُعيد استخدام `generateSupportSLA()` و`buildDeletionExecutionPlan()` (Prompt 29) لبنود SLA/طلبات حذف الحساب، ويضيف Escalation/Incident Response (ملخّص فقط، الدليل الكامل في PART 6)/User Support/Legal/Privacy Requests. |
+| `src/lib/operations/incidents.ts` | **PART 6** — `generateIncidentPlaybook()`: 7 فئات حوادث (مالي/أمني/نسخ احتياطي/إشعارات/مصادقة/تلف بيانات/تعطّل خدمة)، كل فئة تسمّي الأداة الفعلية للكشف (validateFinancialIntegrity/verifyBackupIntegrity/runSystemHealthCheck/Emergency Mode) بدل اختراع آلية جديدة. |
+| `src/lib/operations/disaster.ts` | **PART 7** — `generateDisasterRecoveryPlan()` يُركِّب `auditDisasterRecovery()` (Prompt 23) للدرجة + 6 إجراءات تعافي فعلية (استعادة نسخة احتياطية عبر `importUserData()`، استعادة مستخدم عبر Supabase Auth القياسي، ...). |
+| `src/lib/launch/{package,certificate,decision}.ts` | **PART 8** — `generateLaunchPackage()` يُركِّب 12 قسماً من محركات موجودة فعلياً (يُعيد استخدام security/compliance/backup/notifications مباشرة من `generateProductionCertificate()` بدل إعادة حسابها)؛ `generateLaunchCertificate()` يُصدر `final_score`؛ `generateFinalLaunchDecision()` يرث عوائق `evaluateRC2Decision()` مباشرة — عائق حرج واحد موروث يفرض `NO_GO` بغض النظر عن الدرجة، تماماً كما تشترط قواعد هذا البرومبت. |
+| `src/routes/_authenticated/app.system.tsx` | **PART 9** — قسم **Final Launch Package Center** جديد: Release (RC1/RC2)، Production (Production Certificate/Security/Compliance)، Operations (Support/Incidents/Disaster Recovery)، Stores (Play Store/App Store)، وLaunch (Android/iOS/Store Readiness/Support/Monitoring/Backup) + توصية القرار النهائي. |
+
+**تقرير الإغلاق (16 سؤالاً) — أيضاً في نهاية رسالة الجلسة:** صفر جداول جديدة، صفر migrations، Schema
+Freeze محفوظ بالكامل بما فيه RC Engine وRC2 Engine وProduction Certificate Engine (مجمَّدة صراحةً لأول
+مرة). حزمة الإطلاق النهائية تُظهر بصدق أن العوائق الحرجة الموروثة من RC1/RC2 لا تزال قائمة — القرار
+النهائي NO_GO حتى تُحلّ. هذا آخر برومبت هندسي كبير — أي عوائق متبقية بعده خارج الكود بالكامل (Keystore،
+حساب Apple Developer، Xcode/macOS، نطاق حقيقي، بريد دعم، لقطات شاشة، الرفع الفعلي للمتاجر).
+
+---
+
+## 36. كيف تُحدَّث هذه الوثيقة
 
 - عند إنجاز بند من "الفجوات" أعلاه: انقله إلى قسم "منجزة" مع رابط الملف/الالتزام (commit).
 - عند بدء خطة تطوير جديدة (سواء مطروحة من المستخدم أو من `.lovable/plan.md` مستقبلاً): أضف قسماً
