@@ -66,6 +66,40 @@ import { computeLaunchBlockers } from "@/lib/release/blockers";
 import { generateReleaseCertificate } from "@/lib/release/certificate";
 import { performFinalAudit } from "@/lib/release/final-check";
 import { processPendingNotifications } from "@/lib/notifications/engine";
+import { generateEnvironmentChecklist } from "@/lib/deployment/checklist";
+import { auditAndroidProduction } from "@/lib/android/audit";
+import { generateAndroidReleasePlan } from "@/lib/android/release";
+import { auditIOSProduction } from "@/lib/ios/audit";
+import { generateIOSReleasePlan } from "@/lib/ios/release";
+import { generateStoreMetadata } from "@/lib/store/metadata";
+import { auditSupportInfrastructure } from "@/lib/support/audit";
+import { auditObservability } from "@/lib/monitoring/audit";
+import { evaluateLaunchDecision } from "@/lib/release/go-no-go";
+import { generateReleaseCandidate } from "@/lib/rc/certificate";
+import { runFreezeVerification } from "@/lib/rc/freeze";
+import { auditDependencies } from "@/lib/rc/dependencies";
+import { auditSecurity } from "@/lib/rc/security";
+import { certifyPerformance } from "@/lib/rc/performance";
+import { generateProductionCertificate, CERTIFICATION_LABEL } from "@/lib/rc/production-certificate";
+import { generateFinalReleaseReport } from "@/lib/rc/report";
+import { evaluateFinalReleaseDecision } from "@/lib/rc/decision";
+import { generateAndroidProductionCertificate } from "@/lib/android-production/certificate";
+import { generateIOSProductionCertificate } from "@/lib/ios-production/certificate";
+import { auditBackupEncryption } from "@/lib/security/backup-encryption";
+import { auditDependencySecurity } from "@/lib/security/dependencies";
+import { generateSupportCertificate } from "@/lib/support-production/certificate";
+import { generatePlayStoreSubmission } from "@/lib/store-submission/android";
+import { generateAppStoreSubmission } from "@/lib/store-submission/ios";
+import { generateRC2Certificate } from "@/lib/rc2/certificate";
+import { evaluateRC2Decision } from "@/lib/rc2/decision";
+import { generateSupportOperations } from "@/lib/operations/support";
+import { generateIncidentPlaybook } from "@/lib/operations/incidents";
+import { generateDisasterRecoveryPlan } from "@/lib/operations/disaster";
+import { generatePlayStorePackage } from "@/lib/submission/playstore";
+import { generateAppStorePackage } from "@/lib/submission/appstore";
+import { generateLaunchPackage } from "@/lib/launch/package";
+import { generateLaunchCertificate } from "@/lib/launch/certificate";
+import { generateFinalLaunchDecision } from "@/lib/launch/decision";
 import { loadLastBackup } from "@/lib/backup/engine";
 import { verifyBackupIntegrity } from "@/lib/backup/integrity";
 import { formatMoney } from "@/lib/format";
@@ -123,6 +157,14 @@ import {
   ShieldQuestion,
   BadgeCheck,
   FileCheck2,
+  Compass,
+  Mail,
+  Target,
+  Layers,
+  Fingerprint,
+  Lock,
+  Zap,
+  PackageCheck,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -298,6 +340,81 @@ function SystemPage() {
     queryFn: generateReleaseCertificate,
   });
   const finalAuditCheck = useQuery({ queryKey: ["final-audit-check"], queryFn: performFinalAudit });
+
+  // ----- Prompt 27: Production Deployment, Store Operations & Launch Execution -----
+  const environmentChecklist = generateEnvironmentChecklist();
+  const androidProduction = auditAndroidProduction();
+  const androidReleasePlan = generateAndroidReleasePlan();
+  const iosProduction = auditIOSProduction();
+  const iosReleasePlan = generateIOSReleasePlan();
+  const storeMetadata = generateStoreMetadata();
+  const supportInfraAudit = auditSupportInfrastructure();
+  const observability = useQuery({ queryKey: ["monitoring-observability"], queryFn: auditObservability });
+  const goNoGo = useQuery({ queryKey: ["release-go-no-go"], queryFn: evaluateLaunchDecision });
+
+  // ----- Prompt 28: Release Candidate (RC1), Launch Freeze & Production Certification -----
+  const releaseCandidate = generateReleaseCandidate();
+  const freezeVerification = runFreezeVerification();
+  const dependencyAudit = auditDependencies();
+  const securityAudit = useQuery({ queryKey: ["rc-security"], queryFn: auditSecurity });
+  const performanceCert = useQuery({ queryKey: ["rc-performance"], queryFn: certifyPerformance });
+  const productionCertificate = useQuery({
+    queryKey: ["rc-production-certificate"],
+    queryFn: generateProductionCertificate,
+  });
+  const finalReleaseReport = useQuery({ queryKey: ["rc-final-report"], queryFn: generateFinalReleaseReport });
+  const finalReleaseDecision = useQuery({
+    queryKey: ["rc-final-decision"],
+    queryFn: evaluateFinalReleaseDecision,
+  });
+
+  // ----- Prompt 29: Final Production Hardening, Store Submission Prep & RC2 Certification -----
+  const androidProductionCert = useQuery({
+    queryKey: ["android-production-cert"],
+    queryFn: generateAndroidProductionCertificate,
+  });
+  const iosProductionCert = useQuery({
+    queryKey: ["ios-production-cert"],
+    queryFn: generateIOSProductionCertificate,
+  });
+  const backupEncryptionAudit = useQuery({
+    queryKey: ["backup-encryption-audit"],
+    queryFn: auditBackupEncryption,
+  });
+  const dependencySecurityAudit = useQuery({
+    queryKey: ["dependency-security-audit"],
+    queryFn: auditDependencySecurity,
+  });
+  const supportCertificate = useQuery({
+    queryKey: ["support-certificate"],
+    queryFn: generateSupportCertificate,
+  });
+  const androidSubmission = useQuery({
+    queryKey: ["android-store-submission"],
+    queryFn: generatePlayStoreSubmission,
+  });
+  const iosSubmission = useQuery({
+    queryKey: ["ios-store-submission"],
+    queryFn: generateAppStoreSubmission,
+  });
+  const rc2Certificate = useQuery({ queryKey: ["rc2-certificate"], queryFn: generateRC2Certificate });
+  const rc2Decision = useQuery({ queryKey: ["rc2-decision"], queryFn: evaluateRC2Decision });
+
+  // ----- Prompt 30: Production Operations, Deployment Assets & Final Launch Package -----
+  const supportOperations = generateSupportOperations();
+  const incidentPlaybook = generateIncidentPlaybook();
+  const disasterRecoveryPlan = useQuery({
+    queryKey: ["disaster-recovery-plan"],
+    queryFn: generateDisasterRecoveryPlan,
+  });
+  const playStorePackage = useQuery({ queryKey: ["playstore-package"], queryFn: generatePlayStorePackage });
+  const appStorePackage = useQuery({ queryKey: ["appstore-package"], queryFn: generateAppStorePackage });
+  const launchPackage = useQuery({ queryKey: ["launch-package"], queryFn: generateLaunchPackage });
+  const launchCertificate = useQuery({ queryKey: ["launch-certificate"], queryFn: generateLaunchCertificate });
+  const finalLaunchDecision = useQuery({
+    queryKey: ["final-launch-decision"],
+    queryFn: generateFinalLaunchDecision,
+  });
 
   const recommendations: string[] = [];
   if (health.data?.status === "error")
@@ -1655,6 +1772,850 @@ function SystemPage() {
         </div>
       </Section>
 
+      {/* Production Launch Center (Prompt 27) */}
+      <Section title="Production Launch Center" icon={Compass}>
+        <div className="space-y-5">
+          <div
+            className={cn(
+              "flex items-center gap-4 rounded-2xl border p-4",
+              goNoGo.data?.decision === "GO"
+                ? "border-success/30 bg-success/5"
+                : goNoGo.data?.decision === "BETA_ONLY"
+                  ? "border-warning/30 bg-warning/5"
+                  : "border-destructive/30 bg-destructive/5",
+            )}
+          >
+            <div className="text-4xl font-black tabular-nums text-primary">
+              {goNoGo.data ? goNoGo.data.score : "..."}
+            </div>
+            <div>
+              <div className="text-sm font-bold flex items-center gap-2">
+                Go / No-Go Score: {goNoGo.data ? `${goNoGo.data.score}/100` : "..."}
+                {goNoGo.data && (
+                  <span
+                    className={cn(
+                      "inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold",
+                      goNoGo.data.decision === "GO"
+                        ? "bg-success/15 text-success"
+                        : goNoGo.data.decision === "BETA_ONLY"
+                          ? "bg-warning/15 text-warning"
+                          : "bg-destructive/15 text-destructive",
+                    )}
+                  >
+                    <Target className="h-3 w-3" /> {goNoGo.data.decision}
+                  </span>
+                )}
+              </div>
+              <div className="text-xs text-muted-foreground">
+                {goNoGo.data
+                  ? `${goNoGo.data.blockers.length} عائق حرج، ${goNoGo.data.warnings.length} تحذير`
+                  : "جارٍ التقييم..."}
+              </div>
+            </div>
+          </div>
+
+          <div>
+            <div className="text-xs font-semibold text-muted-foreground mb-2 flex items-center gap-1.5">
+              <Layers className="h-3.5 w-3.5" /> البنية التحتية (Infrastructure)
+            </div>
+            <div className="grid gap-3 sm:grid-cols-3">
+              <div className="rounded-2xl border bg-card p-3.5 space-y-2">
+                <div className="text-xs font-bold flex items-center justify-between">
+                  <span>البيئة (Environment)</span>
+                  <span className="text-muted-foreground">{environmentChecklist.score}/100</span>
+                </div>
+                <div className="text-[11px] text-muted-foreground">{environmentChecklist.environment}</div>
+                <CheckGrid items={environmentChecklist.items} />
+              </div>
+              <div className="rounded-2xl border bg-card p-3.5 space-y-2">
+                <div className="text-xs font-bold flex items-center justify-between">
+                  <span className="flex items-center gap-1.5">
+                    <Mail className="h-3.5 w-3.5" /> الدعم (Support)
+                  </span>
+                  <span className="text-muted-foreground">{supportInfraAudit.score}/100</span>
+                </div>
+                <CheckGrid items={supportInfraAudit.items} />
+              </div>
+              <div className="rounded-2xl border bg-card p-3.5 space-y-2">
+                <div className="text-xs font-bold flex items-center justify-between">
+                  <span>المراقبة (Monitoring)</span>
+                  <span className="text-muted-foreground">
+                    {observability.data ? `${observability.data.score}/100` : "..."}
+                  </span>
+                </div>
+                {observability.data ? (
+                  <CheckGrid
+                    items={observability.data.categories.map((c) => ({
+                      id: c.id,
+                      label: c.label,
+                      status: c.status,
+                      detail: c.detail,
+                    }))}
+                  />
+                ) : (
+                  <SkeletonRows />
+                )}
+              </div>
+            </div>
+          </div>
+
+          <div>
+            <div className="text-xs font-semibold text-muted-foreground mb-2 flex items-center gap-1.5">
+              <Smartphone className="h-3.5 w-3.5" /> Android
+            </div>
+            <div className="grid gap-3 sm:grid-cols-2">
+              <div className="rounded-2xl border bg-card p-3.5 space-y-2">
+                <div className="text-xs font-bold flex items-center justify-between">
+                  <span>جاهزية الإصدار (Release Readiness)</span>
+                  <span className="text-muted-foreground">{androidProduction.score}/100</span>
+                </div>
+                <div className="text-[11px] text-muted-foreground">
+                  خطة الإصدار: {androidReleasePlan.completedCount}/{androidReleasePlan.totalCount} خطوة مكتملة
+                </div>
+                <CheckGrid items={androidProduction.items} />
+              </div>
+              <div className="rounded-2xl border bg-card p-3.5 space-y-2">
+                <div className="text-xs font-bold flex items-center justify-between">
+                  <span>جاهزية المتجر (Store Readiness)</span>
+                  <span className="text-muted-foreground">
+                    {storeMetadata.googlePlay.screenshotsReady ? "لقطات جاهزة" : "لا لقطات بعد"}
+                  </span>
+                </div>
+                <div className="text-[11px] text-muted-foreground space-y-1">
+                  <div>العنوان: {storeMetadata.googlePlay.title}</div>
+                  <div>الفئة: {storeMetadata.googlePlay.category}</div>
+                  <div>
+                    الوصف القصير ({storeMetadata.googlePlay.shortDescription.length}/80 حرفاً):{" "}
+                    {storeMetadata.googlePlay.shortDescription}
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div>
+            <div className="text-xs font-semibold text-muted-foreground mb-2 flex items-center gap-1.5">
+              <Apple className="h-3.5 w-3.5" /> iOS
+            </div>
+            <div className="grid gap-3 sm:grid-cols-2">
+              <div className="rounded-2xl border bg-card p-3.5 space-y-2">
+                <div className="text-xs font-bold flex items-center justify-between">
+                  <span>جاهزية الإصدار (Release Readiness)</span>
+                  <span className="text-muted-foreground">{iosProduction.score}/100</span>
+                </div>
+                <div className="text-[11px] text-muted-foreground">
+                  خطة الإصدار: {iosReleasePlan.completedCount}/{iosReleasePlan.totalCount} خطوة مكتملة
+                </div>
+                <CheckGrid items={iosProduction.items} />
+              </div>
+              <div className="rounded-2xl border bg-card p-3.5 space-y-2">
+                <div className="text-xs font-bold flex items-center justify-between">
+                  <span>جاهزية المتجر (Store Readiness)</span>
+                  <span className="text-muted-foreground">
+                    {storeMetadata.appleAppStore.screenshotsReady ? "لقطات جاهزة" : "لا لقطات بعد"}
+                  </span>
+                </div>
+                <div className="text-[11px] text-muted-foreground space-y-1">
+                  <div>العنوان الفرعي: {storeMetadata.appleAppStore.subtitle}</div>
+                  <div>الفئة: {storeMetadata.appleAppStore.category}</div>
+                  <div dir="ltr" className="truncate">
+                    Support: {storeMetadata.appleAppStore.supportUrl}
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div>
+            <div className="text-xs font-semibold text-muted-foreground mb-2 flex items-center gap-1.5">
+              <Scale className="h-3.5 w-3.5" /> الامتثال (Compliance)
+            </div>
+            <CheckGrid
+              items={[
+                {
+                  id: "privacy",
+                  label: "Privacy",
+                  status: legalLinks.checks.find((c) => c.id === "privacy")?.status ?? "warning",
+                  detail: legalLinks.checks.find((c) => c.id === "privacy")?.detail ?? "...",
+                },
+                {
+                  id: "consent",
+                  label: "Consent",
+                  status: consentManagerAudit.record.bannerShown ? "ok" : "warning",
+                  detail: consentManagerAudit.record.bannerShown
+                    ? "المستخدم اتّخذ قراراً فعلياً"
+                    : "لم يُتَّخذ قرار بعد في هذه الجلسة",
+                },
+                {
+                  id: "account_deletion",
+                  label: "Account Deletion",
+                  status: accountDeletionAudit.data
+                    ? accountDeletionAudit.data.items.every((i) => i.status === "ok")
+                      ? "ok"
+                      : "warning"
+                    : "warning",
+                  detail: "خطة معاينة كاملة — لا تنفيذ فعلي بلا Edge Function مستقبلية",
+                },
+              ]}
+            />
+          </div>
+
+          <div>
+            <div className="text-xs font-semibold text-muted-foreground mb-2 flex items-center gap-1.5">
+              <Rocket className="h-3.5 w-3.5" /> الإنتاج (Production)
+            </div>
+            <div className="grid gap-2.5 sm:grid-cols-3">
+              <MetricCard
+                icon={Flag}
+                label="النتيجة النهائية (Final Score)"
+                value={goNoGo.data ? `${goNoGo.data.score}/100` : "..."}
+              />
+              <MetricCard
+                icon={AlertOctagon}
+                label="العوائق المتبقية (Remaining Blockers)"
+                value={goNoGo.data ? String(goNoGo.data.blockers.length) : "..."}
+              />
+              <MetricCard
+                icon={Target}
+                label="جاهزية الإطلاق التقديرية"
+                value={
+                  goNoGo.data
+                    ? goNoGo.data.decision === "GO"
+                      ? "جاهز للإطلاق الفعلي"
+                      : goNoGo.data.decision === "BETA_ONLY"
+                        ? "جاهز لـ Beta فقط"
+                        : "غير جاهز بعد"
+                    : "..."
+                }
+              />
+            </div>
+          </div>
+
+          {goNoGo.data && (
+            <div>
+              <div className="text-xs font-semibold text-muted-foreground mb-2 flex items-center gap-1.5">
+                <TrendingUp className="h-3.5 w-3.5" /> التوصيات
+              </div>
+              <div className="rounded-xl border bg-muted/30 p-3 space-y-1.5">
+                {goNoGo.data.recommendations.map((r, i) => (
+                  <div key={i} className="text-xs text-muted-foreground">
+                    • {r}
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      </Section>
+
+      {/* Release Candidate Certification (Prompt 28) */}
+      <Section title="Release Candidate Certification" icon={Fingerprint}>
+        <div className="space-y-5">
+          <div
+            className={cn(
+              "flex items-center gap-4 rounded-2xl border p-4",
+              finalReleaseDecision.data?.decision === "GO"
+                ? "border-success/30 bg-success/5"
+                : finalReleaseDecision.data?.decision === "BETA_ONLY"
+                  ? "border-warning/30 bg-warning/5"
+                  : "border-destructive/30 bg-destructive/5",
+            )}
+          >
+            <div className="text-4xl font-black tabular-nums text-primary">
+              {productionCertificate.data ? productionCertificate.data.final_score : "..."}
+            </div>
+            <div>
+              <div className="text-sm font-bold flex items-center gap-2">
+                Production Certificate:{" "}
+                {productionCertificate.data ? `${productionCertificate.data.final_score}/100` : "..."}
+                {productionCertificate.data && (
+                  <span className="inline-flex items-center gap-1 rounded-full bg-primary/10 px-2 py-0.5 text-[10px] font-semibold text-primary">
+                    {CERTIFICATION_LABEL[productionCertificate.data.certification]}
+                  </span>
+                )}
+              </div>
+              <div className="text-xs text-muted-foreground">
+                {finalReleaseDecision.data
+                  ? `القرار النهائي: ${finalReleaseDecision.data.decision} (ثقة ${finalReleaseDecision.data.confidence})`
+                  : "جارٍ التقييم..."}
+              </div>
+            </div>
+          </div>
+
+          <div>
+            <div className="text-xs font-semibold text-muted-foreground mb-2">RC Information</div>
+            <div className="grid gap-2.5 sm:grid-cols-2 lg:grid-cols-4">
+              <MetricCard icon={Fingerprint} label="Version" value={releaseCandidate.rc_version} />
+              <MetricCard icon={Package} label="Build" value={releaseCandidate.build.build_id} />
+              <MetricCard icon={GitBranch} label="Commit" value={releaseCandidate.build.git_commit} />
+              <MetricCard
+                icon={RefreshCw}
+                label="Date"
+                value={new Date(releaseCandidate.build.build_date).toLocaleString("ar")}
+              />
+            </div>
+          </div>
+
+          <div>
+            <div className="text-xs font-semibold text-muted-foreground mb-2 flex items-center gap-1.5">
+              <ShieldCheck className="h-3.5 w-3.5" /> Freeze Status —{" "}
+              {freezeVerification.allPassed ? "كل المحركات مجمَّدة سليمة" : "يوجد خلل في التجميد"}
+            </div>
+            <CheckGrid items={freezeVerification.items} />
+          </div>
+
+          <div className="grid gap-3 sm:grid-cols-2">
+            <div className="rounded-2xl border bg-card p-3.5 space-y-2">
+              <div className="text-xs font-bold flex items-center justify-between">
+                <span className="flex items-center gap-1.5">
+                  <Lock className="h-3.5 w-3.5" /> Security
+                </span>
+                <span className="text-muted-foreground">
+                  {securityAudit.data ? `${securityAudit.data.score}/100` : "..."}
+                </span>
+              </div>
+              {securityAudit.data ? <CheckGrid items={securityAudit.data.items} /> : <SkeletonRows />}
+            </div>
+            <div className="rounded-2xl border bg-card p-3.5 space-y-2">
+              <div className="text-xs font-bold flex items-center justify-between">
+                <span className="flex items-center gap-1.5">
+                  <Zap className="h-3.5 w-3.5" /> Performance
+                </span>
+                <span className="text-muted-foreground">
+                  {performanceCert.data ? `${performanceCert.data.score}/100` : "..."}
+                </span>
+              </div>
+              {performanceCert.data ? (
+                <div className="grid gap-2 sm:grid-cols-2 text-xs">
+                  <MetricCard icon={Gauge} label="Health Score" value={`${performanceCert.data.healthScore}/100`} />
+                  <MetricCard
+                    icon={GitBranch}
+                    label="Production Gate Score"
+                    value={`${performanceCert.data.productionGateScore}/100`}
+                  />
+                  <MetricCard
+                    icon={HardDrive}
+                    label="localStorage"
+                    value={bytesToHuman(performanceCert.data.localStorageUsageBytes)}
+                  />
+                  <MetricCard
+                    icon={Gauge}
+                    label="Insights Compute"
+                    value={
+                      performanceCert.data.insightsComputeMs !== null
+                        ? `${performanceCert.data.insightsComputeMs.toFixed(0)} ms`
+                        : "غير متاح (لا جلسة)"
+                    }
+                  />
+                </div>
+              ) : (
+                <SkeletonRows />
+              )}
+            </div>
+          </div>
+
+          <div>
+            <div className="text-xs font-semibold text-muted-foreground mb-2 flex items-center gap-1.5">
+              <Package className="h-3.5 w-3.5" /> Dependency Audit — {dependencyAudit.dependencyCount} dependencies،{" "}
+              {dependencyAudit.devDependencyCount} devDependencies، {dependencyAudit.vulnerabilities.high} high/
+              {dependencyAudit.vulnerabilities.moderate} moderate/{dependencyAudit.vulnerabilities.low} low
+            </div>
+            <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+              {dependencyAudit.items.map((item) => (
+                <div
+                  key={item.id}
+                  className={cn(
+                    "rounded-xl border p-2.5 text-xs space-y-1",
+                    item.risk === "safe"
+                      ? "border-success/30 bg-success/5"
+                      : item.risk === "warning"
+                        ? "border-warning/30 bg-warning/5"
+                        : "border-destructive/30 bg-destructive/5",
+                  )}
+                >
+                  <div className="font-semibold">{item.label}</div>
+                  <div className="text-[11px] text-muted-foreground">{item.detail}</div>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <div>
+            <div className="text-xs font-semibold text-muted-foreground mb-2">Production Certificate — الأقسام</div>
+            {productionCertificate.data ? (
+              <CheckGrid
+                items={[
+                  { id: "architecture", label: "Architecture", status: productionCertificate.data.architecture.status, detail: productionCertificate.data.architecture.detail },
+                  { id: "financial_engine", label: "Financial Engine", status: productionCertificate.data.financial_engine.status, detail: productionCertificate.data.financial_engine.detail },
+                  { id: "investments", label: "Investments", status: productionCertificate.data.investments.status, detail: productionCertificate.data.investments.detail },
+                  { id: "depreciation", label: "Depreciation", status: productionCertificate.data.depreciation.status, detail: productionCertificate.data.depreciation.detail },
+                  { id: "zakat", label: "Zakat", status: productionCertificate.data.zakat.status, detail: productionCertificate.data.zakat.detail },
+                  { id: "analytics", label: "Analytics", status: productionCertificate.data.analytics.status, detail: productionCertificate.data.analytics.detail },
+                  { id: "notifications", label: "Notifications", status: productionCertificate.data.notifications.status, detail: productionCertificate.data.notifications.detail },
+                  { id: "backups", label: "Backups", status: productionCertificate.data.backups.status, detail: productionCertificate.data.backups.detail },
+                  { id: "compliance", label: "Compliance", status: productionCertificate.data.compliance.status, detail: productionCertificate.data.compliance.detail },
+                  { id: "release", label: "Release", status: productionCertificate.data.release.status, detail: productionCertificate.data.release.detail },
+                ]}
+              />
+            ) : (
+              <SkeletonRows />
+            )}
+          </div>
+
+          <div>
+            <div className="text-xs font-semibold text-muted-foreground mb-2">Final Release Report</div>
+            {finalReleaseReport.data ? (
+              <div className="space-y-3">
+                <div className="grid gap-2.5 sm:grid-cols-4">
+                  <MetricCard icon={Rocket} label="Production" value={`${finalReleaseReport.data.productionReadinessScore}/100`} />
+                  <MetricCard icon={FlaskConical} label="Beta" value={`${finalReleaseReport.data.betaReadinessScore}/100`} />
+                  <MetricCard icon={Store} label="Store" value={`${finalReleaseReport.data.storeReadinessScore}/100`} />
+                  <MetricCard icon={Scale} label="Compliance" value={`${finalReleaseReport.data.complianceReadinessScore}/100`} />
+                </div>
+                <div className="grid gap-3 sm:grid-cols-3">
+                  <div className="rounded-2xl border bg-card p-3.5 space-y-1.5">
+                    <div className="text-xs font-bold">Technical Debt</div>
+                    <ul className="space-y-1">
+                      {finalReleaseReport.data.technicalDebt.map((t, i) => (
+                        <li key={i} className="text-[11px] text-muted-foreground">• {t}</li>
+                      ))}
+                    </ul>
+                  </div>
+                  <div className="rounded-2xl border bg-card p-3.5 space-y-1.5">
+                    <div className="text-xs font-bold">Known Limitations</div>
+                    <ul className="space-y-1">
+                      {finalReleaseReport.data.knownLimitations.map((t, i) => (
+                        <li key={i} className="text-[11px] text-muted-foreground">• {t}</li>
+                      ))}
+                    </ul>
+                  </div>
+                  <div className="rounded-2xl border bg-card p-3.5 space-y-1.5">
+                    <div className="text-xs font-bold">Recommended Next Steps</div>
+                    <ul className="space-y-1">
+                      {finalReleaseReport.data.recommendedNextSteps.map((t, i) => (
+                        <li key={i} className="text-[11px] text-muted-foreground">• {t}</li>
+                      ))}
+                    </ul>
+                  </div>
+                </div>
+              </div>
+            ) : (
+              <SkeletonRows />
+            )}
+          </div>
+
+          {finalReleaseDecision.data && (
+            <div className="rounded-xl border bg-muted/30 p-3 space-y-1.5">
+              <div className="text-xs font-semibold text-muted-foreground flex items-center gap-1.5">
+                <TrendingUp className="h-3.5 w-3.5" /> التوصية النهائية
+              </div>
+              <div className="text-xs text-muted-foreground">{finalReleaseDecision.data.recommendation}</div>
+              {finalReleaseDecision.data.blockers.length > 0 && (
+                <ul className="space-y-1 pt-1">
+                  {finalReleaseDecision.data.blockers.map((b, i) => (
+                    <li key={i} className="flex items-start gap-2 text-xs text-destructive">
+                      <XCircle className="h-3.5 w-3.5 shrink-0 mt-0.5" /> {b}
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+          )}
+        </div>
+      </Section>
+
+      {/* RC2 Production Certification Center (Prompt 29) */}
+      <Section title="RC2 Production Certification Center" icon={BadgeCheck}>
+        <div className="space-y-5">
+          <div
+            className={cn(
+              "flex items-center gap-4 rounded-2xl border p-4",
+              rc2Decision.data?.decision === "CERTIFIED"
+                ? "border-success/30 bg-success/5"
+                : rc2Decision.data?.decision === "CONDITIONAL"
+                  ? "border-warning/30 bg-warning/5"
+                  : "border-destructive/30 bg-destructive/5",
+            )}
+          >
+            <div className="text-4xl font-black tabular-nums text-primary">
+              {rc2Certificate.data ? rc2Certificate.data.scores.score : "..."}
+            </div>
+            <div>
+              <div className="text-sm font-bold flex items-center gap-2">
+                RC2 Score: {rc2Certificate.data ? `${rc2Certificate.data.scores.score}/100` : "..."}
+                {rc2Decision.data && (
+                  <span className="inline-flex items-center gap-1 rounded-full bg-primary/10 px-2 py-0.5 text-[10px] font-semibold text-primary">
+                    {rc2Decision.data.decision}
+                  </span>
+                )}
+              </div>
+              <div className="text-xs text-muted-foreground">
+                {rc2Decision.data
+                  ? `${rc2Decision.data.blockers.length} عائق حرج، ${rc2Decision.data.warnings.length} تحذير`
+                  : "جارٍ التقييم..."}
+              </div>
+            </div>
+          </div>
+
+          <div>
+            <div className="text-xs font-semibold text-muted-foreground mb-2 flex items-center gap-1.5">
+              <Smartphone className="h-3.5 w-3.5" /> Android
+            </div>
+            <div className="grid gap-2.5 sm:grid-cols-3">
+              <MetricCard
+                icon={ShieldCheck}
+                label="Signing"
+                value={
+                  androidProductionCert.data
+                    ? androidProductionCert.data.signingStatus === "ok"
+                      ? "جاهز"
+                      : "غير جاهز"
+                    : "..."
+                }
+              />
+              <MetricCard
+                icon={Settings2}
+                label="Release Config"
+                value={androidProductionCert.data ? `${androidProductionCert.data.releaseConfigScore}/100` : "..."}
+              />
+              <MetricCard
+                icon={BadgeCheck}
+                label="Production Certificate"
+                value={androidProductionCert.data ? `${androidProductionCert.data.score}/100` : "..."}
+              />
+            </div>
+          </div>
+
+          <div>
+            <div className="text-xs font-semibold text-muted-foreground mb-2 flex items-center gap-1.5">
+              <Apple className="h-3.5 w-3.5" /> iOS
+            </div>
+            <div className="grid gap-2.5 sm:grid-cols-3">
+              <MetricCard
+                icon={FileText}
+                label="Project"
+                value={iosProductionCert.data ? `${iosProductionCert.data.projectScore}/100` : "..."}
+              />
+              <MetricCard
+                icon={ShieldQuestion}
+                label="Privacy"
+                value={iosProductionCert.data ? `${iosProductionCert.data.privacyScore}/100` : "..."}
+              />
+              <MetricCard
+                icon={BadgeCheck}
+                label="Certificate"
+                value={iosProductionCert.data ? `${iosProductionCert.data.score}/100` : "..."}
+              />
+            </div>
+          </div>
+
+          <div>
+            <div className="text-xs font-semibold text-muted-foreground mb-2 flex items-center gap-1.5">
+              <Lock className="h-3.5 w-3.5" /> Security
+            </div>
+            <div className="grid gap-3 sm:grid-cols-2">
+              <div className="rounded-2xl border bg-card p-3.5 space-y-2">
+                <div className="text-xs font-bold flex items-center justify-between">
+                  <span>Backup Encryption</span>
+                  <span className="text-muted-foreground">
+                    {backupEncryptionAudit.data ? `${backupEncryptionAudit.data.score}/100` : "..."}
+                  </span>
+                </div>
+                {backupEncryptionAudit.data ? (
+                  <CheckGrid items={backupEncryptionAudit.data.items} />
+                ) : (
+                  <SkeletonRows />
+                )}
+              </div>
+              <div className="rounded-2xl border bg-card p-3.5 space-y-2">
+                <div className="text-xs font-bold flex items-center justify-between">
+                  <span>Dependency Audit</span>
+                  <span className="text-muted-foreground">
+                    {dependencySecurityAudit.data
+                      ? `${dependencySecurityAudit.data.safeCount} safe / ${dependencySecurityAudit.data.warningCount} warning / ${dependencySecurityAudit.data.criticalCount} critical`
+                      : "..."}
+                  </span>
+                </div>
+                <ul className="space-y-1">
+                  {dependencySecurityAudit.data?.items.map((item) => (
+                    <li key={item.id} className="text-[11px]">
+                      <span className="font-semibold">{item.package}</span>{" "}
+                      <span className="text-muted-foreground">— {item.recommendedAction}</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            </div>
+          </div>
+
+          <div>
+            <div className="text-xs font-semibold text-muted-foreground mb-2 flex items-center gap-1.5">
+              <Mail className="h-3.5 w-3.5" /> Support
+            </div>
+            <div className="grid gap-2.5 sm:grid-cols-2">
+              <MetricCard
+                icon={BadgeCheck}
+                label="Support Certificate"
+                value={supportCertificate.data ? `${supportCertificate.data.score}/100` : "..."}
+              />
+              <MetricCard
+                icon={ListChecks}
+                label="SLA Tiers"
+                value={supportCertificate.data ? String(supportCertificate.data.slaTierCount) : "..."}
+              />
+            </div>
+          </div>
+
+          <div>
+            <div className="text-xs font-semibold text-muted-foreground mb-2 flex items-center gap-1.5">
+              <Store className="h-3.5 w-3.5" /> Store Submission
+            </div>
+            <div className="grid gap-3 sm:grid-cols-2">
+              <div className="rounded-2xl border bg-card p-3.5 space-y-1.5">
+                <div className="text-xs font-bold flex items-center justify-between">
+                  <span>Android Package</span>
+                  {androidSubmission.data?.submissionReady ? (
+                    <CheckCircle2 className="h-3.5 w-3.5 text-success" />
+                  ) : (
+                    <XCircle className="h-3.5 w-3.5 text-destructive" />
+                  )}
+                </div>
+                <ul className="space-y-1">
+                  {androidSubmission.data?.blockers.map((b, i) => (
+                    <li key={i} className="text-[11px] text-muted-foreground">• {b}</li>
+                  ))}
+                </ul>
+              </div>
+              <div className="rounded-2xl border bg-card p-3.5 space-y-1.5">
+                <div className="text-xs font-bold flex items-center justify-between">
+                  <span>iOS Package</span>
+                  {iosSubmission.data?.submissionReady ? (
+                    <CheckCircle2 className="h-3.5 w-3.5 text-success" />
+                  ) : (
+                    <XCircle className="h-3.5 w-3.5 text-destructive" />
+                  )}
+                </div>
+                <ul className="space-y-1">
+                  {iosSubmission.data?.blockers.map((b, i) => (
+                    <li key={i} className="text-[11px] text-muted-foreground">• {b}</li>
+                  ))}
+                </ul>
+              </div>
+            </div>
+          </div>
+
+          {rc2Decision.data && (
+            <div className="rounded-xl border bg-muted/30 p-3 space-y-1.5">
+              <div className="text-xs font-semibold text-muted-foreground flex items-center gap-1.5">
+                <TrendingUp className="h-3.5 w-3.5" /> RC2 Recommendation
+              </div>
+              <div className="text-xs text-muted-foreground">{rc2Decision.data.recommendation}</div>
+              {rc2Decision.data.blockers.length > 0 && (
+                <ul className="space-y-1 pt-1">
+                  {rc2Decision.data.blockers.map((b, i) => (
+                    <li key={i} className="flex items-start gap-2 text-xs text-destructive">
+                      <XCircle className="h-3.5 w-3.5 shrink-0 mt-0.5" /> {b}
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+          )}
+        </div>
+      </Section>
+
+      {/* Final Launch Package Center (Prompt 30) */}
+      <Section title="Final Launch Package Center" icon={PackageCheck}>
+        <div className="space-y-5">
+          <div
+            className={cn(
+              "flex items-center gap-4 rounded-2xl border p-4",
+              finalLaunchDecision.data?.decision === "GO"
+                ? "border-success/30 bg-success/5"
+                : finalLaunchDecision.data?.decision === "CONDITIONAL_GO"
+                  ? "border-warning/30 bg-warning/5"
+                  : "border-destructive/30 bg-destructive/5",
+            )}
+          >
+            <div className="text-4xl font-black tabular-nums text-primary">
+              {launchCertificate.data ? launchCertificate.data.final_score : "..."}
+            </div>
+            <div>
+              <div className="text-sm font-bold flex items-center gap-2">
+                Final Launch Score:{" "}
+                {launchCertificate.data ? `${launchCertificate.data.final_score}/100` : "..."}
+                {finalLaunchDecision.data && (
+                  <span className="inline-flex items-center gap-1 rounded-full bg-primary/10 px-2 py-0.5 text-[10px] font-semibold text-primary">
+                    {finalLaunchDecision.data.decision}
+                  </span>
+                )}
+              </div>
+              <div className="text-xs text-muted-foreground">
+                {finalLaunchDecision.data
+                  ? `${finalLaunchDecision.data.blockers.length} عائق حرج، ${finalLaunchDecision.data.warnings.length} تحذير`
+                  : "جارٍ التقييم..."}
+              </div>
+            </div>
+          </div>
+
+          <div>
+            <div className="text-xs font-semibold text-muted-foreground mb-2">Release</div>
+            {launchPackage.data ? (
+              <CheckGrid
+                items={[
+                  { id: "rc1", label: "RC1", status: launchPackage.data.rc1.status, detail: launchPackage.data.rc1.detail },
+                  { id: "rc2", label: "RC2", status: launchPackage.data.rc2.status, detail: launchPackage.data.rc2.detail },
+                ]}
+              />
+            ) : (
+              <SkeletonRows />
+            )}
+          </div>
+
+          <div>
+            <div className="text-xs font-semibold text-muted-foreground mb-2">Production</div>
+            {launchPackage.data ? (
+              <CheckGrid
+                items={[
+                  {
+                    id: "production_certificate",
+                    label: "Production Certificate",
+                    status: launchPackage.data.productionCertificate.status,
+                    detail: launchPackage.data.productionCertificate.detail,
+                  },
+                  { id: "security", label: "Security", status: launchPackage.data.security.status, detail: launchPackage.data.security.detail },
+                  { id: "compliance", label: "Compliance", status: launchPackage.data.compliance.status, detail: launchPackage.data.compliance.detail },
+                ]}
+              />
+            ) : (
+              <SkeletonRows />
+            )}
+          </div>
+
+          <div>
+            <div className="text-xs font-semibold text-muted-foreground mb-2">Operations</div>
+            <div className="grid gap-3 sm:grid-cols-3">
+              <div className="rounded-2xl border bg-card p-3.5 space-y-1.5">
+                <div className="text-xs font-bold flex items-center gap-1.5">
+                  <LifeBuoy className="h-3.5 w-3.5" /> Support
+                </div>
+                <ul className="space-y-1">
+                  {supportOperations.sections.map((s) => (
+                    <li key={s.id} className="text-[11px]">
+                      <span className="font-semibold">{s.label}</span>{" "}
+                      <span className="text-muted-foreground">— {s.detail}</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+              <div className="rounded-2xl border bg-card p-3.5 space-y-1.5">
+                <div className="text-xs font-bold flex items-center gap-1.5">
+                  <Siren className="h-3.5 w-3.5" /> Incidents
+                </div>
+                <ul className="space-y-1">
+                  {incidentPlaybook.entries.map((e) => (
+                    <li key={e.id} className="text-[11px]">
+                      <span className="font-semibold">{e.label}</span>{" "}
+                      <span className="text-muted-foreground">— {e.detection}</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+              <div className="rounded-2xl border bg-card p-3.5 space-y-1.5">
+                <div className="text-xs font-bold flex items-center justify-between">
+                  <span className="flex items-center gap-1.5">
+                    <LifeBuoy className="h-3.5 w-3.5" /> Disaster Recovery
+                  </span>
+                  <span className="text-muted-foreground">
+                    {disasterRecoveryPlan.data ? `${disasterRecoveryPlan.data.readinessScore}/100` : "..."}
+                  </span>
+                </div>
+                <ul className="space-y-1">
+                  {disasterRecoveryPlan.data?.procedures.map((p) => (
+                    <li key={p.id} className="text-[11px]">
+                      <span className="font-semibold">{p.label}</span>{" "}
+                      <span className="text-muted-foreground">— {p.steps}</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            </div>
+          </div>
+
+          <div>
+            <div className="text-xs font-semibold text-muted-foreground mb-2">Stores</div>
+            <div className="grid gap-3 sm:grid-cols-2">
+              <div className="rounded-2xl border bg-card p-3.5 space-y-1.5">
+                <div className="text-xs font-bold flex items-center justify-between">
+                  <span>Play Store</span>
+                  {playStorePackage.data?.submissionReady ? (
+                    <CheckCircle2 className="h-3.5 w-3.5 text-success" />
+                  ) : (
+                    <XCircle className="h-3.5 w-3.5 text-destructive" />
+                  )}
+                </div>
+                <ul className="space-y-1">
+                  {playStorePackage.data?.blockers.map((b, i) => (
+                    <li key={i} className="text-[11px] text-muted-foreground">• {b}</li>
+                  ))}
+                </ul>
+              </div>
+              <div className="rounded-2xl border bg-card p-3.5 space-y-1.5">
+                <div className="text-xs font-bold flex items-center justify-between">
+                  <span>App Store</span>
+                  {appStorePackage.data?.submissionReady ? (
+                    <CheckCircle2 className="h-3.5 w-3.5 text-success" />
+                  ) : (
+                    <XCircle className="h-3.5 w-3.5 text-destructive" />
+                  )}
+                </div>
+                <ul className="space-y-1">
+                  {appStorePackage.data?.blockers.map((b, i) => (
+                    <li key={i} className="text-[11px] text-muted-foreground">• {b}</li>
+                  ))}
+                </ul>
+              </div>
+            </div>
+          </div>
+
+          <div>
+            <div className="text-xs font-semibold text-muted-foreground mb-2">Launch</div>
+            {launchPackage.data ? (
+              <CheckGrid
+                items={[
+                  { id: "android", label: "Android", status: launchPackage.data.android.status, detail: launchPackage.data.android.detail },
+                  { id: "ios", label: "iOS", status: launchPackage.data.ios.status, detail: launchPackage.data.ios.detail },
+                  { id: "store_readiness", label: "Store Readiness", status: launchPackage.data.storeReadiness.status, detail: launchPackage.data.storeReadiness.detail },
+                  { id: "support_pkg", label: "Support", status: launchPackage.data.support.status, detail: launchPackage.data.support.detail },
+                  { id: "monitoring_pkg", label: "Monitoring", status: launchPackage.data.monitoring.status, detail: launchPackage.data.monitoring.detail },
+                  { id: "backup_pkg", label: "Backup", status: launchPackage.data.backup.status, detail: launchPackage.data.backup.detail },
+                ]}
+              />
+            ) : (
+              <SkeletonRows />
+            )}
+          </div>
+
+          {finalLaunchDecision.data && (
+            <div className="rounded-xl border bg-muted/30 p-3 space-y-1.5">
+              <div className="text-xs font-semibold text-muted-foreground flex items-center gap-1.5">
+                <TrendingUp className="h-3.5 w-3.5" /> Final Decision Recommendation
+              </div>
+              <div className="text-xs text-muted-foreground">{finalLaunchDecision.data.recommendation}</div>
+              {finalLaunchDecision.data.blockers.length > 0 && (
+                <ul className="space-y-1 pt-1">
+                  {finalLaunchDecision.data.blockers.map((b, i) => (
+                    <li key={i} className="flex items-start gap-2 text-xs text-destructive">
+                      <XCircle className="h-3.5 w-3.5 shrink-0 mt-0.5" /> {b}
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+          )}
+        </div>
+      </Section>
+
       <div className="flex justify-end">
         <Button
           variant="outline"
@@ -1688,6 +2649,28 @@ function SystemPage() {
             qc.invalidateQueries({ queryKey: ["launch-blockers"] });
             qc.invalidateQueries({ queryKey: ["release-certificate"] });
             qc.invalidateQueries({ queryKey: ["final-audit-check"] });
+            qc.invalidateQueries({ queryKey: ["monitoring-observability"] });
+            qc.invalidateQueries({ queryKey: ["release-go-no-go"] });
+            qc.invalidateQueries({ queryKey: ["rc-security"] });
+            qc.invalidateQueries({ queryKey: ["rc-performance"] });
+            qc.invalidateQueries({ queryKey: ["rc-production-certificate"] });
+            qc.invalidateQueries({ queryKey: ["rc-final-report"] });
+            qc.invalidateQueries({ queryKey: ["rc-final-decision"] });
+            qc.invalidateQueries({ queryKey: ["android-production-cert"] });
+            qc.invalidateQueries({ queryKey: ["ios-production-cert"] });
+            qc.invalidateQueries({ queryKey: ["backup-encryption-audit"] });
+            qc.invalidateQueries({ queryKey: ["dependency-security-audit"] });
+            qc.invalidateQueries({ queryKey: ["support-certificate"] });
+            qc.invalidateQueries({ queryKey: ["android-store-submission"] });
+            qc.invalidateQueries({ queryKey: ["ios-store-submission"] });
+            qc.invalidateQueries({ queryKey: ["rc2-certificate"] });
+            qc.invalidateQueries({ queryKey: ["rc2-decision"] });
+            qc.invalidateQueries({ queryKey: ["disaster-recovery-plan"] });
+            qc.invalidateQueries({ queryKey: ["playstore-package"] });
+            qc.invalidateQueries({ queryKey: ["appstore-package"] });
+            qc.invalidateQueries({ queryKey: ["launch-package"] });
+            qc.invalidateQueries({ queryKey: ["launch-certificate"] });
+            qc.invalidateQueries({ queryKey: ["final-launch-decision"] });
             refreshEmergencyState();
           }}
         >

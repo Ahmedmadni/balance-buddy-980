@@ -424,7 +424,113 @@ Freeze محفوظ بالكامل، Account Deletion جاهز كمعاينة كا
 
 ---
 
-## 28. كيف تُحدَّث هذه الوثيقة
+## 29. Prompt 27 — Production Deployment, Store Operations & Launch Execution (منجز)
+
+الانتقال من "تطبيق جاهز تقنياً" إلى "تطبيق قابل للنشر والإطلاق الفعلي": ملفات بيئة إنتاج، خطوط أنابيب
+إصدار Android/iOS كاملة (تدقيق + خطة تنفيذ خطوة بخطوة)، محرك بيانات وصفية لمتجرَي Google Play وApple
+App Store (نصوص حقيقية مبنية على الميزات الفعلية للتطبيق، مع تحقق من حدود الأحرف)، بنية دعم وتواصل،
+خطة تنفيذ حذف حساب فعلي مستقبلية (توثيقية بحتة — بلا service_role وبلا تنفيذ)، مراقبة/رصد شامل، ومحرك
+Go/No-Go نهائي. صفر جداول جديدة، صفر migrations، صفر تعديل على transactions/investment_transactions/
+investments/person_ledger/system_events/v_account_statement/أي Trigger/RLS/View/محرك مالي/زكاة/إهلاك/
+**Backup Engine/Notification Engine** (كلاهما مجمَّد صراحةً في هذا البرومبت، بخلاف الاستثناء لمرة واحدة في Prompt 24).
+
+| الملف | الدور |
+|---|---|
+| `src/lib/deployment/{environment,validation,checklist}.ts` | **PART 1** — `getCurrentEnvironment()`/`setCurrentEnvironment()` (development/staging/beta/production، افتراضي من `import.meta.env.DEV` الفعلي)، `validateEnvironment()` يفحص Supabase URL/Key حيّاً + روابط قانونية/دعم/موقع عبر `metadata-config.ts` + معرّفات إعلانات عبر `auditAdsConfiguration()`، مع Analytics IDs معلَنة بصدق كـ "غير قابلة للتطبيق" (لا SDK تحليلات في التطبيق). `generateEnvironmentChecklist()` يجمعهما. |
+| `src/lib/android/{audit,release,checklist}.ts` | **PART 2** — `auditAndroidProduction()` يبني على `auditAndroidRelease()` (Prompt 22) ويضيف App Bundle/Signing/Deep Links/Play Console Readiness. `generateAndroidReleasePlan()` خطة تنفيذ من 9 خطوات مرتّبة (إضافة منصّة → توليد أصول → تعطيل Live Reload → keystore → رفع versionCode → مراجعة Manifest → بناء AAB → تعبئة القائمة → الإرسال). `checklist.ts` بنود Play Console اليدوية (تصنيف المحتوى، نموذج أمان البيانات، إلخ). |
+| `src/lib/ios/{audit,release,checklist}.ts` | **PART 3** — `auditIOSProduction()` يبني على `auditIOSRelease()` (Prompt 22) ويضيف Apple Sign-In Readiness (حقيقة مُتحقَّقة: `signInWithOAuth("apple")` مدعوم في `lovable/index.ts` لكن غير مفعَّل في واجهة `auth.tsx`)، Push Readiness (حقيقة: `NotificationProvider.sendPush` لا يزال Noop، لا APNs)، Associated Domains، Privacy Manifest، App Store Connect Readiness. `generateIOSReleasePlan()`/`checklist.ts` بنفس نمط Android. |
+| `src/lib/store/{descriptions,screenshots,metadata}.ts` | **PART 4** — نصوص تسويقية حقيقية مبنية على ميزات التطبيق الفعلية فقط (محافظ/مصاريف/ديون/متكررة/أصول موحّدة/زكاة/تقارير/تذكيرات) — لا ميزات مختلَقة. `validateStoreCopyLengths()` يتحقق فعلياً من حدود Google Play (عنوان ≤30، وصف قصير ≤80، وصف كامل ≤4000) وApple (عنوان فرعي ≤30، نص ترويجي ≤170). `generateStoreMetadata()` يجمع النصوص + `generateScreenshotsReport()` (يعيد استخدام `generateStoreAssetsChecklist()` من Prompt 22 بدل إعادة الفحص) في حمولتَي Google Play/Apple كاملتين. |
+| `src/lib/support/{config,audit}.ts` | **PART 5** — `getSupportConfig()` يُعيد تصدير روابط `metadata-config.ts` + `SUPPORT_EMAIL` جديد (لا يزال placeholder بصدق — لا صندوق دعم حقيقي بعد). `auditSupportInfrastructure()` يفحص البريد/النطاق/صفحات الدعم/الصفحات القانونية (الأخيرة عبر `validateLegalLinks()` مباشرة). |
+| `src/lib/account-deletion/execution.ts` | **PART 6** — توثيقي بحت، لا `service_role`، لا تنفيذ فعلي: `generateServerDeletionSpec()` (6 خطوات لمعالج خادم مستقبلي)، `generateSupabaseDeletionPlan()` (ترتيب حذف 18 جدولاً بالعكس حسب تبعيات المفاتيح الأجنبية، يعيد استخدام `DB_TABLES`/`LOCAL_STORAGE_KEYS` من Prompt 23)، `generateEdgeFunctionRequirements()` (متطلبات Edge Function مستقبلية: JWT، rate limiting، idempotency، سجل تدقيق منفصل، تأكيد بريدي). |
+| `src/lib/monitoring/{config,audit}.ts` | **PART 7** — `getMonitoringConfig()` سجل صادق لكل فئة رصد (Crash/Analytics/Performance/Errors/Notifications/Backups) يوثّق أن الكل محلي بالتصميم — لا Sentry/Firebase/PostHog. `auditObservability()` يُركِّب `auditCrashReporting()`/`collectPerformanceMetrics()`/`loadNotificationSettings()`/`verifyBackupIntegrity()` الموجودة فعلياً بدل إعادة حسابها. |
+| `src/lib/release/go-no-go.ts` | **PART 9** — `evaluateLaunchDecision()` القمة النهائية: يُركِّب `runFinalProductionAudit()`/`evaluateProductionGate()`/`computeLaunchBlockers()`/`performFinalAudit()` + تدقيقات Android/iOS/Support الجديدة في قرار واحد `GO`/`NO_GO`/`BETA_ONLY`. iOS متعمَّد استبعاده من شرط `GO` (لا منصّة iOS مضافة أصلاً في هذا المشروع) — يظهر كتحذير لا كعائق. |
+| `src/routes/_authenticated/app.system.tsx` | **PART 8** — قسم **Production Launch Center** جديد: بطاقة قرار Go/No-Go بارزة، البنية التحتية (Environment/Support/Monitoring)، Android (جاهزية إصدار + جاهزية متجر)، iOS (نفس البنية)، الامتثال (Privacy/Consent/Account Deletion)، والإنتاج (النتيجة النهائية/العوائق المتبقية/جاهزية الإطلاق التقديرية) + توصيات. |
+
+**تقرير الإغلاق (16 سؤالاً) — أيضاً في نهاية رسالة الجلسة:** صفر جداول جديدة، صفر migrations، Schema
+Freeze محفوظ بالكامل بما فيه Backup Engine وNotification Engine (مجمَّدان صراحةً هذه المرة)، خطوط أنابيب
+Android/iOS موثَّقة بالكامل مع فجوات حقيقية غير مُخفاة (لا iOS platform، لا keystore توقيع)، بيانات متجر
+حقيقية جاهزة للصق المباشر، بنية دعم مُعرَّفة (لا يزال Support Email/URL placeholder بصدق)، خطة حذف حساب
+تنفيذية موثَّقة بالكامل بلا أي تنفيذ فعلي، ومحرك Go/No-Go يُصدر قراراً واحداً واضحاً مبنياً على كل ما سبق.
+
+---
+
+## 31. Prompt 28 — Release Candidate (RC1), Launch Freeze & Production Certification (منجز)
+
+إغلاق المشروع هندسياً وإنتاجياً وإصدار أول شهادة جاهزية رسمية (RC1)، مع تجميد إضافي صريح لمحرك
+التحليلات (Analytics Engine) — إضافة لكل القائمة المعتادة (Schema/Financial/Investment/Notification/
+Backup). يتضمّن أول تدقيق أمان حقيقي (`bun audit`، 26 ثغرة: 14 عالية/8 متوسطة/4 منخفضة، أهمها xlsx
+كتبعية مباشرة) وأول محرك قرار نهائي يُركِّب كل محركات الجلسة في قرار GO/NO_GO/BETA_ONLY واحد.
+
+| الملف | الدور |
+|---|---|
+| `src/lib/rc/{version,build,certificate}.ts` | **PART 1** — `generateReleaseCandidate()` يبني `rc_version` ("RC1") + `generateBuildFingerprint()` (build_id/git_commit/build_date — git_commit مُعلَن بصدق كـ"غير متاح" لأن vite.config.ts لا يحقن VITE_GIT_COMMIT) + `generateVersionManifest()` (نسخ رمزية لكل محرك مجمَّد، مبنية على تاريخ آخر Prompt عدّله فعلياً). |
+| `src/lib/rc/freeze.ts` | **PART 2** — `verifySchemaFreeze()`/`verifyFinancialFreeze()`/`verifyInvestmentFreeze()`/`verifyNotificationFreeze()`/`verifyBackupFreeze()`/`verifyAnalyticsFreeze()` — حقائق ثابتة موثَّقة عبر `git log`/`git diff` طوال الجلسة؛ `verifyBackupFreeze()` وحدها تُقرّ بصدق أن Backup Engine عُدِّل مرة واحدة (Prompt 24) قبل أن يُجمَّد. |
+| `src/lib/rc/dependencies.ts` | **PART 3** — `auditDependencies()`: أول تدقيق أمني حقيقي هذه الجلسة، نتائج `bun audit` الفعلية على قفل هذا المستودع (2026-07-04): 26 ثغرة (14 عالية/8 متوسطة/4 منخفضة). التصنيف الحقيقي: `xlsx` (تبعية مباشرة، ثغرتا Prototype Pollution/ReDoS، لكن الاستخدام كتابة فقط في كل الكود — لا `XLSX.read()` على أي إدخال مستخدم) وتبعية `@tanstack/start-server-core` (متوسطة) كـ"warning"؛ أدوات البناء (`@capacitor/cli`, eslint, babel, esbuild...) كـ"safe" (لا شحن للإنتاج). |
+| `src/lib/rc/security.ts` | **PART 4** — `auditSecurity()` يُركِّب `auditConsentManager()`/`auditAccountDeletion()`/`auditPWA()` الموجودة فعلياً + حقائق ثابتة عن JWT في localStorage غير مشفَّر، عدم تشفير النسخ الاحتياطي (موثَّق صراحة في `backup/engine.ts`)، وفحص حي لـ`Notification.permission`. |
+| `src/lib/rc/performance.ts` | **PART 5** — `certifyPerformance()` يُركِّب `runSystemHealthCheck()`/`collectPerformanceMetrics()`/`evaluateProductionGate()` + يقيس زمن `computeFinancialInsights()` (محرك التحليلات المجمَّد) فعلياً دون تعديله؛ يُعلن الزمن كـ"غير متاح" إن لم توجد جلسة Supabase مصادَق عليها. |
+| `src/lib/rc/production-certificate.ts` | **PART 6** — `generateProductionCertificate()` يبني على `generateReleaseCertificate()` (Prompt 26) لـ8 من أصل 10 أقسام، ويضيف architecture (من `runFreezeVerification()`)، release (من RC1)، security، وperformance، مع مستوى اعتماد (`certification`: gold ≥95 / silver ≥85 / bronze ≥70 / not_certified). |
+| `src/lib/rc/report.ts` | **PART 8** — `generateFinalReleaseReport()`: قوائم Completed Modules/Technical Debt/Known Limitations/Next Steps ثابتة وصادقة (جرد شامل لما بُني/لم يُبنَ)، ودرجات Production/Beta/Store/Compliance حيّة من `evaluateFinalReleaseDecision()`/`calculateBetaHealth()`/`auditStoreReadiness()`/`auditCompliance()`. |
+| `src/lib/rc/decision.ts` | **PART 9** — `evaluateFinalReleaseDecision()`: القرار الختامي للجلسة بأكملها، يُركِّب `evaluateLaunchDecision()` (Prompt 27) + `generateProductionCertificate()` + `auditDependencies()` في `{decision, confidence, blockers, warnings, recommendation}` واحد. |
+| `src/routes/_authenticated/app.system.tsx` | **PART 7** — قسم **Release Candidate Certification** جديد: RC Information (Version/Build/Commit/Date)، Freeze Status (6 محركات)، Security Score، Performance Score، Dependency Audit، أقسام Production Certificate العشرة، Final Release Report (Technical Debt/Known Limitations/Next Steps)، والتوصية النهائية. |
+
+**تقرير الإغلاق (16 سؤالاً) — أيضاً في نهاية رسالة الجلسة:** صفر جداول جديدة، صفر migrations، Schema
+Freeze محفوظ بالكامل بما فيه Analytics Engine (مجمَّد صراحةً لأول مرة هذا الـ Prompt)، تدقيق أمني حقيقي
+لأول مرة (`bun audit`) كشف ثغرة حقيقية في تبعية مباشرة (xlsx)، وشهادة إنتاجية + قرار نهائي واحد يُلخّص
+حالة المشروع الكاملة بعد 28 برومبت متتالياً.
+
+---
+
+## 33. Prompt 29 — Final Production Hardening, Store Submission Preparation & RC2 Certification (منجز)
+
+استكمال العوائق المتبقية قبل الإنتاج الفعلي عبر تدقيقات أعمق لكل منصّة ومكوّن أُنشئ في Prompt 27-28،
+وإصدار شهادة RC2 التي تُركِّب كل شيء في قرار واحد نهائي. تجميد إضافي صريح: Release Candidate Engine
+وProduction Certificate Engine (محركا Prompt 28) أُضيفا لقائمة الممنوعات، ولم يُعدَّل أي منهما.
+
+| الملف | الدور |
+|---|---|
+| `src/lib/android-production/{keystore,release-config,certificate}.ts` | **PART 1** — `verifyAndroidSigning()` (لا keystore/alias/SHA1/SHA256 — حقائق ثابتة، لا منصّة android/ موجودة)، `auditAndroidReleaseConfig()` (allowMixedContent/cleartext/liveReload من capacitor.config.ts مباشرة؛ minify/shrinkResources/proguard/versionCode معلَنة بصدق كـ"غير قابلة للتطبيق" لعدم وجود build.gradle)، `generateAndroidProductionCertificate()` يُركِّبهما مع `auditAndroidProduction()` (Prompt 27). |
+| `src/lib/ios-production/{project,privacy,certificate}.ts` | **PART 2** — `auditIOSProject()` (لا مجلد ios/، لا مشروع Xcode، لا entitlements)، `auditIOSPrivacy()` (لا PrivacyInfo.xcprivacy؛ لا حاجة فعلية لأذونات كاميرا/بيومترية/تتبّع — لا ميزة تستخدمها في الكود)، `generateIOSProductionCertificate()` يُركِّبهما مع `auditIOSProduction()` (Prompt 27). |
+| `src/lib/account-deletion/execution-plan.ts` | **PART 3** — `buildDeletionExecutionPlan()`: 6 فئات (auth/storage/database/notification/backup/audit) تُعيد استخدام خطوات `generateServerDeletionSpec()`/`generateSupabaseDeletionPlan()` (Prompt 27) حرفياً، مع `executable: false` و`requires_service_role: true` ثابتتين. |
+| `src/lib/security/backup-encryption.ts` | **PART 4** — `auditBackupEncryption()`: قراءة فقط، لا تعديل على Backup Engine؛ يُقرّ بصدق أنه لا تشفير/خوارزمية/إدارة مفاتيح على الإطلاق (موثَّق أصلاً في تعليق backup/engine.ts). |
+| `src/lib/security/dependencies.ts` | **PART 5** — `auditDependencySecurity()` يُعيد استخدام بيانات `bun audit` الحقيقية من `rc/dependencies.ts` (Prompt 28) ويضيف إجراء حل مقترح لكل حزمة من الست المطلوبة (xlsx/dompurify/tanstack/vite/capacitor/supabase). |
+| `src/lib/support-production/{channels,sla,certificate}.ts` | **PART 6** — `auditSupportChannels()` (بريد/موقع/اتصال خصوصية عبر support/config.ts؛ اتصال قانوني/أعمال معلَنان كغير موجودين بصدق)، `generateSupportSLA()` (4 مستويات مقترحة، موثَّقة كأهداف مستقبلية لا كقياس فعلي)، `generateSupportCertificate()` يُركِّبهما مع `auditSupportInfrastructure()` (Prompt 27). |
+| `src/lib/store-submission/{android,ios,assets}.ts` | **PART 7** — `auditStoreSubmissionAssets()` يبني على `generateStoreAssetsChecklist()` (Prompt 22) ويضيف Promo Assets/Privacy Screenshots (كلاهما مفقود فعلياً)؛ `generatePlayStoreSubmission()`/`generateAppStoreSubmission()` يُركِّبان بيانات المتجر (Prompt 27) + الشهادة الإنتاجية للمنصّة (PART 1/2) + الأصول في حزمة تقديم واحدة مع قائمة عوائق. |
+| `src/lib/rc2/{score,certificate,decision}.ts` | **PART 8** — `calculateRC2Score()` يُركِّب كل شهادات هذا البرومبت + `final_score` الخاص بـ RC1 (Prompt 28) في درجة واحدة؛ `generateRC2Certificate()` يُصدر بصمة RC2؛ `evaluateRC2Decision()` يُعيد استخدام `evaluateFinalReleaseDecision()` (RC1) للعوائق مباشرة — عائق حرج واحد موروث من RC1 يفرض `NO_GO` بغض النظر عن الدرجة، تماماً كما تشترط قواعد هذا البرومبت. |
+| `src/routes/_authenticated/app.system.tsx` | **PART 9** — قسم **RC2 Production Certification Center** جديد: Android (Signing/Release Config/Certificate)، iOS (Project/Privacy/Certificate)، Security (Backup Encryption/Dependency Audit)، Support (Certificate/SLA)، Store Submission (Android/iOS Package)، وRC2 (Score/Certificate/Final Decision). |
+
+**تقرير الإغلاق (16 سؤالاً) — أيضاً في نهاية رسالة الجلسة:** صفر جداول جديدة، صفر migrations، Schema
+Freeze محفوظ بالكامل بما فيه Release Candidate Engine وProduction Certificate Engine (مجمَّدان صراحةً
+لأول مرة). RC2 يُظهر بصدق أن العوائق الحرجة الموروثة من RC1 (Android/iOS Readiness) لا تزال قائمة —
+القرار النهائي NO_GO حتى تُحلّ، تماماً كما تنص قاعدة هذا البرومبت الصريحة.
+
+---
+
+## 35. Prompt 30 — Production Operations, Deployment Assets & Final Launch Package (منجز)
+
+آخر برومبت هندسي كبير في المشروع: طبقة تشغيل وإطلاق نهائية (Runbooks لكل منصّة، حزم تقديم للمتاجر،
+دليل عمليات دعم، كتاب لعب استجابة حوادث، خطة تعافي من الكوارث)، مُجمَّعة كلها في حزمة إطلاق نهائية واحدة
+وقرار GO/CONDITIONAL_GO/NO_GO. تجميد إضافي صريح: RC Engine وRC2 Engine وProduction Certificate Engine
+(محركات Prompt 28-29) أُضيفت لقائمة الممنوعات، ولم يُعدَّل أي منها.
+
+| الملف | الدور |
+|---|---|
+| `src/lib/runbooks/{android,ios}.ts` | **PART 1-2** — `generateAndroidReleaseRunbook()`/`generateIOSReleaseRunbook()`: 8 خطوات تشغيل مرتّبة لكل منصّة (Keystore → Production Release / Xcode → App Store Release)، مع `done` مُشتقّة من `android-production/keystore.ts` وiOS `project.ts` (Prompt 29) لا مُخمَّنة. |
+| `src/lib/submission/{playstore,appstore}.ts` | **PART 3-4** — `generatePlayStorePackage()`/`generateAppStorePackage()` يُركِّبان `store/metadata.ts` (Prompt 27) + تدقيقات المنصّة (Prompt 27/29) + الروابط القانونية في حزمة تقديم واحدة لكل متجر، مع Release Notes وApp Review Notes حقيقيَين مكتوبين خصيصاً لهذا التطبيق (لا حساب تجريبي جاهز — يوضَّح صراحة للمراجع). |
+| `src/lib/operations/support.ts` | **PART 5** — `generateSupportOperations()` يُعيد استخدام `generateSupportSLA()` و`buildDeletionExecutionPlan()` (Prompt 29) لبنود SLA/طلبات حذف الحساب، ويضيف Escalation/Incident Response (ملخّص فقط، الدليل الكامل في PART 6)/User Support/Legal/Privacy Requests. |
+| `src/lib/operations/incidents.ts` | **PART 6** — `generateIncidentPlaybook()`: 7 فئات حوادث (مالي/أمني/نسخ احتياطي/إشعارات/مصادقة/تلف بيانات/تعطّل خدمة)، كل فئة تسمّي الأداة الفعلية للكشف (validateFinancialIntegrity/verifyBackupIntegrity/runSystemHealthCheck/Emergency Mode) بدل اختراع آلية جديدة. |
+| `src/lib/operations/disaster.ts` | **PART 7** — `generateDisasterRecoveryPlan()` يُركِّب `auditDisasterRecovery()` (Prompt 23) للدرجة + 6 إجراءات تعافي فعلية (استعادة نسخة احتياطية عبر `importUserData()`، استعادة مستخدم عبر Supabase Auth القياسي، ...). |
+| `src/lib/launch/{package,certificate,decision}.ts` | **PART 8** — `generateLaunchPackage()` يُركِّب 12 قسماً من محركات موجودة فعلياً (يُعيد استخدام security/compliance/backup/notifications مباشرة من `generateProductionCertificate()` بدل إعادة حسابها)؛ `generateLaunchCertificate()` يُصدر `final_score`؛ `generateFinalLaunchDecision()` يرث عوائق `evaluateRC2Decision()` مباشرة — عائق حرج واحد موروث يفرض `NO_GO` بغض النظر عن الدرجة، تماماً كما تشترط قواعد هذا البرومبت. |
+| `src/routes/_authenticated/app.system.tsx` | **PART 9** — قسم **Final Launch Package Center** جديد: Release (RC1/RC2)، Production (Production Certificate/Security/Compliance)، Operations (Support/Incidents/Disaster Recovery)، Stores (Play Store/App Store)، وLaunch (Android/iOS/Store Readiness/Support/Monitoring/Backup) + توصية القرار النهائي. |
+
+**تقرير الإغلاق (16 سؤالاً) — أيضاً في نهاية رسالة الجلسة:** صفر جداول جديدة، صفر migrations، Schema
+Freeze محفوظ بالكامل بما فيه RC Engine وRC2 Engine وProduction Certificate Engine (مجمَّدة صراحةً لأول
+مرة). حزمة الإطلاق النهائية تُظهر بصدق أن العوائق الحرجة الموروثة من RC1/RC2 لا تزال قائمة — القرار
+النهائي NO_GO حتى تُحلّ. هذا آخر برومبت هندسي كبير — أي عوائق متبقية بعده خارج الكود بالكامل (Keystore،
+حساب Apple Developer، Xcode/macOS، نطاق حقيقي، بريد دعم، لقطات شاشة، الرفع الفعلي للمتاجر).
+
+---
+
+## 36. كيف تُحدَّث هذه الوثيقة
 
 - عند إنجاز بند من "الفجوات" أعلاه: انقله إلى قسم "منجزة" مع رابط الملف/الالتزام (commit).
 - عند بدء خطة تطوير جديدة (سواء مطروحة من المستخدم أو من `.lovable/plan.md` مستقبلاً): أضف قسماً
