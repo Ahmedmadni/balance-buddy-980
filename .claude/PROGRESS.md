@@ -454,7 +454,33 @@ Android/iOS موثَّقة بالكامل مع فجوات حقيقية غير م
 
 ---
 
-## 30. كيف تُحدَّث هذه الوثيقة
+## 31. Prompt 28 — Release Candidate (RC1), Launch Freeze & Production Certification (منجز)
+
+إغلاق المشروع هندسياً وإنتاجياً وإصدار أول شهادة جاهزية رسمية (RC1)، مع تجميد إضافي صريح لمحرك
+التحليلات (Analytics Engine) — إضافة لكل القائمة المعتادة (Schema/Financial/Investment/Notification/
+Backup). يتضمّن أول تدقيق أمان حقيقي (`bun audit`، 26 ثغرة: 14 عالية/8 متوسطة/4 منخفضة، أهمها xlsx
+كتبعية مباشرة) وأول محرك قرار نهائي يُركِّب كل محركات الجلسة في قرار GO/NO_GO/BETA_ONLY واحد.
+
+| الملف | الدور |
+|---|---|
+| `src/lib/rc/{version,build,certificate}.ts` | **PART 1** — `generateReleaseCandidate()` يبني `rc_version` ("RC1") + `generateBuildFingerprint()` (build_id/git_commit/build_date — git_commit مُعلَن بصدق كـ"غير متاح" لأن vite.config.ts لا يحقن VITE_GIT_COMMIT) + `generateVersionManifest()` (نسخ رمزية لكل محرك مجمَّد، مبنية على تاريخ آخر Prompt عدّله فعلياً). |
+| `src/lib/rc/freeze.ts` | **PART 2** — `verifySchemaFreeze()`/`verifyFinancialFreeze()`/`verifyInvestmentFreeze()`/`verifyNotificationFreeze()`/`verifyBackupFreeze()`/`verifyAnalyticsFreeze()` — حقائق ثابتة موثَّقة عبر `git log`/`git diff` طوال الجلسة؛ `verifyBackupFreeze()` وحدها تُقرّ بصدق أن Backup Engine عُدِّل مرة واحدة (Prompt 24) قبل أن يُجمَّد. |
+| `src/lib/rc/dependencies.ts` | **PART 3** — `auditDependencies()`: أول تدقيق أمني حقيقي هذه الجلسة، نتائج `bun audit` الفعلية على قفل هذا المستودع (2026-07-04): 26 ثغرة (14 عالية/8 متوسطة/4 منخفضة). التصنيف الحقيقي: `xlsx` (تبعية مباشرة، ثغرتا Prototype Pollution/ReDoS، لكن الاستخدام كتابة فقط في كل الكود — لا `XLSX.read()` على أي إدخال مستخدم) وتبعية `@tanstack/start-server-core` (متوسطة) كـ"warning"؛ أدوات البناء (`@capacitor/cli`, eslint, babel, esbuild...) كـ"safe" (لا شحن للإنتاج). |
+| `src/lib/rc/security.ts` | **PART 4** — `auditSecurity()` يُركِّب `auditConsentManager()`/`auditAccountDeletion()`/`auditPWA()` الموجودة فعلياً + حقائق ثابتة عن JWT في localStorage غير مشفَّر، عدم تشفير النسخ الاحتياطي (موثَّق صراحة في `backup/engine.ts`)، وفحص حي لـ`Notification.permission`. |
+| `src/lib/rc/performance.ts` | **PART 5** — `certifyPerformance()` يُركِّب `runSystemHealthCheck()`/`collectPerformanceMetrics()`/`evaluateProductionGate()` + يقيس زمن `computeFinancialInsights()` (محرك التحليلات المجمَّد) فعلياً دون تعديله؛ يُعلن الزمن كـ"غير متاح" إن لم توجد جلسة Supabase مصادَق عليها. |
+| `src/lib/rc/production-certificate.ts` | **PART 6** — `generateProductionCertificate()` يبني على `generateReleaseCertificate()` (Prompt 26) لـ8 من أصل 10 أقسام، ويضيف architecture (من `runFreezeVerification()`)، release (من RC1)، security، وperformance، مع مستوى اعتماد (`certification`: gold ≥95 / silver ≥85 / bronze ≥70 / not_certified). |
+| `src/lib/rc/report.ts` | **PART 8** — `generateFinalReleaseReport()`: قوائم Completed Modules/Technical Debt/Known Limitations/Next Steps ثابتة وصادقة (جرد شامل لما بُني/لم يُبنَ)، ودرجات Production/Beta/Store/Compliance حيّة من `evaluateFinalReleaseDecision()`/`calculateBetaHealth()`/`auditStoreReadiness()`/`auditCompliance()`. |
+| `src/lib/rc/decision.ts` | **PART 9** — `evaluateFinalReleaseDecision()`: القرار الختامي للجلسة بأكملها، يُركِّب `evaluateLaunchDecision()` (Prompt 27) + `generateProductionCertificate()` + `auditDependencies()` في `{decision, confidence, blockers, warnings, recommendation}` واحد. |
+| `src/routes/_authenticated/app.system.tsx` | **PART 7** — قسم **Release Candidate Certification** جديد: RC Information (Version/Build/Commit/Date)، Freeze Status (6 محركات)، Security Score، Performance Score، Dependency Audit، أقسام Production Certificate العشرة، Final Release Report (Technical Debt/Known Limitations/Next Steps)، والتوصية النهائية. |
+
+**تقرير الإغلاق (16 سؤالاً) — أيضاً في نهاية رسالة الجلسة:** صفر جداول جديدة، صفر migrations، Schema
+Freeze محفوظ بالكامل بما فيه Analytics Engine (مجمَّد صراحةً لأول مرة هذا الـ Prompt)، تدقيق أمني حقيقي
+لأول مرة (`bun audit`) كشف ثغرة حقيقية في تبعية مباشرة (xlsx)، وشهادة إنتاجية + قرار نهائي واحد يُلخّص
+حالة المشروع الكاملة بعد 28 برومبت متتالياً.
+
+---
+
+## 32. كيف تُحدَّث هذه الوثيقة
 
 - عند إنجاز بند من "الفجوات" أعلاه: انقله إلى قسم "منجزة" مع رابط الملف/الالتزام (commit).
 - عند بدء خطة تطوير جديدة (سواء مطروحة من المستخدم أو من `.lovable/plan.md` مستقبلاً): أضف قسماً

@@ -75,6 +75,14 @@ import { generateStoreMetadata } from "@/lib/store/metadata";
 import { auditSupportInfrastructure } from "@/lib/support/audit";
 import { auditObservability } from "@/lib/monitoring/audit";
 import { evaluateLaunchDecision } from "@/lib/release/go-no-go";
+import { generateReleaseCandidate } from "@/lib/rc/certificate";
+import { runFreezeVerification } from "@/lib/rc/freeze";
+import { auditDependencies } from "@/lib/rc/dependencies";
+import { auditSecurity } from "@/lib/rc/security";
+import { certifyPerformance } from "@/lib/rc/performance";
+import { generateProductionCertificate, CERTIFICATION_LABEL } from "@/lib/rc/production-certificate";
+import { generateFinalReleaseReport } from "@/lib/rc/report";
+import { evaluateFinalReleaseDecision } from "@/lib/rc/decision";
 import { loadLastBackup } from "@/lib/backup/engine";
 import { verifyBackupIntegrity } from "@/lib/backup/integrity";
 import { formatMoney } from "@/lib/format";
@@ -136,6 +144,9 @@ import {
   Mail,
   Target,
   Layers,
+  Fingerprint,
+  Lock,
+  Zap,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -322,6 +333,22 @@ function SystemPage() {
   const supportInfraAudit = auditSupportInfrastructure();
   const observability = useQuery({ queryKey: ["monitoring-observability"], queryFn: auditObservability });
   const goNoGo = useQuery({ queryKey: ["release-go-no-go"], queryFn: evaluateLaunchDecision });
+
+  // ----- Prompt 28: Release Candidate (RC1), Launch Freeze & Production Certification -----
+  const releaseCandidate = generateReleaseCandidate();
+  const freezeVerification = runFreezeVerification();
+  const dependencyAudit = auditDependencies();
+  const securityAudit = useQuery({ queryKey: ["rc-security"], queryFn: auditSecurity });
+  const performanceCert = useQuery({ queryKey: ["rc-performance"], queryFn: certifyPerformance });
+  const productionCertificate = useQuery({
+    queryKey: ["rc-production-certificate"],
+    queryFn: generateProductionCertificate,
+  });
+  const finalReleaseReport = useQuery({ queryKey: ["rc-final-report"], queryFn: generateFinalReleaseReport });
+  const finalReleaseDecision = useQuery({
+    queryKey: ["rc-final-decision"],
+    queryFn: evaluateFinalReleaseDecision,
+  });
 
   const recommendations: string[] = [];
   if (health.data?.status === "error")
@@ -1915,6 +1942,222 @@ function SystemPage() {
         </div>
       </Section>
 
+      {/* Release Candidate Certification (Prompt 28) */}
+      <Section title="Release Candidate Certification" icon={Fingerprint}>
+        <div className="space-y-5">
+          <div
+            className={cn(
+              "flex items-center gap-4 rounded-2xl border p-4",
+              finalReleaseDecision.data?.decision === "GO"
+                ? "border-success/30 bg-success/5"
+                : finalReleaseDecision.data?.decision === "BETA_ONLY"
+                  ? "border-warning/30 bg-warning/5"
+                  : "border-destructive/30 bg-destructive/5",
+            )}
+          >
+            <div className="text-4xl font-black tabular-nums text-primary">
+              {productionCertificate.data ? productionCertificate.data.final_score : "..."}
+            </div>
+            <div>
+              <div className="text-sm font-bold flex items-center gap-2">
+                Production Certificate:{" "}
+                {productionCertificate.data ? `${productionCertificate.data.final_score}/100` : "..."}
+                {productionCertificate.data && (
+                  <span className="inline-flex items-center gap-1 rounded-full bg-primary/10 px-2 py-0.5 text-[10px] font-semibold text-primary">
+                    {CERTIFICATION_LABEL[productionCertificate.data.certification]}
+                  </span>
+                )}
+              </div>
+              <div className="text-xs text-muted-foreground">
+                {finalReleaseDecision.data
+                  ? `القرار النهائي: ${finalReleaseDecision.data.decision} (ثقة ${finalReleaseDecision.data.confidence})`
+                  : "جارٍ التقييم..."}
+              </div>
+            </div>
+          </div>
+
+          <div>
+            <div className="text-xs font-semibold text-muted-foreground mb-2">RC Information</div>
+            <div className="grid gap-2.5 sm:grid-cols-2 lg:grid-cols-4">
+              <MetricCard icon={Fingerprint} label="Version" value={releaseCandidate.rc_version} />
+              <MetricCard icon={Package} label="Build" value={releaseCandidate.build.build_id} />
+              <MetricCard icon={GitBranch} label="Commit" value={releaseCandidate.build.git_commit} />
+              <MetricCard
+                icon={RefreshCw}
+                label="Date"
+                value={new Date(releaseCandidate.build.build_date).toLocaleString("ar")}
+              />
+            </div>
+          </div>
+
+          <div>
+            <div className="text-xs font-semibold text-muted-foreground mb-2 flex items-center gap-1.5">
+              <ShieldCheck className="h-3.5 w-3.5" /> Freeze Status —{" "}
+              {freezeVerification.allPassed ? "كل المحركات مجمَّدة سليمة" : "يوجد خلل في التجميد"}
+            </div>
+            <CheckGrid items={freezeVerification.items} />
+          </div>
+
+          <div className="grid gap-3 sm:grid-cols-2">
+            <div className="rounded-2xl border bg-card p-3.5 space-y-2">
+              <div className="text-xs font-bold flex items-center justify-between">
+                <span className="flex items-center gap-1.5">
+                  <Lock className="h-3.5 w-3.5" /> Security
+                </span>
+                <span className="text-muted-foreground">
+                  {securityAudit.data ? `${securityAudit.data.score}/100` : "..."}
+                </span>
+              </div>
+              {securityAudit.data ? <CheckGrid items={securityAudit.data.items} /> : <SkeletonRows />}
+            </div>
+            <div className="rounded-2xl border bg-card p-3.5 space-y-2">
+              <div className="text-xs font-bold flex items-center justify-between">
+                <span className="flex items-center gap-1.5">
+                  <Zap className="h-3.5 w-3.5" /> Performance
+                </span>
+                <span className="text-muted-foreground">
+                  {performanceCert.data ? `${performanceCert.data.score}/100` : "..."}
+                </span>
+              </div>
+              {performanceCert.data ? (
+                <div className="grid gap-2 sm:grid-cols-2 text-xs">
+                  <MetricCard icon={Gauge} label="Health Score" value={`${performanceCert.data.healthScore}/100`} />
+                  <MetricCard
+                    icon={GitBranch}
+                    label="Production Gate Score"
+                    value={`${performanceCert.data.productionGateScore}/100`}
+                  />
+                  <MetricCard
+                    icon={HardDrive}
+                    label="localStorage"
+                    value={bytesToHuman(performanceCert.data.localStorageUsageBytes)}
+                  />
+                  <MetricCard
+                    icon={Gauge}
+                    label="Insights Compute"
+                    value={
+                      performanceCert.data.insightsComputeMs !== null
+                        ? `${performanceCert.data.insightsComputeMs.toFixed(0)} ms`
+                        : "غير متاح (لا جلسة)"
+                    }
+                  />
+                </div>
+              ) : (
+                <SkeletonRows />
+              )}
+            </div>
+          </div>
+
+          <div>
+            <div className="text-xs font-semibold text-muted-foreground mb-2 flex items-center gap-1.5">
+              <Package className="h-3.5 w-3.5" /> Dependency Audit — {dependencyAudit.dependencyCount} dependencies،{" "}
+              {dependencyAudit.devDependencyCount} devDependencies، {dependencyAudit.vulnerabilities.high} high/
+              {dependencyAudit.vulnerabilities.moderate} moderate/{dependencyAudit.vulnerabilities.low} low
+            </div>
+            <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+              {dependencyAudit.items.map((item) => (
+                <div
+                  key={item.id}
+                  className={cn(
+                    "rounded-xl border p-2.5 text-xs space-y-1",
+                    item.risk === "safe"
+                      ? "border-success/30 bg-success/5"
+                      : item.risk === "warning"
+                        ? "border-warning/30 bg-warning/5"
+                        : "border-destructive/30 bg-destructive/5",
+                  )}
+                >
+                  <div className="font-semibold">{item.label}</div>
+                  <div className="text-[11px] text-muted-foreground">{item.detail}</div>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <div>
+            <div className="text-xs font-semibold text-muted-foreground mb-2">Production Certificate — الأقسام</div>
+            {productionCertificate.data ? (
+              <CheckGrid
+                items={[
+                  { id: "architecture", label: "Architecture", status: productionCertificate.data.architecture.status, detail: productionCertificate.data.architecture.detail },
+                  { id: "financial_engine", label: "Financial Engine", status: productionCertificate.data.financial_engine.status, detail: productionCertificate.data.financial_engine.detail },
+                  { id: "investments", label: "Investments", status: productionCertificate.data.investments.status, detail: productionCertificate.data.investments.detail },
+                  { id: "depreciation", label: "Depreciation", status: productionCertificate.data.depreciation.status, detail: productionCertificate.data.depreciation.detail },
+                  { id: "zakat", label: "Zakat", status: productionCertificate.data.zakat.status, detail: productionCertificate.data.zakat.detail },
+                  { id: "analytics", label: "Analytics", status: productionCertificate.data.analytics.status, detail: productionCertificate.data.analytics.detail },
+                  { id: "notifications", label: "Notifications", status: productionCertificate.data.notifications.status, detail: productionCertificate.data.notifications.detail },
+                  { id: "backups", label: "Backups", status: productionCertificate.data.backups.status, detail: productionCertificate.data.backups.detail },
+                  { id: "compliance", label: "Compliance", status: productionCertificate.data.compliance.status, detail: productionCertificate.data.compliance.detail },
+                  { id: "release", label: "Release", status: productionCertificate.data.release.status, detail: productionCertificate.data.release.detail },
+                ]}
+              />
+            ) : (
+              <SkeletonRows />
+            )}
+          </div>
+
+          <div>
+            <div className="text-xs font-semibold text-muted-foreground mb-2">Final Release Report</div>
+            {finalReleaseReport.data ? (
+              <div className="space-y-3">
+                <div className="grid gap-2.5 sm:grid-cols-4">
+                  <MetricCard icon={Rocket} label="Production" value={`${finalReleaseReport.data.productionReadinessScore}/100`} />
+                  <MetricCard icon={FlaskConical} label="Beta" value={`${finalReleaseReport.data.betaReadinessScore}/100`} />
+                  <MetricCard icon={Store} label="Store" value={`${finalReleaseReport.data.storeReadinessScore}/100`} />
+                  <MetricCard icon={Scale} label="Compliance" value={`${finalReleaseReport.data.complianceReadinessScore}/100`} />
+                </div>
+                <div className="grid gap-3 sm:grid-cols-3">
+                  <div className="rounded-2xl border bg-card p-3.5 space-y-1.5">
+                    <div className="text-xs font-bold">Technical Debt</div>
+                    <ul className="space-y-1">
+                      {finalReleaseReport.data.technicalDebt.map((t, i) => (
+                        <li key={i} className="text-[11px] text-muted-foreground">• {t}</li>
+                      ))}
+                    </ul>
+                  </div>
+                  <div className="rounded-2xl border bg-card p-3.5 space-y-1.5">
+                    <div className="text-xs font-bold">Known Limitations</div>
+                    <ul className="space-y-1">
+                      {finalReleaseReport.data.knownLimitations.map((t, i) => (
+                        <li key={i} className="text-[11px] text-muted-foreground">• {t}</li>
+                      ))}
+                    </ul>
+                  </div>
+                  <div className="rounded-2xl border bg-card p-3.5 space-y-1.5">
+                    <div className="text-xs font-bold">Recommended Next Steps</div>
+                    <ul className="space-y-1">
+                      {finalReleaseReport.data.recommendedNextSteps.map((t, i) => (
+                        <li key={i} className="text-[11px] text-muted-foreground">• {t}</li>
+                      ))}
+                    </ul>
+                  </div>
+                </div>
+              </div>
+            ) : (
+              <SkeletonRows />
+            )}
+          </div>
+
+          {finalReleaseDecision.data && (
+            <div className="rounded-xl border bg-muted/30 p-3 space-y-1.5">
+              <div className="text-xs font-semibold text-muted-foreground flex items-center gap-1.5">
+                <TrendingUp className="h-3.5 w-3.5" /> التوصية النهائية
+              </div>
+              <div className="text-xs text-muted-foreground">{finalReleaseDecision.data.recommendation}</div>
+              {finalReleaseDecision.data.blockers.length > 0 && (
+                <ul className="space-y-1 pt-1">
+                  {finalReleaseDecision.data.blockers.map((b, i) => (
+                    <li key={i} className="flex items-start gap-2 text-xs text-destructive">
+                      <XCircle className="h-3.5 w-3.5 shrink-0 mt-0.5" /> {b}
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+          )}
+        </div>
+      </Section>
+
       <div className="flex justify-end">
         <Button
           variant="outline"
@@ -1950,6 +2193,11 @@ function SystemPage() {
             qc.invalidateQueries({ queryKey: ["final-audit-check"] });
             qc.invalidateQueries({ queryKey: ["monitoring-observability"] });
             qc.invalidateQueries({ queryKey: ["release-go-no-go"] });
+            qc.invalidateQueries({ queryKey: ["rc-security"] });
+            qc.invalidateQueries({ queryKey: ["rc-performance"] });
+            qc.invalidateQueries({ queryKey: ["rc-production-certificate"] });
+            qc.invalidateQueries({ queryKey: ["rc-final-report"] });
+            qc.invalidateQueries({ queryKey: ["rc-final-decision"] });
             refreshEmergencyState();
           }}
         >
