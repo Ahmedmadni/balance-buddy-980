@@ -480,7 +480,32 @@ Freeze محفوظ بالكامل بما فيه Analytics Engine (مجمَّد ص
 
 ---
 
-## 32. كيف تُحدَّث هذه الوثيقة
+## 33. Prompt 29 — Final Production Hardening, Store Submission Preparation & RC2 Certification (منجز)
+
+استكمال العوائق المتبقية قبل الإنتاج الفعلي عبر تدقيقات أعمق لكل منصّة ومكوّن أُنشئ في Prompt 27-28،
+وإصدار شهادة RC2 التي تُركِّب كل شيء في قرار واحد نهائي. تجميد إضافي صريح: Release Candidate Engine
+وProduction Certificate Engine (محركا Prompt 28) أُضيفا لقائمة الممنوعات، ولم يُعدَّل أي منهما.
+
+| الملف | الدور |
+|---|---|
+| `src/lib/android-production/{keystore,release-config,certificate}.ts` | **PART 1** — `verifyAndroidSigning()` (لا keystore/alias/SHA1/SHA256 — حقائق ثابتة، لا منصّة android/ موجودة)، `auditAndroidReleaseConfig()` (allowMixedContent/cleartext/liveReload من capacitor.config.ts مباشرة؛ minify/shrinkResources/proguard/versionCode معلَنة بصدق كـ"غير قابلة للتطبيق" لعدم وجود build.gradle)، `generateAndroidProductionCertificate()` يُركِّبهما مع `auditAndroidProduction()` (Prompt 27). |
+| `src/lib/ios-production/{project,privacy,certificate}.ts` | **PART 2** — `auditIOSProject()` (لا مجلد ios/، لا مشروع Xcode، لا entitlements)، `auditIOSPrivacy()` (لا PrivacyInfo.xcprivacy؛ لا حاجة فعلية لأذونات كاميرا/بيومترية/تتبّع — لا ميزة تستخدمها في الكود)، `generateIOSProductionCertificate()` يُركِّبهما مع `auditIOSProduction()` (Prompt 27). |
+| `src/lib/account-deletion/execution-plan.ts` | **PART 3** — `buildDeletionExecutionPlan()`: 6 فئات (auth/storage/database/notification/backup/audit) تُعيد استخدام خطوات `generateServerDeletionSpec()`/`generateSupabaseDeletionPlan()` (Prompt 27) حرفياً، مع `executable: false` و`requires_service_role: true` ثابتتين. |
+| `src/lib/security/backup-encryption.ts` | **PART 4** — `auditBackupEncryption()`: قراءة فقط، لا تعديل على Backup Engine؛ يُقرّ بصدق أنه لا تشفير/خوارزمية/إدارة مفاتيح على الإطلاق (موثَّق أصلاً في تعليق backup/engine.ts). |
+| `src/lib/security/dependencies.ts` | **PART 5** — `auditDependencySecurity()` يُعيد استخدام بيانات `bun audit` الحقيقية من `rc/dependencies.ts` (Prompt 28) ويضيف إجراء حل مقترح لكل حزمة من الست المطلوبة (xlsx/dompurify/tanstack/vite/capacitor/supabase). |
+| `src/lib/support-production/{channels,sla,certificate}.ts` | **PART 6** — `auditSupportChannels()` (بريد/موقع/اتصال خصوصية عبر support/config.ts؛ اتصال قانوني/أعمال معلَنان كغير موجودين بصدق)، `generateSupportSLA()` (4 مستويات مقترحة، موثَّقة كأهداف مستقبلية لا كقياس فعلي)، `generateSupportCertificate()` يُركِّبهما مع `auditSupportInfrastructure()` (Prompt 27). |
+| `src/lib/store-submission/{android,ios,assets}.ts` | **PART 7** — `auditStoreSubmissionAssets()` يبني على `generateStoreAssetsChecklist()` (Prompt 22) ويضيف Promo Assets/Privacy Screenshots (كلاهما مفقود فعلياً)؛ `generatePlayStoreSubmission()`/`generateAppStoreSubmission()` يُركِّبان بيانات المتجر (Prompt 27) + الشهادة الإنتاجية للمنصّة (PART 1/2) + الأصول في حزمة تقديم واحدة مع قائمة عوائق. |
+| `src/lib/rc2/{score,certificate,decision}.ts` | **PART 8** — `calculateRC2Score()` يُركِّب كل شهادات هذا البرومبت + `final_score` الخاص بـ RC1 (Prompt 28) في درجة واحدة؛ `generateRC2Certificate()` يُصدر بصمة RC2؛ `evaluateRC2Decision()` يُعيد استخدام `evaluateFinalReleaseDecision()` (RC1) للعوائق مباشرة — عائق حرج واحد موروث من RC1 يفرض `NO_GO` بغض النظر عن الدرجة، تماماً كما تشترط قواعد هذا البرومبت. |
+| `src/routes/_authenticated/app.system.tsx` | **PART 9** — قسم **RC2 Production Certification Center** جديد: Android (Signing/Release Config/Certificate)، iOS (Project/Privacy/Certificate)، Security (Backup Encryption/Dependency Audit)، Support (Certificate/SLA)، Store Submission (Android/iOS Package)، وRC2 (Score/Certificate/Final Decision). |
+
+**تقرير الإغلاق (16 سؤالاً) — أيضاً في نهاية رسالة الجلسة:** صفر جداول جديدة، صفر migrations، Schema
+Freeze محفوظ بالكامل بما فيه Release Candidate Engine وProduction Certificate Engine (مجمَّدان صراحةً
+لأول مرة). RC2 يُظهر بصدق أن العوائق الحرجة الموروثة من RC1 (Android/iOS Readiness) لا تزال قائمة —
+القرار النهائي NO_GO حتى تُحلّ، تماماً كما تنص قاعدة هذا البرومبت الصريحة.
+
+---
+
+## 34. كيف تُحدَّث هذه الوثيقة
 
 - عند إنجاز بند من "الفجوات" أعلاه: انقله إلى قسم "منجزة" مع رابط الملف/الالتزام (commit).
 - عند بدء خطة تطوير جديدة (سواء مطروحة من المستخدم أو من `.lovable/plan.md` مستقبلاً): أضف قسماً

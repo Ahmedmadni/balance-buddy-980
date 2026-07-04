@@ -83,6 +83,15 @@ import { certifyPerformance } from "@/lib/rc/performance";
 import { generateProductionCertificate, CERTIFICATION_LABEL } from "@/lib/rc/production-certificate";
 import { generateFinalReleaseReport } from "@/lib/rc/report";
 import { evaluateFinalReleaseDecision } from "@/lib/rc/decision";
+import { generateAndroidProductionCertificate } from "@/lib/android-production/certificate";
+import { generateIOSProductionCertificate } from "@/lib/ios-production/certificate";
+import { auditBackupEncryption } from "@/lib/security/backup-encryption";
+import { auditDependencySecurity } from "@/lib/security/dependencies";
+import { generateSupportCertificate } from "@/lib/support-production/certificate";
+import { generatePlayStoreSubmission } from "@/lib/store-submission/android";
+import { generateAppStoreSubmission } from "@/lib/store-submission/ios";
+import { generateRC2Certificate } from "@/lib/rc2/certificate";
+import { evaluateRC2Decision } from "@/lib/rc2/decision";
 import { loadLastBackup } from "@/lib/backup/engine";
 import { verifyBackupIntegrity } from "@/lib/backup/integrity";
 import { formatMoney } from "@/lib/format";
@@ -349,6 +358,38 @@ function SystemPage() {
     queryKey: ["rc-final-decision"],
     queryFn: evaluateFinalReleaseDecision,
   });
+
+  // ----- Prompt 29: Final Production Hardening, Store Submission Prep & RC2 Certification -----
+  const androidProductionCert = useQuery({
+    queryKey: ["android-production-cert"],
+    queryFn: generateAndroidProductionCertificate,
+  });
+  const iosProductionCert = useQuery({
+    queryKey: ["ios-production-cert"],
+    queryFn: generateIOSProductionCertificate,
+  });
+  const backupEncryptionAudit = useQuery({
+    queryKey: ["backup-encryption-audit"],
+    queryFn: auditBackupEncryption,
+  });
+  const dependencySecurityAudit = useQuery({
+    queryKey: ["dependency-security-audit"],
+    queryFn: auditDependencySecurity,
+  });
+  const supportCertificate = useQuery({
+    queryKey: ["support-certificate"],
+    queryFn: generateSupportCertificate,
+  });
+  const androidSubmission = useQuery({
+    queryKey: ["android-store-submission"],
+    queryFn: generatePlayStoreSubmission,
+  });
+  const iosSubmission = useQuery({
+    queryKey: ["ios-store-submission"],
+    queryFn: generateAppStoreSubmission,
+  });
+  const rc2Certificate = useQuery({ queryKey: ["rc2-certificate"], queryFn: generateRC2Certificate });
+  const rc2Decision = useQuery({ queryKey: ["rc2-decision"], queryFn: evaluateRC2Decision });
 
   const recommendations: string[] = [];
   if (health.data?.status === "error")
@@ -2158,6 +2199,206 @@ function SystemPage() {
         </div>
       </Section>
 
+      {/* RC2 Production Certification Center (Prompt 29) */}
+      <Section title="RC2 Production Certification Center" icon={BadgeCheck}>
+        <div className="space-y-5">
+          <div
+            className={cn(
+              "flex items-center gap-4 rounded-2xl border p-4",
+              rc2Decision.data?.decision === "CERTIFIED"
+                ? "border-success/30 bg-success/5"
+                : rc2Decision.data?.decision === "CONDITIONAL"
+                  ? "border-warning/30 bg-warning/5"
+                  : "border-destructive/30 bg-destructive/5",
+            )}
+          >
+            <div className="text-4xl font-black tabular-nums text-primary">
+              {rc2Certificate.data ? rc2Certificate.data.scores.score : "..."}
+            </div>
+            <div>
+              <div className="text-sm font-bold flex items-center gap-2">
+                RC2 Score: {rc2Certificate.data ? `${rc2Certificate.data.scores.score}/100` : "..."}
+                {rc2Decision.data && (
+                  <span className="inline-flex items-center gap-1 rounded-full bg-primary/10 px-2 py-0.5 text-[10px] font-semibold text-primary">
+                    {rc2Decision.data.decision}
+                  </span>
+                )}
+              </div>
+              <div className="text-xs text-muted-foreground">
+                {rc2Decision.data
+                  ? `${rc2Decision.data.blockers.length} عائق حرج، ${rc2Decision.data.warnings.length} تحذير`
+                  : "جارٍ التقييم..."}
+              </div>
+            </div>
+          </div>
+
+          <div>
+            <div className="text-xs font-semibold text-muted-foreground mb-2 flex items-center gap-1.5">
+              <Smartphone className="h-3.5 w-3.5" /> Android
+            </div>
+            <div className="grid gap-2.5 sm:grid-cols-3">
+              <MetricCard
+                icon={ShieldCheck}
+                label="Signing"
+                value={
+                  androidProductionCert.data
+                    ? androidProductionCert.data.signingStatus === "ok"
+                      ? "جاهز"
+                      : "غير جاهز"
+                    : "..."
+                }
+              />
+              <MetricCard
+                icon={Settings2}
+                label="Release Config"
+                value={androidProductionCert.data ? `${androidProductionCert.data.releaseConfigScore}/100` : "..."}
+              />
+              <MetricCard
+                icon={BadgeCheck}
+                label="Production Certificate"
+                value={androidProductionCert.data ? `${androidProductionCert.data.score}/100` : "..."}
+              />
+            </div>
+          </div>
+
+          <div>
+            <div className="text-xs font-semibold text-muted-foreground mb-2 flex items-center gap-1.5">
+              <Apple className="h-3.5 w-3.5" /> iOS
+            </div>
+            <div className="grid gap-2.5 sm:grid-cols-3">
+              <MetricCard
+                icon={FileText}
+                label="Project"
+                value={iosProductionCert.data ? `${iosProductionCert.data.projectScore}/100` : "..."}
+              />
+              <MetricCard
+                icon={ShieldQuestion}
+                label="Privacy"
+                value={iosProductionCert.data ? `${iosProductionCert.data.privacyScore}/100` : "..."}
+              />
+              <MetricCard
+                icon={BadgeCheck}
+                label="Certificate"
+                value={iosProductionCert.data ? `${iosProductionCert.data.score}/100` : "..."}
+              />
+            </div>
+          </div>
+
+          <div>
+            <div className="text-xs font-semibold text-muted-foreground mb-2 flex items-center gap-1.5">
+              <Lock className="h-3.5 w-3.5" /> Security
+            </div>
+            <div className="grid gap-3 sm:grid-cols-2">
+              <div className="rounded-2xl border bg-card p-3.5 space-y-2">
+                <div className="text-xs font-bold flex items-center justify-between">
+                  <span>Backup Encryption</span>
+                  <span className="text-muted-foreground">
+                    {backupEncryptionAudit.data ? `${backupEncryptionAudit.data.score}/100` : "..."}
+                  </span>
+                </div>
+                {backupEncryptionAudit.data ? (
+                  <CheckGrid items={backupEncryptionAudit.data.items} />
+                ) : (
+                  <SkeletonRows />
+                )}
+              </div>
+              <div className="rounded-2xl border bg-card p-3.5 space-y-2">
+                <div className="text-xs font-bold flex items-center justify-between">
+                  <span>Dependency Audit</span>
+                  <span className="text-muted-foreground">
+                    {dependencySecurityAudit.data
+                      ? `${dependencySecurityAudit.data.safeCount} safe / ${dependencySecurityAudit.data.warningCount} warning / ${dependencySecurityAudit.data.criticalCount} critical`
+                      : "..."}
+                  </span>
+                </div>
+                <ul className="space-y-1">
+                  {dependencySecurityAudit.data?.items.map((item) => (
+                    <li key={item.id} className="text-[11px]">
+                      <span className="font-semibold">{item.package}</span>{" "}
+                      <span className="text-muted-foreground">— {item.recommendedAction}</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            </div>
+          </div>
+
+          <div>
+            <div className="text-xs font-semibold text-muted-foreground mb-2 flex items-center gap-1.5">
+              <Mail className="h-3.5 w-3.5" /> Support
+            </div>
+            <div className="grid gap-2.5 sm:grid-cols-2">
+              <MetricCard
+                icon={BadgeCheck}
+                label="Support Certificate"
+                value={supportCertificate.data ? `${supportCertificate.data.score}/100` : "..."}
+              />
+              <MetricCard
+                icon={ListChecks}
+                label="SLA Tiers"
+                value={supportCertificate.data ? String(supportCertificate.data.slaTierCount) : "..."}
+              />
+            </div>
+          </div>
+
+          <div>
+            <div className="text-xs font-semibold text-muted-foreground mb-2 flex items-center gap-1.5">
+              <Store className="h-3.5 w-3.5" /> Store Submission
+            </div>
+            <div className="grid gap-3 sm:grid-cols-2">
+              <div className="rounded-2xl border bg-card p-3.5 space-y-1.5">
+                <div className="text-xs font-bold flex items-center justify-between">
+                  <span>Android Package</span>
+                  {androidSubmission.data?.submissionReady ? (
+                    <CheckCircle2 className="h-3.5 w-3.5 text-success" />
+                  ) : (
+                    <XCircle className="h-3.5 w-3.5 text-destructive" />
+                  )}
+                </div>
+                <ul className="space-y-1">
+                  {androidSubmission.data?.blockers.map((b, i) => (
+                    <li key={i} className="text-[11px] text-muted-foreground">• {b}</li>
+                  ))}
+                </ul>
+              </div>
+              <div className="rounded-2xl border bg-card p-3.5 space-y-1.5">
+                <div className="text-xs font-bold flex items-center justify-between">
+                  <span>iOS Package</span>
+                  {iosSubmission.data?.submissionReady ? (
+                    <CheckCircle2 className="h-3.5 w-3.5 text-success" />
+                  ) : (
+                    <XCircle className="h-3.5 w-3.5 text-destructive" />
+                  )}
+                </div>
+                <ul className="space-y-1">
+                  {iosSubmission.data?.blockers.map((b, i) => (
+                    <li key={i} className="text-[11px] text-muted-foreground">• {b}</li>
+                  ))}
+                </ul>
+              </div>
+            </div>
+          </div>
+
+          {rc2Decision.data && (
+            <div className="rounded-xl border bg-muted/30 p-3 space-y-1.5">
+              <div className="text-xs font-semibold text-muted-foreground flex items-center gap-1.5">
+                <TrendingUp className="h-3.5 w-3.5" /> RC2 Recommendation
+              </div>
+              <div className="text-xs text-muted-foreground">{rc2Decision.data.recommendation}</div>
+              {rc2Decision.data.blockers.length > 0 && (
+                <ul className="space-y-1 pt-1">
+                  {rc2Decision.data.blockers.map((b, i) => (
+                    <li key={i} className="flex items-start gap-2 text-xs text-destructive">
+                      <XCircle className="h-3.5 w-3.5 shrink-0 mt-0.5" /> {b}
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+          )}
+        </div>
+      </Section>
+
       <div className="flex justify-end">
         <Button
           variant="outline"
@@ -2198,6 +2439,15 @@ function SystemPage() {
             qc.invalidateQueries({ queryKey: ["rc-production-certificate"] });
             qc.invalidateQueries({ queryKey: ["rc-final-report"] });
             qc.invalidateQueries({ queryKey: ["rc-final-decision"] });
+            qc.invalidateQueries({ queryKey: ["android-production-cert"] });
+            qc.invalidateQueries({ queryKey: ["ios-production-cert"] });
+            qc.invalidateQueries({ queryKey: ["backup-encryption-audit"] });
+            qc.invalidateQueries({ queryKey: ["dependency-security-audit"] });
+            qc.invalidateQueries({ queryKey: ["support-certificate"] });
+            qc.invalidateQueries({ queryKey: ["android-store-submission"] });
+            qc.invalidateQueries({ queryKey: ["ios-store-submission"] });
+            qc.invalidateQueries({ queryKey: ["rc2-certificate"] });
+            qc.invalidateQueries({ queryKey: ["rc2-decision"] });
             refreshEmergencyState();
           }}
         >
