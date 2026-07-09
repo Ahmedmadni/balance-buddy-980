@@ -494,9 +494,12 @@ function InvestmentsPage() {
                   </TabsContent>
 
                   {/* ============ DEPRECIATION ============ */}
-                  <TabsContent value="depreciation">
-                    <DepreciationTab asset={detail} />
-                  </TabsContent>
+                  {showDepreciation && (
+                    <TabsContent value="depreciation">
+                      <DepreciationTab asset={detail} />
+                    </TabsContent>
+                  )}
+
 
                   {/* ============ ASSET ZAKAT ============ */}
                   <TabsContent value="zakat">
