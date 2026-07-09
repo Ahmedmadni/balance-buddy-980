@@ -98,6 +98,7 @@ export function DepreciationTab({ asset }: { asset: any }) {
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["depreciation-profile", asset.id] });
+      qc.invalidateQueries({ queryKey: ["investments-list"] });
       toast.success("تم حفظ إعدادات الإهلاك");
     },
     onError: (e: any) => toast.error(e.message || "فشل الحفظ"),
@@ -111,9 +112,11 @@ export function DepreciationTab({ asset }: { asset: any }) {
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["depreciation-profile", asset.id] });
+      qc.invalidateQueries({ queryKey: ["investments-list"] });
       toast.success("تم حذف ملف الإهلاك");
     },
   });
+
 
   // Live preview using current form state
   const previewProfile: DepreciationProfile = {
