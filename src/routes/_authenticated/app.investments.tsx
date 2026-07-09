@@ -87,12 +87,13 @@ function InvestmentsPage() {
   const { data, isLoading } = useQuery({
     queryKey: ["investments-list"],
     queryFn: async () => {
-      const [iRes, tRes, wRes] = await Promise.all([
+      const [iRes, tRes, wRes, dRes] = await Promise.all([
         supabase.from("investments").select("*, wallets(name,color,currency)").is("parent_investment_id", null).order("created_at", { ascending: false }),
         supabase.from("investment_transactions").select("*").order("happened_at", { ascending: false }),
         supabase.from("wallets").select("*").order("created_at"),
+        supabase.from("depreciation_profiles").select("*").eq("is_active", true),
       ]);
-      return { items: iRes.data ?? [], txs: (tRes.data ?? []) as any[], wallets: wRes.data ?? [] };
+      return { items: iRes.data ?? [], txs: (tRes.data ?? []) as any[], wallets: wRes.data ?? [], depreciationProfiles: (dRes.data ?? []) as any[] };
     },
   });
 
@@ -105,6 +106,17 @@ function InvestmentsPage() {
   for (const t of data?.txs ?? []) {
     const a = txByInv.get(t.investment_id) ?? []; a.push(t); txByInv.set(t.investment_id, a);
   }
+
+  // Latest active depreciation profile per investment
+  const depProfileByInv = useMemo(() => {
+    const m = new Map<string, any>();
+    for (const p of data?.depreciationProfiles ?? []) {
+      const prev = m.get(p.investment_id);
+      if (!prev || new Date(p.created_at) > new Date(prev.created_at)) m.set(p.investment_id, p);
+    }
+    return m;
+  }, [data?.depreciationProfiles]);
+
 
   const totals = useMemo(() => {
     const byCur: Record<string, { invested: number; value: number; income: number; opex: number; pnl: number }> = {};
