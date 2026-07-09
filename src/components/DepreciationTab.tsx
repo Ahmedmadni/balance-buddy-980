@@ -61,8 +61,17 @@ export function DepreciationTab({ asset }: { asset: any }) {
       setIsActive(profile.is_active);
       setUnitsTotal(profile.units_total != null ? String(profile.units_total) : "");
       setUnitsConsumed(profile.units_consumed != null ? String(profile.units_consumed) : "");
+    } else if (!isLoading) {
+      // No profile yet → seed the form with sensible defaults for this asset type.
+      const d = defaultsFor(asset.type);
+      setMethod(d.method);
+      setLife(String(d.useful_life_months));
+      setSalvage(String(Math.round(cost * d.salvage_ratio)));
+      if (asset.acquired_at) setStartDate(asset.acquired_at);
+      else if (asset.start_date) setStartDate(asset.start_date);
     }
-  }, [profile?.id]);
+  }, [profile?.id, isLoading, asset.type, asset.acquired_at, asset.start_date, cost]);
+
 
   const save = useMutation({
     mutationFn: async () => {
