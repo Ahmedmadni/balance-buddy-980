@@ -331,6 +331,8 @@ function InvestmentsPage() {
             const m = computeAssetMetrics(detail, txs);
             const cur = detail.currency;
             const pnlPct = m.bookValue > 0 ? (m.totalPnl / m.bookValue) * 100 : 0;
+            const showDepreciation = isDepreciable(detail.type) || !!depProfileByInv.get(detail.id);
+            const tabColsSm = showDepreciation ? "sm:grid-cols-9" : "sm:grid-cols-8";
             return (
               <>
                 <DialogHeader>
@@ -346,17 +348,18 @@ function InvestmentsPage() {
                 </DialogHeader>
 
                 <Tabs defaultValue="overview" className="mt-2">
-                  <TabsList className="w-full grid grid-cols-3 sm:grid-cols-9 h-auto gap-1">
+                  <TabsList className={cn("w-full grid grid-cols-3 h-auto gap-1", tabColsSm)}>
                     <TabsTrigger value="overview">نظرة عامة</TabsTrigger>
                     <TabsTrigger value="components">المكونات</TabsTrigger>
                     <TabsTrigger value="transactions">الحركات ({txs.length})</TabsTrigger>
                     <TabsTrigger value="summary">ملخص مالي</TabsTrigger>
                     <TabsTrigger value="performance">الأداء</TabsTrigger>
                     <TabsTrigger value="market">القيمة السوقية</TabsTrigger>
-                    <TabsTrigger value="depreciation">الإهلاك</TabsTrigger>
+                    {showDepreciation && <TabsTrigger value="depreciation">الإهلاك</TabsTrigger>}
                     <TabsTrigger value="zakat">الزكاة</TabsTrigger>
                     <TabsTrigger value="notes">ملاحظات ومرفقات</TabsTrigger>
                   </TabsList>
+
 
                   {/* ============ COMPONENTS ============ */}
                   <TabsContent value="components">
