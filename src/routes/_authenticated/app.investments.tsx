@@ -246,7 +246,10 @@ function InvestmentsPage() {
           return <div className="rounded-2xl border bg-card p-8 text-center text-sm text-muted-foreground">لا توجد نتائج تطابق التصفية</div>;
         }
 
-        const renderCard = ({ inv, m }: any) => (
+        const renderCard = ({ inv, m }: any) => {
+          const dp = depProfileByInv.get(inv.id);
+          const depResult = dp ? computeDepreciation(dp as DepreciationProfile, m.bookValue) : null;
+          return (
           <div key={inv.id} className="rounded-2xl border bg-card p-4 shadow-[var(--shadow-card)] cursor-pointer hover:-translate-y-0.5 hover:shadow-[var(--shadow-elegant)] transition" onClick={() => setDetail(inv)}>
             <div className="flex items-start gap-3">
               <div className="grid h-11 w-11 place-items-center rounded-xl bg-[image:var(--gradient-primary)] text-white text-lg shrink-0">{typeIcon(inv.type)}</div>
@@ -255,6 +258,11 @@ function InvestmentsPage() {
                   {inv.name}
                   <span className="text-[10px] rounded-full bg-primary/15 text-primary px-1.5 py-0.5">{typeLabel(inv.type)}</span>
                   {inv.is_zakatable && <span className="text-[10px] rounded-full bg-amber-500/15 text-amber-700 px-1.5 py-0.5">قابل للزكاة</span>}
+                  {depResult && (
+                    <span className="text-[10px] rounded-full bg-blue-500/15 text-blue-700 dark:text-blue-300 px-1.5 py-0.5 inline-flex items-center gap-1" title="القيمة الدفترية بعد الإهلاك">
+                      إهلاك {depResult.depreciation_percentage.toFixed(0)}%
+                    </span>
+                  )}
                   {inv.status === "closed" && <span className="text-[10px] rounded-full bg-muted px-1.5 py-0.5">مغلق</span>}
                   {inv.status === "sold" && <span className="text-[10px] rounded-full bg-success/15 text-success px-1.5 py-0.5">مباع</span>}
                 </div>
@@ -265,7 +273,7 @@ function InvestmentsPage() {
                 </div>
                 <div className="mt-2 grid grid-cols-3 gap-2 text-[11px]">
                   <div><div className="text-muted-foreground">رأس المال</div><div className="font-bold tabular-nums">{formatMoney(m.bookValue, inv.currency)}</div></div>
-                  <div><div className="text-muted-foreground">القيمة</div><div className="font-bold tabular-nums">{formatMoney(m.marketValue, inv.currency)}</div></div>
+                  <div><div className="text-muted-foreground">{depResult ? "الدفترية (صافي)" : "القيمة"}</div><div className="font-bold tabular-nums">{formatMoney(depResult ? depResult.book_value : m.marketValue, inv.currency)}</div></div>
                   <div><div className="text-muted-foreground">العائد</div><div className={cn("font-bold tabular-nums", m.totalPnl >= 0 ? "text-success" : "text-destructive")}>{m.totalPnl >= 0 ? "+" : ""}{formatMoney(m.totalPnl, inv.currency)}</div></div>
                 </div>
               </div>
@@ -278,7 +286,9 @@ function InvestmentsPage() {
               </div>
             </div>
           </div>
-        );
+          );
+        };
+
 
         if (!groupByType) {
           return <div className="space-y-2">{withMetrics.map(renderCard)}</div>;
