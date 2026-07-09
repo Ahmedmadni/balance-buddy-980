@@ -379,6 +379,28 @@ function InvestmentsPage() {
                       </div>
                     </div>
 
+                    {(() => {
+                      const dp = depProfileByInv.get(detail.id);
+                      if (!dp) return null;
+                      const dr = computeDepreciation(dp as DepreciationProfile, m.bookValue);
+                      return (
+                        <div className="rounded-2xl border bg-blue-500/5 border-blue-500/30 p-3 space-y-1.5">
+                          <div className="flex items-center justify-between text-xs">
+                            <span className="text-muted-foreground">القيمة الدفترية بعد الإهلاك</span>
+                            <span className="font-bold tabular-nums text-blue-700 dark:text-blue-300">{formatMoney(dr.book_value, cur)}</span>
+                          </div>
+                          <div className="flex items-center justify-between text-[11px]">
+                            <span className="text-muted-foreground">مجمع الإهلاك</span>
+                            <span className="tabular-nums text-rose-600">−{formatMoney(dr.accumulated_depreciation, cur)} ({dr.depreciation_percentage.toFixed(1)}%)</span>
+                          </div>
+                          <div className="flex items-center justify-between text-[11px]">
+                            <span className="text-muted-foreground">إهلاك شهري</span>
+                            <span className="tabular-nums">{formatMoney(dr.monthly_depreciation, cur)}</span>
+                          </div>
+                        </div>
+                      );
+                    })()}
+
                     <div className="grid grid-cols-2 gap-2 text-xs">
                       <InfoRow label="الاسم" value={detail.name} />
                       <InfoRow label="النوع" value={typeLabel(detail.type)} />
@@ -393,6 +415,7 @@ function InvestmentsPage() {
                       <InfoRow label="العملة" value={cur} />
                       <InfoRow label="قابل للزكاة" value={detail.is_zakatable ? "نعم" : "لا"} />
                     </div>
+
 
                     {detail.meta && Object.keys(detail.meta).length > 0 && (
                       <div className="rounded-xl border bg-accent/30 p-3 text-xs space-y-1">
