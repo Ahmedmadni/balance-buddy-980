@@ -21,6 +21,9 @@ import { MarketValueHistoryTab } from "@/components/MarketValueHistoryTab";
 import { DepreciationTab } from "@/components/DepreciationTab";
 import { InvestmentPerformanceTab } from "@/components/InvestmentPerformanceTab";
 import { AssetZakatTab } from "@/components/AssetZakatTab";
+import { computeDepreciation, type DepreciationProfile } from "@/lib/assets/depreciation";
+import { isDepreciable } from "@/lib/assets/depreciation-defaults";
+
 
 export const Route = createFileRoute("/_authenticated/app/investments")({
   head: () => ({ meta: [{ title: "الأصول والاستثمارات — رصد" }] }),
@@ -84,12 +87,13 @@ function InvestmentsPage() {
   const { data, isLoading } = useQuery({
     queryKey: ["investments-list"],
     queryFn: async () => {
-      const [iRes, tRes, wRes] = await Promise.all([
+      const [iRes, tRes, wRes, dRes] = await Promise.all([
         supabase.from("investments").select("*, wallets(name,color,currency)").is("parent_investment_id", null).order("created_at", { ascending: false }),
         supabase.from("investment_transactions").select("*").order("happened_at", { ascending: false }),
         supabase.from("wallets").select("*").order("created_at"),
+        supabase.from("depreciation_profiles").select("*").eq("is_active", true),
       ]);
-      return { items: iRes.data ?? [], txs: (tRes.data ?? []) as any[], wallets: wRes.data ?? [] };
+      return { items: iRes.data ?? [], txs: (tRes.data ?? []) as any[], wallets: wRes.data ?? [], depreciationProfiles: (dRes.data ?? []) as any[] };
     },
   });
 
@@ -102,6 +106,17 @@ function InvestmentsPage() {
   for (const t of data?.txs ?? []) {
     const a = txByInv.get(t.investment_id) ?? []; a.push(t); txByInv.set(t.investment_id, a);
   }
+
+  // Latest active depreciation profile per investment
+  const depProfileByInv = useMemo(() => {
+    const m = new Map<string, any>();
+    for (const p of data?.depreciationProfiles ?? []) {
+      const prev = m.get(p.investment_id);
+      if (!prev || new Date(p.created_at) > new Date(prev.created_at)) m.set(p.investment_id, p);
+    }
+    return m;
+  }, [data?.depreciationProfiles]);
+
 
   const totals = useMemo(() => {
     const byCur: Record<string, { invested: number; value: number; income: number; opex: number; pnl: number }> = {};
@@ -231,7 +246,10 @@ function InvestmentsPage() {
           return <div className="rounded-2xl border bg-card p-8 text-center text-sm text-muted-foreground">لا توجد نتائج تطابق التصفية</div>;
         }
 
-        const renderCard = ({ inv, m }: any) => (
+        const renderCard = ({ inv, m }: any) => {
+          const dp = depProfileByInv.get(inv.id);
+          const depResult = dp ? computeDepreciation(dp as DepreciationProfile, m.bookValue) : null;
+          return (
           <div key={inv.id} className="rounded-2xl border bg-card p-4 shadow-[var(--shadow-card)] cursor-pointer hover:-translate-y-0.5 hover:shadow-[var(--shadow-elegant)] transition" onClick={() => setDetail(inv)}>
             <div className="flex items-start gap-3">
               <div className="grid h-11 w-11 place-items-center rounded-xl bg-[image:var(--gradient-primary)] text-white text-lg shrink-0">{typeIcon(inv.type)}</div>
@@ -240,6 +258,11 @@ function InvestmentsPage() {
                   {inv.name}
                   <span className="text-[10px] rounded-full bg-primary/15 text-primary px-1.5 py-0.5">{typeLabel(inv.type)}</span>
                   {inv.is_zakatable && <span className="text-[10px] rounded-full bg-amber-500/15 text-amber-700 px-1.5 py-0.5">قابل للزكاة</span>}
+                  {depResult && (
+                    <span className="text-[10px] rounded-full bg-blue-500/15 text-blue-700 dark:text-blue-300 px-1.5 py-0.5 inline-flex items-center gap-1" title="القيمة الدفترية بعد الإهلاك">
+                      إهلاك {depResult.depreciation_percentage.toFixed(0)}%
+                    </span>
+                  )}
                   {inv.status === "closed" && <span className="text-[10px] rounded-full bg-muted px-1.5 py-0.5">مغلق</span>}
                   {inv.status === "sold" && <span className="text-[10px] rounded-full bg-success/15 text-success px-1.5 py-0.5">مباع</span>}
                 </div>
@@ -250,7 +273,7 @@ function InvestmentsPage() {
                 </div>
                 <div className="mt-2 grid grid-cols-3 gap-2 text-[11px]">
                   <div><div className="text-muted-foreground">رأس المال</div><div className="font-bold tabular-nums">{formatMoney(m.bookValue, inv.currency)}</div></div>
-                  <div><div className="text-muted-foreground">القيمة</div><div className="font-bold tabular-nums">{formatMoney(m.marketValue, inv.currency)}</div></div>
+                  <div><div className="text-muted-foreground">{depResult ? "الدفترية (صافي)" : "القيمة"}</div><div className="font-bold tabular-nums">{formatMoney(depResult ? depResult.book_value : m.marketValue, inv.currency)}</div></div>
                   <div><div className="text-muted-foreground">العائد</div><div className={cn("font-bold tabular-nums", m.totalPnl >= 0 ? "text-success" : "text-destructive")}>{m.totalPnl >= 0 ? "+" : ""}{formatMoney(m.totalPnl, inv.currency)}</div></div>
                 </div>
               </div>
@@ -263,7 +286,9 @@ function InvestmentsPage() {
               </div>
             </div>
           </div>
-        );
+          );
+        };
+
 
         if (!groupByType) {
           return <div className="space-y-2">{withMetrics.map(renderCard)}</div>;
@@ -306,6 +331,8 @@ function InvestmentsPage() {
             const m = computeAssetMetrics(detail, txs);
             const cur = detail.currency;
             const pnlPct = m.bookValue > 0 ? (m.totalPnl / m.bookValue) * 100 : 0;
+            const showDepreciation = isDepreciable(detail.type) || !!depProfileByInv.get(detail.id);
+            const tabColsSm = showDepreciation ? "sm:grid-cols-9" : "sm:grid-cols-8";
             return (
               <>
                 <DialogHeader>
@@ -321,17 +348,18 @@ function InvestmentsPage() {
                 </DialogHeader>
 
                 <Tabs defaultValue="overview" className="mt-2">
-                  <TabsList className="w-full grid grid-cols-3 sm:grid-cols-9 h-auto gap-1">
+                  <TabsList className={cn("w-full grid grid-cols-3 h-auto gap-1", tabColsSm)}>
                     <TabsTrigger value="overview">نظرة عامة</TabsTrigger>
                     <TabsTrigger value="components">المكونات</TabsTrigger>
                     <TabsTrigger value="transactions">الحركات ({txs.length})</TabsTrigger>
                     <TabsTrigger value="summary">ملخص مالي</TabsTrigger>
                     <TabsTrigger value="performance">الأداء</TabsTrigger>
                     <TabsTrigger value="market">القيمة السوقية</TabsTrigger>
-                    <TabsTrigger value="depreciation">الإهلاك</TabsTrigger>
+                    {showDepreciation && <TabsTrigger value="depreciation">الإهلاك</TabsTrigger>}
                     <TabsTrigger value="zakat">الزكاة</TabsTrigger>
                     <TabsTrigger value="notes">ملاحظات ومرفقات</TabsTrigger>
                   </TabsList>
+
 
                   {/* ============ COMPONENTS ============ */}
                   <TabsContent value="components">
@@ -351,6 +379,28 @@ function InvestmentsPage() {
                       </div>
                     </div>
 
+                    {(() => {
+                      const dp = depProfileByInv.get(detail.id);
+                      if (!dp) return null;
+                      const dr = computeDepreciation(dp as DepreciationProfile, m.bookValue);
+                      return (
+                        <div className="rounded-2xl border bg-blue-500/5 border-blue-500/30 p-3 space-y-1.5">
+                          <div className="flex items-center justify-between text-xs">
+                            <span className="text-muted-foreground">القيمة الدفترية بعد الإهلاك</span>
+                            <span className="font-bold tabular-nums text-blue-700 dark:text-blue-300">{formatMoney(dr.book_value, cur)}</span>
+                          </div>
+                          <div className="flex items-center justify-between text-[11px]">
+                            <span className="text-muted-foreground">مجمع الإهلاك</span>
+                            <span className="tabular-nums text-rose-600">−{formatMoney(dr.accumulated_depreciation, cur)} ({dr.depreciation_percentage.toFixed(1)}%)</span>
+                          </div>
+                          <div className="flex items-center justify-between text-[11px]">
+                            <span className="text-muted-foreground">إهلاك شهري</span>
+                            <span className="tabular-nums">{formatMoney(dr.monthly_depreciation, cur)}</span>
+                          </div>
+                        </div>
+                      );
+                    })()}
+
                     <div className="grid grid-cols-2 gap-2 text-xs">
                       <InfoRow label="الاسم" value={detail.name} />
                       <InfoRow label="النوع" value={typeLabel(detail.type)} />
@@ -365,6 +415,7 @@ function InvestmentsPage() {
                       <InfoRow label="العملة" value={cur} />
                       <InfoRow label="قابل للزكاة" value={detail.is_zakatable ? "نعم" : "لا"} />
                     </div>
+
 
                     {detail.meta && Object.keys(detail.meta).length > 0 && (
                       <div className="rounded-xl border bg-accent/30 p-3 text-xs space-y-1">
@@ -443,9 +494,12 @@ function InvestmentsPage() {
                   </TabsContent>
 
                   {/* ============ DEPRECIATION ============ */}
-                  <TabsContent value="depreciation">
-                    <DepreciationTab asset={detail} />
-                  </TabsContent>
+                  {showDepreciation && (
+                    <TabsContent value="depreciation">
+                      <DepreciationTab asset={detail} />
+                    </TabsContent>
+                  )}
+
 
                   {/* ============ ASSET ZAKAT ============ */}
                   <TabsContent value="zakat">

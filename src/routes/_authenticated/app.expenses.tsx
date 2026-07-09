@@ -8,10 +8,12 @@ import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from "@/components/ui/dialog";
-import { Plus, Trash2, Wallet, CalendarRange, Paperclip, Package } from "lucide-react";
+import { Plus, Trash2, Wallet, CalendarRange, Paperclip, Package, Users, X } from "lucide-react";
 import { CURRENCIES, formatMoney, formatDate, todayISO } from "@/lib/format";
 import { toast } from "sonner";
 import { AttachmentUploader } from "@/components/AttachmentUploader";
+import { ContactPicker } from "@/components/ContactPicker";
+
 
 export const Route = createFileRoute("/_authenticated/app/expenses")({
   head: () => ({ meta: [{ title: "المصاريف — رصد" }] }),
@@ -108,9 +110,18 @@ function ExpensesPage() {
               categories={data?.categories ?? []}
               projects={data?.projects ?? []}
               wallets={data?.wallets ?? []}
-              onDone={() => { setOpen(false); qc.invalidateQueries({ queryKey: ["expenses-list"] }); qc.invalidateQueries({ queryKey: ["expense-month-alloc"] }); qc.invalidateQueries({ queryKey: ["wallets-list"] }); qc.invalidateQueries({ queryKey: ["dashboard"] }); }}
+              onDone={() => {
+                setOpen(false);
+                qc.invalidateQueries({ queryKey: ["expenses-list"] });
+                qc.invalidateQueries({ queryKey: ["expense-month-alloc"] });
+                qc.invalidateQueries({ queryKey: ["wallets-list"] });
+                qc.invalidateQueries({ queryKey: ["dashboard"] });
+                qc.invalidateQueries({ queryKey: ["people"] });
+                qc.invalidateQueries({ queryKey: ["person-ledger"] });
+              }}
             />
           </DialogContent>
+
         </Dialog>
       </div>
 
@@ -209,6 +220,8 @@ function cnFilter(active: boolean) {
   return "rounded-full px-3 py-1 border transition " + (active ? "bg-primary text-primary-foreground border-primary" : "bg-card hover:bg-accent border-border text-muted-foreground");
 }
 
+type Participant = { key: string; contactId: string | null; name: string; amount: string };
+
 function ExpenseForm({ categories, projects, wallets, onDone }: { categories: any[]; projects: any[]; wallets: any[]; onDone: () => void }) {
   const [walletId, setWalletId] = useState<string>(wallets[0]?.id ?? "");
   const initialWallet = wallets.find((w) => w.id === walletId);
@@ -222,6 +235,10 @@ function ExpenseForm({ categories, projects, wallets, onDone }: { categories: an
   const [months, setMonths] = useState("6");
   const [startMonth, setStartMonth] = useState(todayISO().slice(0, 7));
 
+  // Split with other people
+  const [split, setSplit] = useState(false);
+  const [participants, setParticipants] = useState<Participant[]>([]);
+
   const onWalletChange = (v: string) => {
     setWalletId(v);
     const w = wallets.find((x) => x.id === v);
@@ -229,10 +246,29 @@ function ExpenseForm({ categories, projects, wallets, onDone }: { categories: an
   };
 
   const monthsN = Math.max(1, Math.min(60, parseInt(months) || 1));
+  const totalN = parseFloat(amount) || 0;
+  const participantsSum = useMemo(
+    () => participants.reduce((s, p) => s + (parseFloat(p.amount) || 0), 0),
+    [participants],
+  );
+  const myShare = Math.max(0, totalN - participantsSum);
+  const splitInvalid = split && (participantsSum <= 0 || participantsSum > totalN || participants.some((p) => !p.contactId || (parseFloat(p.amount) || 0) <= 0));
+
   const monthly = useMemo(() => {
-    const a = parseFloat(amount); if (!a || !spread) return 0;
-    return a / monthsN;
-  }, [amount, spread, monthsN]);
+    const base = split ? myShare : totalN;
+    if (!base || !spread) return 0;
+    return base / monthsN;
+  }, [totalN, split, myShare, spread, monthsN]);
+
+  const addParticipant = () => {
+    setParticipants((prev) => [...prev, { key: Math.random().toString(36).slice(2), contactId: null, name: "", amount: "" }]);
+  };
+  const updateParticipant = (key: string, patch: Partial<Participant>) => {
+    setParticipants((prev) => prev.map((p) => (p.key === key ? { ...p, ...patch } : p)));
+  };
+  const removeParticipant = (key: string) => {
+    setParticipants((prev) => prev.filter((p) => p.key !== key));
+  };
 
   const mut = useMutation({
     mutationFn: async () => {
@@ -240,14 +276,30 @@ function ExpenseForm({ categories, projects, wallets, onDone }: { categories: an
       if (!u.user) throw new Error("غير مسجل");
       if (!walletId) throw new Error("اختر محفظة");
       if (!categoryId) throw new Error("اختر فئة");
-      const a = parseFloat(amount);
+      const total = totalN;
+      if (!total || total <= 0) throw new Error("أدخل مبلغاً صالحاً");
+
+      let expenseAmount = total;
+      if (split) {
+        if (participantsSum <= 0) throw new Error("أدخل حصة شخص واحد على الأقل");
+        if (participantsSum > total) throw new Error("مجموع حصص المشاركين أكبر من المبلغ الكلي");
+        for (const p of participants) {
+          if (!p.contactId) throw new Error("اختر جهة اتصال لكل مشارك");
+          if ((parseFloat(p.amount) || 0) <= 0) throw new Error("حدد حصة أكبر من صفر لكل مشارك");
+        }
+        expenseAmount = myShare;
+      }
+
+      // 1) Insert the expense with the user's share only (net)
       const payload: any = {
         user_id: u.user.id,
-        amount: a, currency,
+        amount: expenseAmount,
+        currency,
         category_id: categoryId,
         wallet_id: walletId,
         project_id: projectId === "none" ? null : projectId,
-        spent_at: spentAt, note: note || null,
+        spent_at: spentAt,
+        note: note || null,
         allocation_kind: spread ? "spread" : "single",
         spread_months: spread ? monthsN : null,
         spread_start: spread ? `${startMonth}-01` : null,
@@ -255,33 +307,56 @@ function ExpenseForm({ categories, projects, wallets, onDone }: { categories: an
       const { data: ins, error } = await supabase.from("expenses").insert(payload).select("id").single();
       if (error) throw error;
 
-      // Build allocations
+      // 2) Allocations for user's share
       const allocs: any[] = [];
       if (spread) {
         const [y, m] = startMonth.split("-").map(Number);
-        const each = +(a / monthsN).toFixed(2);
+        const each = +(expenseAmount / monthsN).toFixed(2);
         let sum = 0;
         for (let i = 0; i < monthsN; i++) {
           const d = new Date(y, (m - 1) + i, 1);
           const period = d.toISOString().slice(0, 10);
-          const amt = i === monthsN - 1 ? +(a - sum).toFixed(2) : each;
+          const amt = i === monthsN - 1 ? +(expenseAmount - sum).toFixed(2) : each;
           sum += each;
           allocs.push({ user_id: u.user.id, expense_id: (ins as any).id, period, amount: amt, currency });
         }
       } else {
         const d = new Date(spentAt);
         const period = new Date(d.getFullYear(), d.getMonth(), 1).toISOString().slice(0, 10);
-        allocs.push({ user_id: u.user.id, expense_id: (ins as any).id, period, amount: a, currency });
+        allocs.push({ user_id: u.user.id, expense_id: (ins as any).id, period, amount: expenseAmount, currency });
       }
       const { error: aErr } = await supabase.from("expense_allocations").insert(allocs);
       if (aErr) throw aErr;
+
+      // 3) For each participant, create a person_ledger "lend" row.
+      //    Linking to the same wallet debits it via the ledger sync trigger,
+      //    so the wallet ends up debited the full paid amount overall.
+      if (split && participants.length > 0) {
+        const catLabel = categories.find((c) => c.id === categoryId)?.name ?? "مصروف";
+        const ledgerRows = participants.map((p) => ({
+          user_id: u.user.id,
+          contact_id: p.contactId,
+          contact_name: p.name.trim(),
+          kind: "lend",
+          amount: parseFloat(p.amount) || 0,
+          currency,
+          happened_at: spentAt,
+          notes: `تقسيم مصروف: ${catLabel}${note ? ` — ${note}` : ""}`,
+          wallet_id: walletId,
+        }));
+        const { error: lErr } = await supabase.from("person_ledger").insert(ledgerRows);
+        if (lErr) throw lErr;
+      }
     },
-    onSuccess: () => { toast.success("تمت الإضافة"); onDone(); },
+    onSuccess: () => {
+      toast.success(split ? "تم تسجيل المصروف والديون" : "تمت الإضافة");
+      onDone();
+    },
     onError: (e: any) => toast.error("خطأ", { description: e.message }),
   });
 
   return (
-    <form onSubmit={(e) => { e.preventDefault(); mut.mutate(); }} className="space-y-4">
+    <form onSubmit={(e) => { e.preventDefault(); mut.mutate(); }} className="space-y-4 max-h-[80vh] overflow-y-auto pr-1">
       <DialogHeader><DialogTitle>مصروف جديد</DialogTitle></DialogHeader>
 
       <div>
@@ -301,7 +376,7 @@ function ExpenseForm({ categories, projects, wallets, onDone }: { categories: an
       </div>
 
       <div className="grid grid-cols-2 gap-3">
-        <div><Label>المبلغ</Label><Input type="number" step="0.01" min="0" value={amount} onChange={(e) => setAmount(e.target.value)} required dir="ltr" /></div>
+        <div><Label>المبلغ الكلي</Label><Input type="number" step="0.01" min="0" value={amount} onChange={(e) => setAmount(e.target.value)} required dir="ltr" /></div>
         <div>
           <Label>العملة</Label>
           <Select value={currency} onValueChange={setCurrency}>
@@ -324,11 +399,71 @@ function ExpenseForm({ categories, projects, wallets, onDone }: { categories: an
 
       <div><Label>تاريخ الدفع</Label><Input type="date" value={spentAt} onChange={(e) => setSpentAt(e.target.value)} required dir="ltr" /></div>
 
+      {/* ============ SPLIT WITH PEOPLE ============ */}
+      <div className="rounded-xl border bg-accent/30 p-3 space-y-3">
+        <div className="flex items-center justify-between">
+          <div>
+            <div className="text-sm font-medium flex items-center gap-1"><Users className="h-4 w-4" /> تقسيم المصروف مع أشخاص</div>
+            <div className="text-[11px] text-muted-foreground">حصة كل شخص تُسجَّل ديناً له عليك بشكل تلقائي</div>
+          </div>
+          <Switch checked={split} onCheckedChange={(v) => { setSplit(v); if (v && participants.length === 0) addParticipant(); }} />
+        </div>
+
+        {split && (
+          <div className="space-y-2">
+            {participants.map((p) => (
+              <div key={p.key} className="rounded-lg border bg-card p-2 space-y-2">
+                <div className="flex items-center gap-2">
+                  <div className="flex-1 min-w-0">
+                    <ContactPicker
+                      value={{ id: p.contactId, name: p.name }}
+                      onChange={(v) => updateParticipant(p.key, { contactId: v.id, name: v.name })}
+                    />
+                  </div>
+                  <Button type="button" variant="ghost" size="icon" onClick={() => removeParticipant(p.key)} title="حذف">
+                    <X className="h-4 w-4" />
+                  </Button>
+                </div>
+                <div className="grid grid-cols-[1fr_auto] gap-2 items-center">
+                  <Input
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    placeholder="حصة هذا الشخص"
+                    value={p.amount}
+                    onChange={(e) => updateParticipant(p.key, { amount: e.target.value })}
+                    dir="ltr"
+                  />
+                  {totalN > 0 && (parseFloat(p.amount) || 0) > 0 && (
+                    <span className="text-[10px] text-muted-foreground whitespace-nowrap">
+                      {(((parseFloat(p.amount) || 0) / totalN) * 100).toFixed(1)}%
+                    </span>
+                  )}
+                </div>
+              </div>
+            ))}
+
+            <Button type="button" variant="outline" size="sm" onClick={addParticipant} className="w-full">
+              <Plus className="h-3.5 w-3.5 ml-1" /> إضافة شخص آخر
+            </Button>
+
+            <div className="rounded-lg bg-background border p-2 text-[11px] space-y-1">
+              <div className="flex justify-between"><span className="text-muted-foreground">المبلغ الكلي المدفوع</span><span className="tabular-nums font-medium">{formatMoney(totalN, currency)}</span></div>
+              <div className="flex justify-between"><span className="text-muted-foreground">مجموع حصص الآخرين</span><span className="tabular-nums text-amber-600">−{formatMoney(participantsSum, currency)}</span></div>
+              <div className="flex justify-between border-t pt-1"><span className="font-medium">حصتك (المصروف الفعلي)</span><span className="tabular-nums font-bold text-primary">{formatMoney(myShare, currency)}</span></div>
+              {participantsSum > totalN && (
+                <div className="text-destructive text-[10px]">⚠️ مجموع الحصص أكبر من المبلغ الكلي</div>
+              )}
+            </div>
+          </div>
+        )}
+      </div>
+
       <div className="rounded-xl border bg-accent/30 p-3 space-y-3">
         <div className="flex items-center justify-between">
           <div>
             <div className="text-sm font-medium flex items-center gap-1"><CalendarRange className="h-4 w-4" /> توزيع المبلغ على عدة أشهر</div>
-            <div className="text-[11px] text-muted-foreground">مفيد للإيجار/الاشتراكات المدفوعة مسبقاً</div>
+            <div className="text-[11px] text-muted-foreground">مفيد للإيجار/الاشتراكات المدفوعة مسبقاً {split && "— يوزّع حصتك فقط"}</div>
           </div>
           <Switch checked={spread} onCheckedChange={setSpread} />
         </div>
@@ -345,7 +480,8 @@ function ExpenseForm({ categories, projects, wallets, onDone }: { categories: an
 
       <div><Label>ملاحظة</Label><Input value={note} onChange={(e) => setNote(e.target.value)} maxLength={200} /></div>
 
-      <DialogFooter><Button type="submit" className="w-full" disabled={mut.isPending}>حفظ</Button></DialogFooter>
+      <DialogFooter><Button type="submit" className="w-full" disabled={mut.isPending || splitInvalid}>حفظ</Button></DialogFooter>
     </form>
   );
 }
+

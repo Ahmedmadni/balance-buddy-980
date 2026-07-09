@@ -18,6 +18,8 @@ import {
   type DepreciationMethod,
   type DepreciationProfile,
 } from "@/lib/assets/depreciation";
+import { isDepreciable, defaultsFor } from "@/lib/assets/depreciation-defaults";
+
 
 const n = (v: any) => Number(v ?? 0) || 0;
 
@@ -59,8 +61,17 @@ export function DepreciationTab({ asset }: { asset: any }) {
       setIsActive(profile.is_active);
       setUnitsTotal(profile.units_total != null ? String(profile.units_total) : "");
       setUnitsConsumed(profile.units_consumed != null ? String(profile.units_consumed) : "");
+    } else if (!isLoading) {
+      // No profile yet → seed the form with sensible defaults for this asset type.
+      const d = defaultsFor(asset.type);
+      setMethod(d.method);
+      setLife(String(d.useful_life_months));
+      setSalvage(String(Math.round(cost * d.salvage_ratio)));
+      if (asset.acquired_at) setStartDate(asset.acquired_at);
+      else if (asset.start_date) setStartDate(asset.start_date);
     }
-  }, [profile?.id]);
+  }, [profile?.id, isLoading, asset.type, asset.acquired_at, asset.start_date, cost]);
+
 
   const save = useMutation({
     mutationFn: async () => {
@@ -87,6 +98,7 @@ export function DepreciationTab({ asset }: { asset: any }) {
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["depreciation-profile", asset.id] });
+      qc.invalidateQueries({ queryKey: ["investments-list"] });
       toast.success("تم حفظ إعدادات الإهلاك");
     },
     onError: (e: any) => toast.error(e.message || "فشل الحفظ"),
@@ -100,9 +112,11 @@ export function DepreciationTab({ asset }: { asset: any }) {
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["depreciation-profile", asset.id] });
+      qc.invalidateQueries({ queryKey: ["investments-list"] });
       toast.success("تم حذف ملف الإهلاك");
     },
   });
+
 
   // Live preview using current form state
   const previewProfile: DepreciationProfile = {
@@ -120,6 +134,7 @@ export function DepreciationTab({ asset }: { asset: any }) {
   if (isLoading) return <div className="p-6 text-center text-sm text-muted-foreground">جارٍ التحميل…</div>;
 
   const hasProfile = !!profile?.id;
+  const eligible = isDepreciable(asset.type);
 
   return (
     <div className="space-y-4 mt-3">
@@ -131,7 +146,11 @@ export function DepreciationTab({ asset }: { asset: any }) {
         <div className="flex-1">
           <div className="text-sm font-semibold">محرك الإهلاك</div>
           <div className="text-[11px] text-muted-foreground">
-            {hasProfile ? "ملف إهلاك مفعّل — يُحسب تلقائياً دون أي تأثير على الأرصدة أو القيود." : "لم يتم تفعيل الإهلاك — جميع القيم تبقى كما هي."}
+            {hasProfile
+              ? "ملف إهلاك مفعّل — يُحسب تلقائياً دون أي تأثير على الأرصدة أو القيود."
+              : eligible
+                ? "لم يتم تفعيل الإهلاك بعد — تم اقتراح إعدادات افتراضية مناسبة لنوع الأصل."
+                : "هذا النوع من الأصول لا يخضع عادةً للإهلاك (يعتمد التقييم السوقي). يمكنك تفعيله يدوياً إن رغبت."}
           </div>
         </div>
         {hasProfile && (
@@ -140,6 +159,7 @@ export function DepreciationTab({ asset }: { asset: any }) {
           </Button>
         )}
       </div>
+
 
       {/* Settings */}
       <div className="rounded-2xl border bg-card p-3 space-y-3">
