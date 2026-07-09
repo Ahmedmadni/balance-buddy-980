@@ -12,17 +12,23 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as AuthRouteImport } from './routes/auth'
 import { Route as AuthenticatedRouteRouteImport } from './routes/_authenticated/route'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as LegalTermsRouteImport } from './routes/legal/terms'
+import { Route as LegalPrivacyRouteImport } from './routes/legal/privacy'
+import { Route as LegalDataExportRouteImport } from './routes/legal/data-export'
+import { Route as LegalCookiesRouteImport } from './routes/legal/cookies'
 import { Route as AuthenticatedAppRouteImport } from './routes/_authenticated/app'
 import { Route as AuthenticatedAppIndexRouteImport } from './routes/_authenticated/app.index'
 import { Route as AuthenticatedAppZakatRouteImport } from './routes/_authenticated/app.zakat'
 import { Route as AuthenticatedAppWalletsRouteImport } from './routes/_authenticated/app.wallets'
 import { Route as AuthenticatedAppTransactionsRouteImport } from './routes/_authenticated/app.transactions'
+import { Route as AuthenticatedAppSystemRouteImport } from './routes/_authenticated/app.system'
 import { Route as AuthenticatedAppSettingsRouteImport } from './routes/_authenticated/app.settings'
 import { Route as AuthenticatedAppReportsRouteImport } from './routes/_authenticated/app.reports'
 import { Route as AuthenticatedAppRecurringRouteImport } from './routes/_authenticated/app.recurring'
 import { Route as AuthenticatedAppProjectsRouteImport } from './routes/_authenticated/app.projects'
 import { Route as AuthenticatedAppPeopleRouteImport } from './routes/_authenticated/app.people'
 import { Route as AuthenticatedAppInvestmentsRouteImport } from './routes/_authenticated/app.investments'
+import { Route as AuthenticatedAppInsightsRouteImport } from './routes/_authenticated/app.insights'
 import { Route as AuthenticatedAppExpensesRouteImport } from './routes/_authenticated/app.expenses'
 import { Route as AuthenticatedAppEventsRouteImport } from './routes/_authenticated/app.events'
 import { Route as AuthenticatedAppDebtsRouteImport } from './routes/_authenticated/app.debts'
@@ -44,6 +50,26 @@ const AuthenticatedRouteRoute = AuthenticatedRouteRouteImport.update({
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const LegalTermsRoute = LegalTermsRouteImport.update({
+  id: '/legal/terms',
+  path: '/legal/terms',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const LegalPrivacyRoute = LegalPrivacyRouteImport.update({
+  id: '/legal/privacy',
+  path: '/legal/privacy',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const LegalDataExportRoute = LegalDataExportRouteImport.update({
+  id: '/legal/data-export',
+  path: '/legal/data-export',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const LegalCookiesRoute = LegalCookiesRouteImport.update({
+  id: '/legal/cookies',
+  path: '/legal/cookies',
   getParentRoute: () => rootRouteImport,
 } as any)
 const AuthenticatedAppRoute = AuthenticatedAppRouteImport.update({
@@ -72,6 +98,11 @@ const AuthenticatedAppTransactionsRoute =
     path: '/transactions',
     getParentRoute: () => AuthenticatedAppRoute,
   } as any)
+const AuthenticatedAppSystemRoute = AuthenticatedAppSystemRouteImport.update({
+  id: '/system',
+  path: '/system',
+  getParentRoute: () => AuthenticatedAppRoute,
+} as any)
 const AuthenticatedAppSettingsRoute =
   AuthenticatedAppSettingsRouteImport.update({
     id: '/settings',
@@ -104,6 +135,12 @@ const AuthenticatedAppInvestmentsRoute =
   AuthenticatedAppInvestmentsRouteImport.update({
     id: '/investments',
     path: '/investments',
+    getParentRoute: () => AuthenticatedAppRoute,
+  } as any)
+const AuthenticatedAppInsightsRoute =
+  AuthenticatedAppInsightsRouteImport.update({
+    id: '/insights',
+    path: '/insights',
     getParentRoute: () => AuthenticatedAppRoute,
   } as any)
 const AuthenticatedAppExpensesRoute =
@@ -156,16 +193,22 @@ export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/auth': typeof AuthRoute
   '/app': typeof AuthenticatedAppRouteWithChildren
+  '/legal/cookies': typeof LegalCookiesRoute
+  '/legal/data-export': typeof LegalDataExportRoute
+  '/legal/privacy': typeof LegalPrivacyRoute
+  '/legal/terms': typeof LegalTermsRoute
   '/app/contacts': typeof AuthenticatedAppContactsRoute
   '/app/debts': typeof AuthenticatedAppDebtsRouteWithChildren
   '/app/events': typeof AuthenticatedAppEventsRoute
   '/app/expenses': typeof AuthenticatedAppExpensesRoute
+  '/app/insights': typeof AuthenticatedAppInsightsRoute
   '/app/investments': typeof AuthenticatedAppInvestmentsRoute
   '/app/people': typeof AuthenticatedAppPeopleRouteWithChildren
   '/app/projects': typeof AuthenticatedAppProjectsRouteWithChildren
   '/app/recurring': typeof AuthenticatedAppRecurringRoute
   '/app/reports': typeof AuthenticatedAppReportsRoute
   '/app/settings': typeof AuthenticatedAppSettingsRoute
+  '/app/system': typeof AuthenticatedAppSystemRoute
   '/app/transactions': typeof AuthenticatedAppTransactionsRoute
   '/app/wallets': typeof AuthenticatedAppWalletsRouteWithChildren
   '/app/zakat': typeof AuthenticatedAppZakatRoute
@@ -178,16 +221,22 @@ export interface FileRoutesByFullPath {
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/auth': typeof AuthRoute
+  '/legal/cookies': typeof LegalCookiesRoute
+  '/legal/data-export': typeof LegalDataExportRoute
+  '/legal/privacy': typeof LegalPrivacyRoute
+  '/legal/terms': typeof LegalTermsRoute
   '/app/contacts': typeof AuthenticatedAppContactsRoute
   '/app/debts': typeof AuthenticatedAppDebtsRouteWithChildren
   '/app/events': typeof AuthenticatedAppEventsRoute
   '/app/expenses': typeof AuthenticatedAppExpensesRoute
+  '/app/insights': typeof AuthenticatedAppInsightsRoute
   '/app/investments': typeof AuthenticatedAppInvestmentsRoute
   '/app/people': typeof AuthenticatedAppPeopleRouteWithChildren
   '/app/projects': typeof AuthenticatedAppProjectsRouteWithChildren
   '/app/recurring': typeof AuthenticatedAppRecurringRoute
   '/app/reports': typeof AuthenticatedAppReportsRoute
   '/app/settings': typeof AuthenticatedAppSettingsRoute
+  '/app/system': typeof AuthenticatedAppSystemRoute
   '/app/transactions': typeof AuthenticatedAppTransactionsRoute
   '/app/wallets': typeof AuthenticatedAppWalletsRouteWithChildren
   '/app/zakat': typeof AuthenticatedAppZakatRoute
@@ -203,16 +252,22 @@ export interface FileRoutesById {
   '/_authenticated': typeof AuthenticatedRouteRouteWithChildren
   '/auth': typeof AuthRoute
   '/_authenticated/app': typeof AuthenticatedAppRouteWithChildren
+  '/legal/cookies': typeof LegalCookiesRoute
+  '/legal/data-export': typeof LegalDataExportRoute
+  '/legal/privacy': typeof LegalPrivacyRoute
+  '/legal/terms': typeof LegalTermsRoute
   '/_authenticated/app/contacts': typeof AuthenticatedAppContactsRoute
   '/_authenticated/app/debts': typeof AuthenticatedAppDebtsRouteWithChildren
   '/_authenticated/app/events': typeof AuthenticatedAppEventsRoute
   '/_authenticated/app/expenses': typeof AuthenticatedAppExpensesRoute
+  '/_authenticated/app/insights': typeof AuthenticatedAppInsightsRoute
   '/_authenticated/app/investments': typeof AuthenticatedAppInvestmentsRoute
   '/_authenticated/app/people': typeof AuthenticatedAppPeopleRouteWithChildren
   '/_authenticated/app/projects': typeof AuthenticatedAppProjectsRouteWithChildren
   '/_authenticated/app/recurring': typeof AuthenticatedAppRecurringRoute
   '/_authenticated/app/reports': typeof AuthenticatedAppReportsRoute
   '/_authenticated/app/settings': typeof AuthenticatedAppSettingsRoute
+  '/_authenticated/app/system': typeof AuthenticatedAppSystemRoute
   '/_authenticated/app/transactions': typeof AuthenticatedAppTransactionsRoute
   '/_authenticated/app/wallets': typeof AuthenticatedAppWalletsRouteWithChildren
   '/_authenticated/app/zakat': typeof AuthenticatedAppZakatRoute
@@ -228,16 +283,22 @@ export interface FileRouteTypes {
     | '/'
     | '/auth'
     | '/app'
+    | '/legal/cookies'
+    | '/legal/data-export'
+    | '/legal/privacy'
+    | '/legal/terms'
     | '/app/contacts'
     | '/app/debts'
     | '/app/events'
     | '/app/expenses'
+    | '/app/insights'
     | '/app/investments'
     | '/app/people'
     | '/app/projects'
     | '/app/recurring'
     | '/app/reports'
     | '/app/settings'
+    | '/app/system'
     | '/app/transactions'
     | '/app/wallets'
     | '/app/zakat'
@@ -250,16 +311,22 @@ export interface FileRouteTypes {
   to:
     | '/'
     | '/auth'
+    | '/legal/cookies'
+    | '/legal/data-export'
+    | '/legal/privacy'
+    | '/legal/terms'
     | '/app/contacts'
     | '/app/debts'
     | '/app/events'
     | '/app/expenses'
+    | '/app/insights'
     | '/app/investments'
     | '/app/people'
     | '/app/projects'
     | '/app/recurring'
     | '/app/reports'
     | '/app/settings'
+    | '/app/system'
     | '/app/transactions'
     | '/app/wallets'
     | '/app/zakat'
@@ -274,16 +341,22 @@ export interface FileRouteTypes {
     | '/_authenticated'
     | '/auth'
     | '/_authenticated/app'
+    | '/legal/cookies'
+    | '/legal/data-export'
+    | '/legal/privacy'
+    | '/legal/terms'
     | '/_authenticated/app/contacts'
     | '/_authenticated/app/debts'
     | '/_authenticated/app/events'
     | '/_authenticated/app/expenses'
+    | '/_authenticated/app/insights'
     | '/_authenticated/app/investments'
     | '/_authenticated/app/people'
     | '/_authenticated/app/projects'
     | '/_authenticated/app/recurring'
     | '/_authenticated/app/reports'
     | '/_authenticated/app/settings'
+    | '/_authenticated/app/system'
     | '/_authenticated/app/transactions'
     | '/_authenticated/app/wallets'
     | '/_authenticated/app/zakat'
@@ -298,6 +371,10 @@ export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AuthenticatedRouteRoute: typeof AuthenticatedRouteRouteWithChildren
   AuthRoute: typeof AuthRoute
+  LegalCookiesRoute: typeof LegalCookiesRoute
+  LegalDataExportRoute: typeof LegalDataExportRoute
+  LegalPrivacyRoute: typeof LegalPrivacyRoute
+  LegalTermsRoute: typeof LegalTermsRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -321,6 +398,34 @@ declare module '@tanstack/react-router' {
       path: '/'
       fullPath: '/'
       preLoaderRoute: typeof IndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/legal/terms': {
+      id: '/legal/terms'
+      path: '/legal/terms'
+      fullPath: '/legal/terms'
+      preLoaderRoute: typeof LegalTermsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/legal/privacy': {
+      id: '/legal/privacy'
+      path: '/legal/privacy'
+      fullPath: '/legal/privacy'
+      preLoaderRoute: typeof LegalPrivacyRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/legal/data-export': {
+      id: '/legal/data-export'
+      path: '/legal/data-export'
+      fullPath: '/legal/data-export'
+      preLoaderRoute: typeof LegalDataExportRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/legal/cookies': {
+      id: '/legal/cookies'
+      path: '/legal/cookies'
+      fullPath: '/legal/cookies'
+      preLoaderRoute: typeof LegalCookiesRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/_authenticated/app': {
@@ -356,6 +461,13 @@ declare module '@tanstack/react-router' {
       path: '/transactions'
       fullPath: '/app/transactions'
       preLoaderRoute: typeof AuthenticatedAppTransactionsRouteImport
+      parentRoute: typeof AuthenticatedAppRoute
+    }
+    '/_authenticated/app/system': {
+      id: '/_authenticated/app/system'
+      path: '/system'
+      fullPath: '/app/system'
+      preLoaderRoute: typeof AuthenticatedAppSystemRouteImport
       parentRoute: typeof AuthenticatedAppRoute
     }
     '/_authenticated/app/settings': {
@@ -398,6 +510,13 @@ declare module '@tanstack/react-router' {
       path: '/investments'
       fullPath: '/app/investments'
       preLoaderRoute: typeof AuthenticatedAppInvestmentsRouteImport
+      parentRoute: typeof AuthenticatedAppRoute
+    }
+    '/_authenticated/app/insights': {
+      id: '/_authenticated/app/insights'
+      path: '/insights'
+      fullPath: '/app/insights'
+      preLoaderRoute: typeof AuthenticatedAppInsightsRouteImport
       parentRoute: typeof AuthenticatedAppRoute
     }
     '/_authenticated/app/expenses': {
@@ -519,12 +638,14 @@ interface AuthenticatedAppRouteChildren {
   AuthenticatedAppDebtsRoute: typeof AuthenticatedAppDebtsRouteWithChildren
   AuthenticatedAppEventsRoute: typeof AuthenticatedAppEventsRoute
   AuthenticatedAppExpensesRoute: typeof AuthenticatedAppExpensesRoute
+  AuthenticatedAppInsightsRoute: typeof AuthenticatedAppInsightsRoute
   AuthenticatedAppInvestmentsRoute: typeof AuthenticatedAppInvestmentsRoute
   AuthenticatedAppPeopleRoute: typeof AuthenticatedAppPeopleRouteWithChildren
   AuthenticatedAppProjectsRoute: typeof AuthenticatedAppProjectsRouteWithChildren
   AuthenticatedAppRecurringRoute: typeof AuthenticatedAppRecurringRoute
   AuthenticatedAppReportsRoute: typeof AuthenticatedAppReportsRoute
   AuthenticatedAppSettingsRoute: typeof AuthenticatedAppSettingsRoute
+  AuthenticatedAppSystemRoute: typeof AuthenticatedAppSystemRoute
   AuthenticatedAppTransactionsRoute: typeof AuthenticatedAppTransactionsRoute
   AuthenticatedAppWalletsRoute: typeof AuthenticatedAppWalletsRouteWithChildren
   AuthenticatedAppZakatRoute: typeof AuthenticatedAppZakatRoute
@@ -536,12 +657,14 @@ const AuthenticatedAppRouteChildren: AuthenticatedAppRouteChildren = {
   AuthenticatedAppDebtsRoute: AuthenticatedAppDebtsRouteWithChildren,
   AuthenticatedAppEventsRoute: AuthenticatedAppEventsRoute,
   AuthenticatedAppExpensesRoute: AuthenticatedAppExpensesRoute,
+  AuthenticatedAppInsightsRoute: AuthenticatedAppInsightsRoute,
   AuthenticatedAppInvestmentsRoute: AuthenticatedAppInvestmentsRoute,
   AuthenticatedAppPeopleRoute: AuthenticatedAppPeopleRouteWithChildren,
   AuthenticatedAppProjectsRoute: AuthenticatedAppProjectsRouteWithChildren,
   AuthenticatedAppRecurringRoute: AuthenticatedAppRecurringRoute,
   AuthenticatedAppReportsRoute: AuthenticatedAppReportsRoute,
   AuthenticatedAppSettingsRoute: AuthenticatedAppSettingsRoute,
+  AuthenticatedAppSystemRoute: AuthenticatedAppSystemRoute,
   AuthenticatedAppTransactionsRoute: AuthenticatedAppTransactionsRoute,
   AuthenticatedAppWalletsRoute: AuthenticatedAppWalletsRouteWithChildren,
   AuthenticatedAppZakatRoute: AuthenticatedAppZakatRoute,
@@ -566,7 +689,21 @@ const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AuthenticatedRouteRoute: AuthenticatedRouteRouteWithChildren,
   AuthRoute: AuthRoute,
+  LegalCookiesRoute: LegalCookiesRoute,
+  LegalDataExportRoute: LegalDataExportRoute,
+  LegalPrivacyRoute: LegalPrivacyRoute,
+  LegalTermsRoute: LegalTermsRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
+
+import type { getRouter } from './router.tsx'
+import type { startInstance } from './start.ts'
+declare module '@tanstack/react-start' {
+  interface Register {
+    ssr: true
+    router: Awaited<ReturnType<typeof getRouter>>
+    config: Awaited<ReturnType<typeof startInstance.getOptions>>
+  }
+}
