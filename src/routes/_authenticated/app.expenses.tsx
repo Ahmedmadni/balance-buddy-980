@@ -110,9 +110,18 @@ function ExpensesPage() {
               categories={data?.categories ?? []}
               projects={data?.projects ?? []}
               wallets={data?.wallets ?? []}
-              onDone={() => { setOpen(false); qc.invalidateQueries({ queryKey: ["expenses-list"] }); qc.invalidateQueries({ queryKey: ["expense-month-alloc"] }); qc.invalidateQueries({ queryKey: ["wallets-list"] }); qc.invalidateQueries({ queryKey: ["dashboard"] }); }}
+              onDone={() => {
+                setOpen(false);
+                qc.invalidateQueries({ queryKey: ["expenses-list"] });
+                qc.invalidateQueries({ queryKey: ["expense-month-alloc"] });
+                qc.invalidateQueries({ queryKey: ["wallets-list"] });
+                qc.invalidateQueries({ queryKey: ["dashboard"] });
+                qc.invalidateQueries({ queryKey: ["people"] });
+                qc.invalidateQueries({ queryKey: ["person-ledger"] });
+              }}
             />
           </DialogContent>
+
         </Dialog>
       </div>
 
