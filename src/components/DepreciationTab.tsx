@@ -18,6 +18,8 @@ import {
   type DepreciationMethod,
   type DepreciationProfile,
 } from "@/lib/assets/depreciation";
+import { isDepreciable, defaultsFor } from "@/lib/assets/depreciation-defaults";
+
 
 const n = (v: any) => Number(v ?? 0) || 0;
 
