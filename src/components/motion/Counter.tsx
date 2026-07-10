@@ -21,5 +21,5 @@ export function Counter({ value, format, duration = 1.2, className }: Props) {
     return () => controls.stop();
   }, [inView, value, duration, mv]);
 
-  return <motion.span ref={ref} className={className}>{display}</motion.span>;
+  return <motion.span ref={ref} data-private className={className}>{display}</motion.span>;
 }
