@@ -4,6 +4,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   LayoutDashboard, Wallet, FileBarChart, Settings, LogOut, Menu, Landmark,
   Contact, Repeat, TrendingUp, HandCoins, Receipt, BadgePercent, Bell, Sparkles,
+  Eye, EyeOff,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
@@ -13,6 +14,23 @@ import { cn } from "@/lib/utils";
 import { useEffect, useState } from "react";
 import { processPendingNotifications } from "@/lib/notifications/engine";
 import { trackBetaSession, recordPageVisit, finalizeCurrentPage } from "@/lib/beta/session";
+import { usePrivacy } from "@/hooks/use-privacy";
+
+function PrivacyToggle() {
+  const [on, toggle] = usePrivacy();
+  return (
+    <button
+      type="button"
+      onClick={toggle}
+      aria-label={on ? "إظهار الأرصدة" : "إخفاء الأرصدة"}
+      title={on ? "إظهار الأرصدة" : "إخفاء الأرصدة"}
+      className="inline-flex h-9 w-9 items-center justify-center rounded-xl border border-border bg-card text-muted-foreground transition-colors hover:text-primary hover:border-primary/30"
+    >
+      {on ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+    </button>
+  );
+}
+
 
 export const Route = createFileRoute("/_authenticated")({
   ssr: false,
@@ -178,7 +196,11 @@ function AppLayout() {
           <span className="font-bold">رصد</span>
         </div>
         <div className="flex items-center gap-2">
+          <PrivacyToggle />
           <ThemeToggle />
+
+            <PrivacyToggle />
+
           <Sheet open={open} onOpenChange={setOpen}>
             <SheetTrigger asChild>
               <Button variant="ghost" size="icon"><Menu /></Button>
