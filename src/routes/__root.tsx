@@ -82,7 +82,14 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
 function RootShell({ children }: { children: ReactNode }) {
   return (
     <html lang="ar" dir="rtl">
-      <head><HeadContent /></head>
+      <head>
+        <HeadContent />
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `(function(){try{if(localStorage.getItem('rasd-privacy')==='1')document.documentElement.classList.add('privacy-on');}catch(e){}})();`,
+          }}
+        />
+      </head>
       <body>
         {children}
         <Scripts />
@@ -90,6 +97,7 @@ function RootShell({ children }: { children: ReactNode }) {
     </html>
   );
 }
+
 
 function RootComponent() {
   const { queryClient } = Route.useRouteContext();
