@@ -1,6 +1,7 @@
-import { useRef, useState } from "react";
+import { useState } from "react";
 import { Button } from "@/components/ui/button";
-import { Smartphone, Upload } from "lucide-react";
+import { Smartphone } from "lucide-react";
+
 import { supabase } from "@/integrations/supabase/client";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
@@ -34,7 +35,7 @@ function parseVCF(text: string): Row[] {
 
 export function ContactImportButton({ onDone }: { onDone?: () => void }) {
   const qc = useQueryClient();
-  const fileRef = useRef<HTMLInputElement>(null);
+  
   const [busy, setBusy] = useState(false);
   const [rows, setRows] = useState<Row[]>([]);
   const [selected, setSelected] = useState<Set<number>>(new Set());
@@ -72,6 +73,10 @@ export function ContactImportButton({ onDone }: { onDone?: () => void }) {
   }
 
   async function pickFromPhone() {
+    if (!hasPicker) {
+      toast.error("جهاز غير مدعوم", { description: "اختيار جهات الاتصال متاح على Chrome للأندرويد فقط حالياً." });
+      return;
+    }
     setBusy(true);
     try {
       const props = ["name", "tel", "email"];
@@ -87,15 +92,6 @@ export function ContactImportButton({ onDone }: { onDone?: () => void }) {
     } finally { setBusy(false); }
   }
 
-  async function onFile(e: React.ChangeEvent<HTMLInputElement>) {
-    const f = e.target.files?.[0];
-    if (!f) return;
-    setBusy(true);
-    try {
-      const text = await f.text();
-      openReview(parseVCF(text));
-    } finally { setBusy(false); e.target.value = ""; }
-  }
 
   const q = search.trim().toLowerCase();
   const visibleIdx = rows
@@ -121,15 +117,10 @@ export function ContactImportButton({ onDone }: { onDone?: () => void }) {
 
   return (
     <div className="flex gap-2">
-      {hasPicker && (
-        <Button type="button" variant="outline" onClick={pickFromPhone} disabled={busy}>
-          <Smartphone className="h-4 w-4" /> من جهات الهاتف
-        </Button>
-      )}
-      <Button type="button" variant="outline" onClick={() => fileRef.current?.click()} disabled={busy}>
-        <Upload className="h-4 w-4" /> استيراد .vcf
+      <Button type="button" variant="outline" onClick={pickFromPhone} disabled={busy}>
+        <Smartphone className="h-4 w-4" /> من جهات الهاتف
       </Button>
-      <input ref={fileRef} type="file" accept=".vcf,text/vcard" className="hidden" onChange={onFile} />
+
 
       <Dialog open={open} onOpenChange={(o) => { setOpen(o); if (!o) { setRows([]); setSelected(new Set()); setSearch(""); } }}>
         <DialogContent className="max-w-md">
