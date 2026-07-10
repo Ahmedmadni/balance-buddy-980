@@ -157,3 +157,16 @@
   @page { margin: 1.5cm; size: A4; }
 }
 .print-only { display: none; }
+
+/* Privacy mode: blur monetary amounts to hide balances at a glance */
+html.privacy-on .tabular-nums,
+html.privacy-on [data-private] {
+  filter: blur(8px);
+  user-select: none;
+  transition: filter 0.2s ease;
+}
+html.privacy-on .tabular-nums:hover,
+html.privacy-on [data-private]:hover {
+  filter: blur(0);
+}
+
