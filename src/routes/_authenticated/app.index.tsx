@@ -2,7 +2,9 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { formatMoney } from "@/lib/format";
-import { ArrowDownRight, ArrowUpRight, Wallet, TrendingUp, BellRing, Plus, Receipt, PieChart as PieChartIcon } from "lucide-react";
+import { ArrowDownRight, ArrowUpRight, Wallet, TrendingUp, BellRing, Plus, Receipt, PieChart as PieChartIcon, Eye, EyeOff } from "lucide-react";
+import { usePrivacy } from "@/hooks/use-privacy";
+
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from "recharts";
 import { computeWalletBalance } from "@/lib/wallet-balance";
 import { kindSign } from "@/components/PersonTxForm";
@@ -161,7 +163,9 @@ function Dashboard() {
           <h1 className="text-2xl md:text-3xl font-bold tracking-tight">لوحة التحكم</h1>
           <p className="text-sm text-muted-foreground mt-1">نظرة عامة على وضعك المالي اليوم</p>
         </div>
+        <DashboardPrivacyToggle />
       </FadeIn>
+
 
       {/* KPIs — pairs of two */}
       <StaggerGrid className="grid grid-cols-2 gap-3 sm:gap-4">
