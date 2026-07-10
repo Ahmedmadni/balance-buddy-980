@@ -456,4 +456,19 @@ function SkeletonGrid() {
   );
 }
 
+function DashboardPrivacyToggle() {
+  const [on, toggle] = usePrivacy();
+  return (
+    <button
+      type="button"
+      onClick={toggle}
+      aria-label={on ? "إظهار الأرصدة" : "إخفاء الأرصدة"}
+      className="inline-flex items-center gap-2 rounded-xl border border-border bg-card px-3 py-2 text-sm font-medium text-muted-foreground transition-colors hover:text-primary hover:border-primary/30"
+    >
+      {on ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+      <span>{on ? "إظهار الأرصدة" : "إخفاء الأرصدة"}</span>
+    </button>
+  );
+
+
 export const _unused = TrendingUp;
