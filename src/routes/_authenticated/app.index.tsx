@@ -469,6 +469,7 @@ function DashboardPrivacyToggle() {
       <span>{on ? "إظهار الأرصدة" : "إخفاء الأرصدة"}</span>
     </button>
   );
-
+}
 
 export const _unused = TrendingUp;
+
