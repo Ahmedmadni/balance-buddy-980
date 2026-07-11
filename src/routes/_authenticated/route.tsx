@@ -49,6 +49,7 @@ const NAV = [
   { to: "/app/expenses", icon: Receipt, label: "المصاريف" },
   { to: "/app/recurring", icon: Repeat, label: "المصاريف الدورية" },
   { to: "/app/investments", icon: TrendingUp, label: "الاستثمارات" },
+  { to: "/app/depreciation", icon: TrendingDown, label: "سجل الإهلاك" },
   { to: "/app/zakat", icon: BadgePercent, label: "الزكاة" },
   { to: "/app/reports", icon: FileBarChart, label: "التقارير" },
   { to: "/app/events", icon: Bell, label: "الأحداث" },
