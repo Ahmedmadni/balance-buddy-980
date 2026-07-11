@@ -58,7 +58,7 @@ const NAV = [
 ];
 
 const BOTTOM_NAV = [
-  NAV[0], NAV[1], NAV[2], NAV[3], NAV[7],
+  NAV[0], NAV[1], NAV[2], NAV[3], NAV[8],
 ];
 
 function NavLinks({ onClick }: { onClick?: () => void }) {
