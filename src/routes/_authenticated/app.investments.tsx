@@ -304,6 +304,11 @@ function InvestmentsPage() {
               </div>
               <div className="flex flex-col gap-1 shrink-0" onClick={(e) => e.stopPropagation()}>
                 <Button variant="outline" size="sm" onClick={() => setTxFor(inv)}><Plus className="h-3.5 w-3.5" /> حركة</Button>
+                {!depResult && isDepreciable(inv.type) && (
+                  <Button variant="outline" size="sm" onClick={() => enableDep.mutate(inv)} disabled={enableDep.isPending} title="تفعيل الإهلاك بإعدادات افتراضية">
+                    <Calculator className="h-3.5 w-3.5" /> إهلاك
+                  </Button>
+                )}
                 <div className="flex gap-1">
                   <Button variant="ghost" size="icon" onClick={() => setEditing(inv)}><Pencil className="h-4 w-4" /></Button>
                   <Button variant="ghost" size="icon" onClick={() => { if (confirm("حذف الأصل؟")) del.mutate(inv.id); }}><Trash2 className="h-4 w-4 text-destructive" /></Button>
