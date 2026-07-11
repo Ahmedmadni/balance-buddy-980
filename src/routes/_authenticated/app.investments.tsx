@@ -102,6 +102,31 @@ function InvestmentsPage() {
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["investments-list"] }); toast.success("تم الحذف"); },
   });
 
+  const enableDep = useMutation({
+    mutationFn: async (inv: any) => {
+      const { data: u } = await supabase.auth.getUser();
+      if (!u.user) throw new Error("غير مسجل");
+      const d = defaultsFor(inv.type);
+      const cost = Number(inv.base_value ?? inv.principal ?? inv.current_value ?? 0) || 0;
+      const start = inv.acquired_at || inv.start_date || todayISO();
+      const { error } = await supabase.from("depreciation_profiles").insert({
+        user_id: u.user.id,
+        investment_id: inv.id,
+        method: d.method,
+        useful_life_months: d.useful_life_months,
+        salvage_value: Math.round(cost * d.salvage_ratio),
+        start_date: start,
+        is_active: true,
+      });
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["investments-list"] });
+      toast.success("تم تفعيل الإهلاك بإعدادات افتراضية");
+    },
+    onError: (e: any) => toast.error(e.message || "فشل التفعيل"),
+  });
+
   const txByInv = new Map<string, any[]>();
   for (const t of data?.txs ?? []) {
     const a = txByInv.get(t.investment_id) ?? []; a.push(t); txByInv.set(t.investment_id, a);
