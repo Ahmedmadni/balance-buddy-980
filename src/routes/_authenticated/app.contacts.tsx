@@ -24,6 +24,7 @@ function ContactsPage() {
   const [search, setSearch] = useState("");
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<Contact | null>(null);
+  const [selected, setSelected] = useState<Set<string>>(new Set());
 
   const { data: contacts = [], isLoading } = useQuery({
     queryKey: ["contacts"],
