@@ -8,7 +8,7 @@ import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from "@/components/ui/dialog";
-import { Plus, TrendingUp, Trash2, Pencil, X, Wallet as WalletIcon, Search, ArrowUpDown, LayoutGrid, List as ListIcon } from "lucide-react";
+import { Plus, TrendingUp, Trash2, Pencil, X, Wallet as WalletIcon, Search, ArrowUpDown, LayoutGrid, List as ListIcon, Calculator } from "lucide-react";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { AttachmentUploader } from "@/components/AttachmentUploader";
 import { CURRENCIES, formatMoney, formatDate, todayISO } from "@/lib/format";
@@ -22,7 +22,7 @@ import { DepreciationTab } from "@/components/DepreciationTab";
 import { InvestmentPerformanceTab } from "@/components/InvestmentPerformanceTab";
 import { AssetZakatTab } from "@/components/AssetZakatTab";
 import { computeDepreciation, type DepreciationProfile } from "@/lib/assets/depreciation";
-import { isDepreciable } from "@/lib/assets/depreciation-defaults";
+import { isDepreciable, defaultsFor } from "@/lib/assets/depreciation-defaults";
 
 
 export const Route = createFileRoute("/_authenticated/app/investments")({
@@ -100,6 +100,31 @@ function InvestmentsPage() {
   const del = useMutation({
     mutationFn: async (id: string) => { const { error } = await supabase.from("investments").delete().eq("id", id); if (error) throw error; },
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["investments-list"] }); toast.success("تم الحذف"); },
+  });
+
+  const enableDep = useMutation({
+    mutationFn: async (inv: any) => {
+      const { data: u } = await supabase.auth.getUser();
+      if (!u.user) throw new Error("غير مسجل");
+      const d = defaultsFor(inv.type);
+      const cost = Number(inv.base_value ?? inv.principal ?? inv.current_value ?? 0) || 0;
+      const start = inv.acquired_at || inv.start_date || todayISO();
+      const { error } = await supabase.from("depreciation_profiles").insert({
+        user_id: u.user.id,
+        investment_id: inv.id,
+        method: d.method,
+        useful_life_months: d.useful_life_months,
+        salvage_value: Math.round(cost * d.salvage_ratio),
+        start_date: start,
+        is_active: true,
+      });
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["investments-list"] });
+      toast.success("تم تفعيل الإهلاك بإعدادات افتراضية");
+    },
+    onError: (e: any) => toast.error(e.message || "فشل التفعيل"),
   });
 
   const txByInv = new Map<string, any[]>();
@@ -279,6 +304,11 @@ function InvestmentsPage() {
               </div>
               <div className="flex flex-col gap-1 shrink-0" onClick={(e) => e.stopPropagation()}>
                 <Button variant="outline" size="sm" onClick={() => setTxFor(inv)}><Plus className="h-3.5 w-3.5" /> حركة</Button>
+                {!depResult && isDepreciable(inv.type) && (
+                  <Button variant="outline" size="sm" onClick={() => enableDep.mutate(inv)} disabled={enableDep.isPending} title="تفعيل الإهلاك بإعدادات افتراضية">
+                    <Calculator className="h-3.5 w-3.5" /> إهلاك
+                  </Button>
+                )}
                 <div className="flex gap-1">
                   <Button variant="ghost" size="icon" onClick={() => setEditing(inv)}><Pencil className="h-4 w-4" /></Button>
                   <Button variant="ghost" size="icon" onClick={() => { if (confirm("حذف الأصل؟")) del.mutate(inv.id); }}><Trash2 className="h-4 w-4 text-destructive" /></Button>

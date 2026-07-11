@@ -7,9 +7,11 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
-import { Plus, Search, Phone, MessageCircle, Pencil, Trash2, Contact as ContactIcon, ChevronLeft } from "lucide-react";
+import { Plus, Search, Phone, MessageCircle, Pencil, Trash2, Contact as ContactIcon, ChevronLeft, CheckSquare, Square } from "lucide-react";
+import { Checkbox } from "@/components/ui/checkbox";
 import { toast } from "sonner";
 import { ContactImportButton } from "@/components/ContactImportButton";
+import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/_authenticated/app/contacts")({
   head: () => ({ meta: [{ title: "جهات الاتصال — رصد" }] }),
@@ -23,6 +25,7 @@ function ContactsPage() {
   const [search, setSearch] = useState("");
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<Contact | null>(null);
+  const [selected, setSelected] = useState<Set<string>>(new Set());
 
   const { data: contacts = [], isLoading } = useQuery({
     queryKey: ["contacts"],
@@ -52,6 +55,25 @@ function ContactsPage() {
       if (error) throw error;
     },
     onSuccess: () => { toast.success("تم الحذف"); qc.invalidateQueries({ queryKey: ["contacts"] }); },
+    onError: (e: any) => toast.error("خطأ", { description: e.message }),
+  });
+
+  const bulkDel = useMutation({
+    mutationFn: async (ids: string[]) => {
+      const blocked = ids.filter((id) => ledgerIds.includes(id));
+      const deletable = ids.filter((id) => !ledgerIds.includes(id));
+      if (deletable.length) {
+        const { error } = await supabase.from("contacts").delete().in("id", deletable);
+        if (error) throw error;
+      }
+      return { deleted: deletable.length, blocked: blocked.length };
+    },
+    onSuccess: (r) => {
+      if (r.deleted) toast.success(`تم حذف ${r.deleted} جهة`);
+      if (r.blocked) toast.warning(`${r.blocked} جهة لم تُحذف لوجود حركات مرتبطة`);
+      setSelected(new Set());
+      qc.invalidateQueries({ queryKey: ["contacts"] });
+    },
     onError: (e: any) => toast.error("خطأ", { description: e.message }),
   });
 
@@ -88,6 +110,36 @@ function ContactsPage() {
       </div>
 
 
+      {!isLoading && filtered.length > 0 && (
+        <div className="flex items-center justify-between gap-2 rounded-2xl border bg-card p-2.5">
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => {
+              const allIds = filtered.map((c) => c.id);
+              const allSelected = allIds.every((id) => selected.has(id));
+              setSelected(allSelected ? new Set() : new Set(allIds));
+            }}
+          >
+            {filtered.every((c) => selected.has(c.id)) ? <CheckSquare className="h-4 w-4 ml-1" /> : <Square className="h-4 w-4 ml-1" />}
+            {filtered.every((c) => selected.has(c.id)) ? "إلغاء تحديد الكل" : "تحديد الكل"}
+          </Button>
+          <div className="text-xs text-muted-foreground">
+            {selected.size > 0 ? `محدد: ${selected.size}` : `${filtered.length} جهة`}
+          </div>
+          <Button
+            variant="destructive"
+            size="sm"
+            disabled={selected.size === 0 || bulkDel.isPending}
+            onClick={() => {
+              if (confirm(`حذف ${selected.size} جهة اتصال محددة؟`)) bulkDel.mutate(Array.from(selected));
+            }}
+          >
+            <Trash2 className="h-4 w-4 ml-1" /> حذف المحدد
+          </Button>
+        </div>
+      )}
+
       {isLoading ? (
         <div className="space-y-2">{[1,2,3].map(i => <div key={i} className="h-20 animate-pulse rounded-2xl bg-muted" />)}</div>
       ) : filtered.length === 0 ? (
@@ -102,8 +154,17 @@ function ContactsPage() {
         <div className="space-y-2">
           {filtered.map((c) => {
             const phoneClean = c.phone?.replace(/[^\d+]/g, "");
+            const isSel = selected.has(c.id);
             return (
-              <div key={c.id} className="flex items-center gap-3 rounded-2xl border bg-card p-4 shadow-[var(--shadow-card)]">
+              <div key={c.id} className={cn("flex items-center gap-3 rounded-2xl border bg-card p-4 shadow-[var(--shadow-card)]", isSel && "ring-2 ring-primary/40")}>
+                <Checkbox
+                  checked={isSel}
+                  onCheckedChange={(v) => {
+                    const next = new Set(selected);
+                    if (v) next.add(c.id); else next.delete(c.id);
+                    setSelected(next);
+                  }}
+                />
                 <div className="grid h-11 w-11 place-items-center rounded-xl bg-[image:var(--gradient-primary)] text-white shrink-0 font-bold">
                   {c.name.slice(0, 1)}
                 </div>
