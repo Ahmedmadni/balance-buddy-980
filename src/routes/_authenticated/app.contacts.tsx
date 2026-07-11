@@ -7,7 +7,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
-import { Plus, Search, Phone, MessageCircle, Pencil, Trash2, Contact as ContactIcon, ChevronLeft } from "lucide-react";
+import { Plus, Search, Phone, MessageCircle, Pencil, Trash2, Contact as ContactIcon, ChevronLeft, CheckSquare, Square } from "lucide-react";
+import { Checkbox } from "@/components/ui/checkbox";
 import { toast } from "sonner";
 import { ContactImportButton } from "@/components/ContactImportButton";
 
