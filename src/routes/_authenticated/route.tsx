@@ -4,7 +4,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   LayoutDashboard, Wallet, FileBarChart, Settings, LogOut, Menu, Landmark,
   Contact, Repeat, TrendingUp, HandCoins, Receipt, BadgePercent, Bell, Sparkles,
-  Eye, EyeOff,
+  Eye, EyeOff, TrendingDown,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
