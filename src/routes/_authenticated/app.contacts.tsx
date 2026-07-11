@@ -109,6 +109,36 @@ function ContactsPage() {
       </div>
 
 
+      {!isLoading && filtered.length > 0 && (
+        <div className="flex items-center justify-between gap-2 rounded-2xl border bg-card p-2.5">
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => {
+              const allIds = filtered.map((c) => c.id);
+              const allSelected = allIds.every((id) => selected.has(id));
+              setSelected(allSelected ? new Set() : new Set(allIds));
+            }}
+          >
+            {filtered.every((c) => selected.has(c.id)) ? <CheckSquare className="h-4 w-4 ml-1" /> : <Square className="h-4 w-4 ml-1" />}
+            {filtered.every((c) => selected.has(c.id)) ? "إلغاء تحديد الكل" : "تحديد الكل"}
+          </Button>
+          <div className="text-xs text-muted-foreground">
+            {selected.size > 0 ? `محدد: ${selected.size}` : `${filtered.length} جهة`}
+          </div>
+          <Button
+            variant="destructive"
+            size="sm"
+            disabled={selected.size === 0 || bulkDel.isPending}
+            onClick={() => {
+              if (confirm(`حذف ${selected.size} جهة اتصال محددة؟`)) bulkDel.mutate(Array.from(selected));
+            }}
+          >
+            <Trash2 className="h-4 w-4 ml-1" /> حذف المحدد
+          </Button>
+        </div>
+      )}
+
       {isLoading ? (
         <div className="space-y-2">{[1,2,3].map(i => <div key={i} className="h-20 animate-pulse rounded-2xl bg-muted" />)}</div>
       ) : filtered.length === 0 ? (
@@ -123,8 +153,17 @@ function ContactsPage() {
         <div className="space-y-2">
           {filtered.map((c) => {
             const phoneClean = c.phone?.replace(/[^\d+]/g, "");
+            const isSel = selected.has(c.id);
             return (
-              <div key={c.id} className="flex items-center gap-3 rounded-2xl border bg-card p-4 shadow-[var(--shadow-card)]">
+              <div key={c.id} className={cn("flex items-center gap-3 rounded-2xl border bg-card p-4 shadow-[var(--shadow-card)]", isSel && "ring-2 ring-primary/40")}>
+                <Checkbox
+                  checked={isSel}
+                  onCheckedChange={(v) => {
+                    const next = new Set(selected);
+                    if (v) next.add(c.id); else next.delete(c.id);
+                    setSelected(next);
+                  }}
+                />
                 <div className="grid h-11 w-11 place-items-center rounded-xl bg-[image:var(--gradient-primary)] text-white shrink-0 font-bold">
                   {c.name.slice(0, 1)}
                 </div>
