@@ -11,6 +11,7 @@ import { Plus, Search, Phone, MessageCircle, Pencil, Trash2, Contact as ContactI
 import { Checkbox } from "@/components/ui/checkbox";
 import { toast } from "sonner";
 import { ContactImportButton } from "@/components/ContactImportButton";
+import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/_authenticated/app/contacts")({
   head: () => ({ meta: [{ title: "جهات الاتصال — رصد" }] }),
