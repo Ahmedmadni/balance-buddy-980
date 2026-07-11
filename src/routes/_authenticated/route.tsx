@@ -4,7 +4,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   LayoutDashboard, Wallet, FileBarChart, Settings, LogOut, Menu, Landmark,
   Contact, Repeat, TrendingUp, HandCoins, Receipt, BadgePercent, Bell, Sparkles,
-  Eye, EyeOff,
+  Eye, EyeOff, TrendingDown,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
@@ -49,6 +49,7 @@ const NAV = [
   { to: "/app/expenses", icon: Receipt, label: "المصاريف" },
   { to: "/app/recurring", icon: Repeat, label: "المصاريف الدورية" },
   { to: "/app/investments", icon: TrendingUp, label: "الاستثمارات" },
+  { to: "/app/depreciation", icon: TrendingDown, label: "سجل الإهلاك" },
   { to: "/app/zakat", icon: BadgePercent, label: "الزكاة" },
   { to: "/app/reports", icon: FileBarChart, label: "التقارير" },
   { to: "/app/events", icon: Bell, label: "الأحداث" },
@@ -57,7 +58,7 @@ const NAV = [
 ];
 
 const BOTTOM_NAV = [
-  NAV[0], NAV[1], NAV[2], NAV[3], NAV[7],
+  NAV[0], NAV[1], NAV[2], NAV[3], NAV[8],
 ];
 
 function NavLinks({ onClick }: { onClick?: () => void }) {

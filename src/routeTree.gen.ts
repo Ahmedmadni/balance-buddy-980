@@ -31,6 +31,7 @@ import { Route as AuthenticatedAppInvestmentsRouteImport } from './routes/_authe
 import { Route as AuthenticatedAppInsightsRouteImport } from './routes/_authenticated/app.insights'
 import { Route as AuthenticatedAppExpensesRouteImport } from './routes/_authenticated/app.expenses'
 import { Route as AuthenticatedAppEventsRouteImport } from './routes/_authenticated/app.events'
+import { Route as AuthenticatedAppDepreciationRouteImport } from './routes/_authenticated/app.depreciation'
 import { Route as AuthenticatedAppDebtsRouteImport } from './routes/_authenticated/app.debts'
 import { Route as AuthenticatedAppContactsRouteImport } from './routes/_authenticated/app.contacts'
 import { Route as AuthenticatedAppWalletsIdRouteImport } from './routes/_authenticated/app.wallets.$id'
@@ -154,6 +155,12 @@ const AuthenticatedAppEventsRoute = AuthenticatedAppEventsRouteImport.update({
   path: '/events',
   getParentRoute: () => AuthenticatedAppRoute,
 } as any)
+const AuthenticatedAppDepreciationRoute =
+  AuthenticatedAppDepreciationRouteImport.update({
+    id: '/depreciation',
+    path: '/depreciation',
+    getParentRoute: () => AuthenticatedAppRoute,
+  } as any)
 const AuthenticatedAppDebtsRoute = AuthenticatedAppDebtsRouteImport.update({
   id: '/debts',
   path: '/debts',
@@ -199,6 +206,7 @@ export interface FileRoutesByFullPath {
   '/legal/terms': typeof LegalTermsRoute
   '/app/contacts': typeof AuthenticatedAppContactsRoute
   '/app/debts': typeof AuthenticatedAppDebtsRouteWithChildren
+  '/app/depreciation': typeof AuthenticatedAppDepreciationRoute
   '/app/events': typeof AuthenticatedAppEventsRoute
   '/app/expenses': typeof AuthenticatedAppExpensesRoute
   '/app/insights': typeof AuthenticatedAppInsightsRoute
@@ -227,6 +235,7 @@ export interface FileRoutesByTo {
   '/legal/terms': typeof LegalTermsRoute
   '/app/contacts': typeof AuthenticatedAppContactsRoute
   '/app/debts': typeof AuthenticatedAppDebtsRouteWithChildren
+  '/app/depreciation': typeof AuthenticatedAppDepreciationRoute
   '/app/events': typeof AuthenticatedAppEventsRoute
   '/app/expenses': typeof AuthenticatedAppExpensesRoute
   '/app/insights': typeof AuthenticatedAppInsightsRoute
@@ -258,6 +267,7 @@ export interface FileRoutesById {
   '/legal/terms': typeof LegalTermsRoute
   '/_authenticated/app/contacts': typeof AuthenticatedAppContactsRoute
   '/_authenticated/app/debts': typeof AuthenticatedAppDebtsRouteWithChildren
+  '/_authenticated/app/depreciation': typeof AuthenticatedAppDepreciationRoute
   '/_authenticated/app/events': typeof AuthenticatedAppEventsRoute
   '/_authenticated/app/expenses': typeof AuthenticatedAppExpensesRoute
   '/_authenticated/app/insights': typeof AuthenticatedAppInsightsRoute
@@ -289,6 +299,7 @@ export interface FileRouteTypes {
     | '/legal/terms'
     | '/app/contacts'
     | '/app/debts'
+    | '/app/depreciation'
     | '/app/events'
     | '/app/expenses'
     | '/app/insights'
@@ -317,6 +328,7 @@ export interface FileRouteTypes {
     | '/legal/terms'
     | '/app/contacts'
     | '/app/debts'
+    | '/app/depreciation'
     | '/app/events'
     | '/app/expenses'
     | '/app/insights'
@@ -347,6 +359,7 @@ export interface FileRouteTypes {
     | '/legal/terms'
     | '/_authenticated/app/contacts'
     | '/_authenticated/app/debts'
+    | '/_authenticated/app/depreciation'
     | '/_authenticated/app/events'
     | '/_authenticated/app/expenses'
     | '/_authenticated/app/insights'
@@ -533,6 +546,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedAppEventsRouteImport
       parentRoute: typeof AuthenticatedAppRoute
     }
+    '/_authenticated/app/depreciation': {
+      id: '/_authenticated/app/depreciation'
+      path: '/depreciation'
+      fullPath: '/app/depreciation'
+      preLoaderRoute: typeof AuthenticatedAppDepreciationRouteImport
+      parentRoute: typeof AuthenticatedAppRoute
+    }
     '/_authenticated/app/debts': {
       id: '/_authenticated/app/debts'
       path: '/debts'
@@ -636,6 +656,7 @@ const AuthenticatedAppWalletsRouteWithChildren =
 interface AuthenticatedAppRouteChildren {
   AuthenticatedAppContactsRoute: typeof AuthenticatedAppContactsRoute
   AuthenticatedAppDebtsRoute: typeof AuthenticatedAppDebtsRouteWithChildren
+  AuthenticatedAppDepreciationRoute: typeof AuthenticatedAppDepreciationRoute
   AuthenticatedAppEventsRoute: typeof AuthenticatedAppEventsRoute
   AuthenticatedAppExpensesRoute: typeof AuthenticatedAppExpensesRoute
   AuthenticatedAppInsightsRoute: typeof AuthenticatedAppInsightsRoute
@@ -655,6 +676,7 @@ interface AuthenticatedAppRouteChildren {
 const AuthenticatedAppRouteChildren: AuthenticatedAppRouteChildren = {
   AuthenticatedAppContactsRoute: AuthenticatedAppContactsRoute,
   AuthenticatedAppDebtsRoute: AuthenticatedAppDebtsRouteWithChildren,
+  AuthenticatedAppDepreciationRoute: AuthenticatedAppDepreciationRoute,
   AuthenticatedAppEventsRoute: AuthenticatedAppEventsRoute,
   AuthenticatedAppExpensesRoute: AuthenticatedAppExpensesRoute,
   AuthenticatedAppInsightsRoute: AuthenticatedAppInsightsRoute,
