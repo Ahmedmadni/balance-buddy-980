@@ -57,6 +57,25 @@ function ContactsPage() {
     onError: (e: any) => toast.error("خطأ", { description: e.message }),
   });
 
+  const bulkDel = useMutation({
+    mutationFn: async (ids: string[]) => {
+      const blocked = ids.filter((id) => ledgerIds.includes(id));
+      const deletable = ids.filter((id) => !ledgerIds.includes(id));
+      if (deletable.length) {
+        const { error } = await supabase.from("contacts").delete().in("id", deletable);
+        if (error) throw error;
+      }
+      return { deleted: deletable.length, blocked: blocked.length };
+    },
+    onSuccess: (r) => {
+      if (r.deleted) toast.success(`تم حذف ${r.deleted} جهة`);
+      if (r.blocked) toast.warning(`${r.blocked} جهة لم تُحذف لوجود حركات مرتبطة`);
+      setSelected(new Set());
+      qc.invalidateQueries({ queryKey: ["contacts"] });
+    },
+    onError: (e: any) => toast.error("خطأ", { description: e.message }),
+  });
+
   const filtered = contacts.filter((c) => {
     const q = search.trim().toLowerCase();
     if (!q) return true;
