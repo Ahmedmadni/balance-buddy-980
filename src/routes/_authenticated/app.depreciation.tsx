@@ -283,7 +283,7 @@ function EditProfileForm({ row, onDone }: { row: Row; onDone: () => void }) {
           useful_life_months: lifeNum,
           salvage_value: Number(salvage) || 0,
         })
-        .eq("id", row.profile.id);
+        .eq("id", row.profile.id!);
       if (error) throw error;
     },
     onSuccess: () => {
