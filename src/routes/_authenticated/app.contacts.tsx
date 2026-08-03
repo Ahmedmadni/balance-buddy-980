@@ -183,7 +183,7 @@ function ContactsPage() {
                     </>
                   )}
                   <Button variant="ghost" size="icon" onClick={() => { setEditing(c); setOpen(true); }}><Pencil className="h-4 w-4" /></Button>
-                  <Button variant="ghost" size="icon" onClick={() => { if (confirm("حذف جهة الاتصال؟")) del.mutate(c.id); }}><Trash2 className="h-4 w-4 text-destructive" /></Button>
+                  <Button variant="ghost" size="icon" onClick={() => { const linked = ledgerIds.includes(c.id); if (confirm(linked ? "لهذه الجهة حركات مسجّلة. سيتم حذف الجهة مع الاحتفاظ بالحركات باسم الشخص. متابعة؟" : "حذف جهة الاتصال؟")) del.mutate(c.id); }}><Trash2 className="h-4 w-4 text-destructive" /></Button>
                   <Button asChild variant="ghost" size="icon"><Link to="/app/people/$id" params={{ id: c.id }}><ChevronLeft className="h-4 w-4" /></Link></Button>
                 </div>
               </div>
