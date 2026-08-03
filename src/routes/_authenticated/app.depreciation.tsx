@@ -37,6 +37,7 @@ const METHOD_LABEL: Record<string, string> = {
 function DepreciationLogPage() {
   const [search, setSearch] = useState("");
   const [sort, setSort] = useState<"pct_desc" | "pct_asc" | "recent" | "book_desc">("pct_desc");
+  const [editing, setEditing] = useState<Row | null>(null);
 
   const { data, isLoading } = useQuery({
     queryKey: ["depreciation-log"],
