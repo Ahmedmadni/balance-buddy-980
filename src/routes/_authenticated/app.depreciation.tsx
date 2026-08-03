@@ -254,7 +254,105 @@ function DepreciationLogPage() {
           ))}
         </div>
       )}
+
+      <Dialog open={!!editing} onOpenChange={(o) => !o && setEditing(null)}>
+        <DialogContent className="max-w-sm">
+          {editing && <EditProfileForm row={editing} onDone={() => setEditing(null)} />}
+        </DialogContent>
+      </Dialog>
     </div>
+  );
+}
+
+function EditProfileForm({ row, onDone }: { row: Row; onDone: () => void }) {
+  const qc = useQueryClient();
+  const [method, setMethod] = useState(row.profile.method);
+  const [startDate, setStartDate] = useState(row.profile.start_date);
+  const [life, setLife] = useState(String(row.profile.useful_life_months));
+  const [salvage, setSalvage] = useState(String(row.profile.salvage_value));
+  const lifeNum = Math.max(1, Number(life) || 1);
+  const ratePct = (1200 / lifeNum).toFixed(2);
+
+  const save = useMutation({
+    mutationFn: async () => {
+      const { error } = await supabase
+        .from("depreciation_profiles")
+        .update({
+          method,
+          start_date: startDate,
+          useful_life_months: lifeNum,
+          salvage_value: Number(salvage) || 0,
+        })
+        .eq("id", row.profile.id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      toast.success("تم تحديث إعدادات الإهلاك");
+      qc.invalidateQueries({ queryKey: ["depreciation-log"] });
+      qc.invalidateQueries({ queryKey: ["depreciation_profiles"] });
+      qc.invalidateQueries({ queryKey: ["investments"] });
+      onDone();
+    },
+    onError: (e: any) => toast.error("خطأ", { description: e.message }),
+  });
+
+  return (
+    <form onSubmit={(e) => { e.preventDefault(); save.mutate(); }} className="space-y-3">
+      <DialogHeader><DialogTitle>تعديل إهلاك: {row.name}</DialogTitle></DialogHeader>
+
+      <div>
+        <Label>طريقة الإهلاك</Label>
+        <Select value={method} onValueChange={(v) => setMethod(v as any)}>
+          <SelectTrigger><SelectValue /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value="straight_line">القسط الثابت</SelectItem>
+            <SelectItem value="double_declining">المتناقص المضاعف</SelectItem>
+            <SelectItem value="units_of_production">وحدات الإنتاج</SelectItem>
+          </SelectContent>
+        </Select>
+      </div>
+
+      <div>
+        <Label>تاريخ البدء</Label>
+        <Input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} required />
+      </div>
+
+      <div className="grid grid-cols-2 gap-2">
+        <div>
+          <Label>نسبة سنوية %</Label>
+          <Input
+            type="number"
+            step="0.01"
+            min="0.01"
+            max="100"
+            value={ratePct}
+            onChange={(e) => {
+              const p = Number(e.target.value);
+              if (p > 0) setLife(String(Math.max(1, Math.round(1200 / p))));
+            }}
+          />
+        </div>
+        <div>
+          <Label>العمر الإنتاجي (شهر)</Label>
+          <Input type="number" min="1" value={life} onChange={(e) => setLife(e.target.value)} required />
+        </div>
+      </div>
+
+      <div>
+        <Label>القيمة التخريدية ({row.currency})</Label>
+        <Input type="number" step="0.01" min="0" value={salvage} onChange={(e) => setSalvage(e.target.value)} />
+      </div>
+
+      <p className="text-[11px] text-muted-foreground">
+        التكلفة: {formatMoney(row.cost, row.currency)} • النسبة والعمر مرتبطان تلقائياً.
+      </p>
+
+      <DialogFooter>
+        <Button type="submit" className="w-full" disabled={save.isPending}>
+          {save.isPending ? "جاري الحفظ..." : "حفظ"}
+        </Button>
+      </DialogFooter>
+    </form>
   );
 }
 
