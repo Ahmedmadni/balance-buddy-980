@@ -1,12 +1,16 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { computeDepreciation, type DepreciationProfile } from "@/lib/assets/depreciation";
 import { formatMoney, formatDate } from "@/lib/format";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Button } from "@/components/ui/button";
+import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Calculator, Search, TrendingDown } from "lucide-react";
+import { Calculator, Search, TrendingDown, Pencil } from "lucide-react";
+import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/_authenticated/app/depreciation")({
@@ -33,6 +37,7 @@ const METHOD_LABEL: Record<string, string> = {
 function DepreciationLogPage() {
   const [search, setSearch] = useState("");
   const [sort, setSort] = useState<"pct_desc" | "pct_asc" | "recent" | "book_desc">("pct_desc");
+  const [editing, setEditing] = useState<Row | null>(null);
 
   const { data, isLoading } = useQuery({
     queryKey: ["depreciation-log"],
@@ -203,15 +208,20 @@ function DepreciationLogPage() {
                     {" • "}مضى {r.result.elapsed_months.toFixed(1)} شهر
                   </div>
                 </div>
-                <div className="text-right">
-                  <div className="text-[10px] text-muted-foreground">نسبة الإهلاك</div>
-                  <div className={cn(
-                    "text-lg font-bold tabular-nums",
-                    r.result.depreciation_percentage >= 75 ? "text-amber-600" :
-                    r.result.depreciation_percentage >= 40 ? "text-primary" : "text-muted-foreground"
-                  )}>
-                    {r.result.depreciation_percentage.toFixed(1)}%
+                <div className="flex items-center gap-2">
+                  <div className="text-right">
+                    <div className="text-[10px] text-muted-foreground">نسبة الإهلاك</div>
+                    <div className={cn(
+                      "text-lg font-bold tabular-nums",
+                      r.result.depreciation_percentage >= 75 ? "text-amber-600" :
+                      r.result.depreciation_percentage >= 40 ? "text-primary" : "text-muted-foreground"
+                    )}>
+                      {r.result.depreciation_percentage.toFixed(1)}%
+                    </div>
                   </div>
+                  <Button variant="outline" size="icon" onClick={() => setEditing(r)} aria-label="تعديل الإهلاك">
+                    <Pencil className="h-4 w-4" />
+                  </Button>
                 </div>
               </div>
 
@@ -244,7 +254,105 @@ function DepreciationLogPage() {
           ))}
         </div>
       )}
+
+      <Dialog open={!!editing} onOpenChange={(o) => !o && setEditing(null)}>
+        <DialogContent className="max-w-sm">
+          {editing && <EditProfileForm row={editing} onDone={() => setEditing(null)} />}
+        </DialogContent>
+      </Dialog>
     </div>
+  );
+}
+
+function EditProfileForm({ row, onDone }: { row: Row; onDone: () => void }) {
+  const qc = useQueryClient();
+  const [method, setMethod] = useState(row.profile.method);
+  const [startDate, setStartDate] = useState(row.profile.start_date);
+  const [life, setLife] = useState(String(row.profile.useful_life_months));
+  const [salvage, setSalvage] = useState(String(row.profile.salvage_value));
+  const lifeNum = Math.max(1, Number(life) || 1);
+  const ratePct = (1200 / lifeNum).toFixed(2);
+
+  const save = useMutation({
+    mutationFn: async () => {
+      const { error } = await supabase
+        .from("depreciation_profiles")
+        .update({
+          method,
+          start_date: startDate,
+          useful_life_months: lifeNum,
+          salvage_value: Number(salvage) || 0,
+        })
+        .eq("id", row.profile.id!);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      toast.success("تم تحديث إعدادات الإهلاك");
+      qc.invalidateQueries({ queryKey: ["depreciation-log"] });
+      qc.invalidateQueries({ queryKey: ["depreciation_profiles"] });
+      qc.invalidateQueries({ queryKey: ["investments"] });
+      onDone();
+    },
+    onError: (e: any) => toast.error("خطأ", { description: e.message }),
+  });
+
+  return (
+    <form onSubmit={(e) => { e.preventDefault(); save.mutate(); }} className="space-y-3">
+      <DialogHeader><DialogTitle>تعديل إهلاك: {row.name}</DialogTitle></DialogHeader>
+
+      <div>
+        <Label>طريقة الإهلاك</Label>
+        <Select value={method} onValueChange={(v) => setMethod(v as any)}>
+          <SelectTrigger><SelectValue /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value="straight_line">القسط الثابت</SelectItem>
+            <SelectItem value="double_declining">المتناقص المضاعف</SelectItem>
+            <SelectItem value="units_of_production">وحدات الإنتاج</SelectItem>
+          </SelectContent>
+        </Select>
+      </div>
+
+      <div>
+        <Label>تاريخ البدء</Label>
+        <Input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} required />
+      </div>
+
+      <div className="grid grid-cols-2 gap-2">
+        <div>
+          <Label>نسبة سنوية %</Label>
+          <Input
+            type="number"
+            step="0.01"
+            min="0.01"
+            max="100"
+            value={ratePct}
+            onChange={(e) => {
+              const p = Number(e.target.value);
+              if (p > 0) setLife(String(Math.max(1, Math.round(1200 / p))));
+            }}
+          />
+        </div>
+        <div>
+          <Label>العمر الإنتاجي (شهر)</Label>
+          <Input type="number" min="1" value={life} onChange={(e) => setLife(e.target.value)} required />
+        </div>
+      </div>
+
+      <div>
+        <Label>القيمة التخريدية ({row.currency})</Label>
+        <Input type="number" step="0.01" min="0" value={salvage} onChange={(e) => setSalvage(e.target.value)} />
+      </div>
+
+      <p className="text-[11px] text-muted-foreground">
+        التكلفة: {formatMoney(row.cost, row.currency)} • النسبة والعمر مرتبطان تلقائياً.
+      </p>
+
+      <DialogFooter>
+        <Button type="submit" className="w-full" disabled={save.isPending}>
+          {save.isPending ? "جاري الحفظ..." : "حفظ"}
+        </Button>
+      </DialogFooter>
+    </form>
   );
 }
 
