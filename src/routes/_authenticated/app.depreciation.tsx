@@ -207,15 +207,20 @@ function DepreciationLogPage() {
                     {" • "}مضى {r.result.elapsed_months.toFixed(1)} شهر
                   </div>
                 </div>
-                <div className="text-right">
-                  <div className="text-[10px] text-muted-foreground">نسبة الإهلاك</div>
-                  <div className={cn(
-                    "text-lg font-bold tabular-nums",
-                    r.result.depreciation_percentage >= 75 ? "text-amber-600" :
-                    r.result.depreciation_percentage >= 40 ? "text-primary" : "text-muted-foreground"
-                  )}>
-                    {r.result.depreciation_percentage.toFixed(1)}%
+                <div className="flex items-center gap-2">
+                  <div className="text-right">
+                    <div className="text-[10px] text-muted-foreground">نسبة الإهلاك</div>
+                    <div className={cn(
+                      "text-lg font-bold tabular-nums",
+                      r.result.depreciation_percentage >= 75 ? "text-amber-600" :
+                      r.result.depreciation_percentage >= 40 ? "text-primary" : "text-muted-foreground"
+                    )}>
+                      {r.result.depreciation_percentage.toFixed(1)}%
+                    </div>
                   </div>
+                  <Button variant="outline" size="icon" onClick={() => setEditing(r)} aria-label="تعديل الإهلاك">
+                    <Pencil className="h-4 w-4" />
+                  </Button>
                 </div>
               </div>
 
