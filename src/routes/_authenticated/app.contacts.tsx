@@ -48,31 +48,33 @@ function ContactsPage() {
     },
   });
 
+  const invalidateAll = () => {
+    ["contacts", "ledger_contact_ids", "person_ledger", "transactions", "debts"].forEach((k) =>
+      qc.invalidateQueries({ queryKey: [k] })
+    );
+  };
+
   const del = useMutation({
     mutationFn: async (id: string) => {
-      if (ledgerIds.includes(id)) throw new Error("لا يمكن حذف جهة اتصال لها حركات. احذف الحركات أولاً.");
-      const { error } = await supabase.from("contacts").delete().eq("id", id);
+      const { error, count } = await supabase.from("contacts").delete({ count: "exact" }).eq("id", id);
       if (error) throw error;
+      if (!count) throw new Error("تعذّر الحذف — لا توجد صلاحية على هذه الجهة.");
     },
-    onSuccess: () => { toast.success("تم الحذف"); qc.invalidateQueries({ queryKey: ["contacts"] }); },
+    onSuccess: () => { toast.success("تم الحذف"); invalidateAll(); },
     onError: (e: any) => toast.error("خطأ", { description: e.message }),
   });
 
   const bulkDel = useMutation({
     mutationFn: async (ids: string[]) => {
-      const blocked = ids.filter((id) => ledgerIds.includes(id));
-      const deletable = ids.filter((id) => !ledgerIds.includes(id));
-      if (deletable.length) {
-        const { error } = await supabase.from("contacts").delete().in("id", deletable);
-        if (error) throw error;
-      }
-      return { deleted: deletable.length, blocked: blocked.length };
+      const { error, count } = await supabase.from("contacts").delete({ count: "exact" }).in("id", ids);
+      if (error) throw error;
+      return { deleted: count ?? 0, failed: ids.length - (count ?? 0) };
     },
     onSuccess: (r) => {
       if (r.deleted) toast.success(`تم حذف ${r.deleted} جهة`);
-      if (r.blocked) toast.warning(`${r.blocked} جهة لم تُحذف لوجود حركات مرتبطة`);
+      if (r.failed) toast.warning(`${r.failed} جهة لم تُحذف`);
       setSelected(new Set());
-      qc.invalidateQueries({ queryKey: ["contacts"] });
+      invalidateAll();
     },
     onError: (e: any) => toast.error("خطأ", { description: e.message }),
   });
