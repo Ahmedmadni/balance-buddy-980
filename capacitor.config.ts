@@ -1,22 +1,30 @@
 import type { CapacitorConfig } from '@capacitor/cli';
 
+// ─────────────────────────────────────────────────────────────
+// وضعان صريحان:
+//   DEVELOPMENT (افتراضي)  → Live Reload من سيرفر Lovable
+//   PRODUCTION             → CAP_ENV=production (لا live reload، لا cleartext)
+// مثال:  CAP_ENV=production bun run android:sync
+// ─────────────────────────────────────────────────────────────
+const isProduction = process.env['CAP_ENV'] === 'production';
+
 const config: CapacitorConfig = {
   appId: 'app.lovable.rasd',
   appName: 'رصد',
   webDir: 'dist',
-  // ─────────────────────────────────────────────────────────────
-  // وضع التطوير (Live Reload): يحمّل التطبيق من رابط Lovable
-  // قبل بناء النسخة النهائية للنشر علّق/احذف كائن server بالكامل
-  // ─────────────────────────────────────────────────────────────
-  server: {
-    url: 'https://a152564d-27eb-4c34-88c3-bd4d16c0e912.lovableproject.com?forceHideBadge=true',
-    cleartext: true,
-    androidScheme: 'https',
-  },
+  ...(isProduction
+    ? {}
+    : {
+        server: {
+          url: 'https://a152564d-27eb-4c34-88c3-bd4d16c0e912.lovableproject.com?forceHideBadge=true',
+          cleartext: true,
+          androidScheme: 'https',
+        },
+      }),
   android: {
-    allowMixedContent: true,
+    allowMixedContent: !isProduction,
     captureInput: true,
-    webContentsDebuggingEnabled: false,
+    webContentsDebuggingEnabled: !isProduction,
     backgroundColor: '#0b1220',
   },
   plugins: {
