@@ -2,7 +2,6 @@ import { useMemo } from "react";
 import { getContactsRegressionChecklist, contactsRegressionScore } from "@/lib/contacts/regression";
 import { auditAdsProduction } from "@/lib/ads/production-audit";
 import { auditAndroidReleaseConfig } from "@/lib/android-production/release-config";
-import { verifyAndroidSigning } from "@/lib/android/audit";
 import { cn } from "@/lib/utils";
 
 function ScoreChip({ label, score }: { label: string; score: number }) {
@@ -23,7 +22,7 @@ export function AndroidAdsReadinessSection() {
 
   const blockers = [
     ...ads.blockers,
-    ...(androidCfg.blockers ?? []),
+    ...androidCfg.items.filter((i) => i.status === "error").map((i) => `${i.label}: ${i.detail}`),
     ...(checks.some((c) => c.status === "auto-fail") ? ["فشل أحد اختبارات ترميز أسماء جهات الاتصال"] : []),
   ];
 
