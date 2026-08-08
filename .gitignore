@@ -30,3 +30,11 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# Android signing (never commit)
+android/keystore.properties
+android/app/*.keystore
+android/app/*.jks
+*.keystore
+*.jks
+local.properties
