@@ -25,6 +25,7 @@ import { detectUserFriction } from "@/lib/beta/friction";
 import { calculateBetaHealth } from "@/lib/beta/health-score";
 import { detectReleaseBlockers } from "@/lib/beta/release-blockers";
 import { BetaFeedbackDashboard } from "@/components/BetaFeedbackDashboard";
+import { AndroidAdsReadinessSection } from "@/components/AndroidAdsReadinessSection";
 import { auditAppMetadata } from "@/lib/release/metadata-audit";
 import { auditAndroidRelease } from "@/lib/release/android-audit";
 import { auditIOSRelease } from "@/lib/release/ios-audit";
@@ -931,6 +932,8 @@ function SystemPage() {
             </div>
             <BetaFeedbackDashboard />
           </div>
+
+          <AndroidAdsReadinessSection />
 
           <div>
             <div className="text-xs font-semibold text-muted-foreground mb-2 flex items-center gap-1.5">
