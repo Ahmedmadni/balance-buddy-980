@@ -37,7 +37,9 @@ function ContactsPage() {
         .select("id,name,phone,email,notes")
         .order("name");
       if (error) throw error;
-      return (data ?? []) as Contact[];
+      // Decode legacy quoted-printable names at read time so the UI is
+      // correct even before the stored value is repaired.
+      return (data ?? []).map((c: any) => ({ ...c, name: normalizeContactName(c.name) })) as Contact[];
     },
   });
 
@@ -58,27 +60,31 @@ function ContactsPage() {
 
   const del = useMutation({
     mutationFn: async (id: string) => {
-      const { error, count } = await supabase.from("contacts").delete({ count: "exact" }).eq("id", id);
-      if (error) throw error;
-      if (!count) throw new Error("تعذّر الحذف — لا توجد صلاحية على هذه الجهة.");
+      const r = await deleteContacts([id]);
+      if (r.deleted === 0) throw new Error(r.firstError ?? (r.invalid ? "معرّف جهة الاتصال غير صالح." : "تعذّر حذف جهة الاتصال. حاول مرة أخرى."));
     },
     onSuccess: () => { toast.success("تم الحذف"); invalidateAll(); },
-    onError: (e: any) => toast.error("خطأ", { description: e.message }),
+    onError: (e: any) => toast.error("تعذّر الحذف", { description: e.message }),
   });
 
   const bulkDel = useMutation({
-    mutationFn: async (ids: string[]) => {
-      const { error, count } = await supabase.from("contacts").delete({ count: "exact" }).in("id", ids);
-      if (error) throw error;
-      return { deleted: count ?? 0, failed: ids.length - (count ?? 0) };
-    },
+    mutationFn: (ids: string[]) => deleteContacts(ids),
     onSuccess: (r) => {
       if (r.deleted) toast.success(`تم حذف ${r.deleted} جهة`);
-      if (r.failed) toast.warning(`${r.failed} جهة لم تُحذف`);
+      if (r.failed || r.invalid) toast.warning(`${r.failed + r.invalid} جهة لم تُحذف`, { description: r.firstError });
       setSelected(new Set());
       invalidateAll();
     },
-    onError: (e: any) => toast.error("خطأ", { description: e.message }),
+    onError: (e: any) => toast.error("تعذّر الحذف", { description: mapContactError(e) }),
+  });
+
+  const repair = useMutation({
+    mutationFn: repairEncodedContactNames,
+    onSuccess: (r) => {
+      toast.success(r.fixed ? `تم إصلاح ${r.fixed} اسم` : "جميع الأسماء سليمة");
+      invalidateAll();
+    },
+    onError: (e: any) => toast.error("تعذّر إصلاح الأسماء", { description: mapContactError(e) }),
   });
 
   const filtered = contacts.filter((c) => {
