@@ -10,6 +10,7 @@ import { captureApplicationError } from "@/lib/system/errors";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
+import { normalizeContactName } from "@/lib/contacts/encoding";
 
 type Row = { name: string; phone: string | null; email: string | null };
 
