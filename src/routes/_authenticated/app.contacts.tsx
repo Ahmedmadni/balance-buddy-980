@@ -112,6 +112,9 @@ function ContactsPage() {
 
       <div className="flex gap-2 flex-wrap">
         <ContactImportButton />
+        <Button variant="outline" onClick={() => repair.mutate()} disabled={repair.isPending}>
+          {repair.isPending ? "جاري الإصلاح..." : "إصلاح الأسماء المشوهة"}
+        </Button>
       </div>
 
       <div className="relative">
