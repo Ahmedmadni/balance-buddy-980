@@ -91,7 +91,7 @@ export function ContactImportButton({ onDone }: { onDone?: () => void }) {
       const props = ["name", "tel", "email"];
       const picked = await (navigator as any).contacts.select(props, { multiple: true });
       const list: Row[] = (picked as any[]).map((p) => ({
-        name: (p.name?.[0] ?? "").trim() || "بدون اسم",
+        name: normalizeContactName((p.name?.[0] ?? "").trim()) || "بدون اسم",
         phone: p.tel?.[0] ?? null,
         email: p.email?.[0] ?? null,
       })).filter((r) => r.name);
