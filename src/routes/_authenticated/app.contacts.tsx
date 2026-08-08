@@ -12,6 +12,8 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { toast } from "sonner";
 import { ContactImportButton } from "@/components/ContactImportButton";
 import { cn } from "@/lib/utils";
+import { normalizeContactName } from "@/lib/contacts/encoding";
+import { deleteContacts, mapContactError, repairEncodedContactNames } from "@/lib/contacts/service";
 
 export const Route = createFileRoute("/_authenticated/app/contacts")({
   head: () => ({ meta: [{ title: "جهات الاتصال — رصد" }] }),
