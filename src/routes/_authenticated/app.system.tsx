@@ -932,6 +932,8 @@ function SystemPage() {
             <BetaFeedbackDashboard />
           </div>
 
+          <AndroidAdsReadinessSection />
+
           <div>
             <div className="text-xs font-semibold text-muted-foreground mb-2 flex items-center gap-1.5">
               <MousePointerClick className="h-3.5 w-3.5" /> نقاط الاحتكاك (Friction Points) —{" "}
