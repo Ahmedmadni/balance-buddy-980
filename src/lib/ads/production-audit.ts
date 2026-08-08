@@ -35,7 +35,7 @@ export function auditAdsProduction(): AdsProductionAudit {
   // no @capacitor-community/admob dependency, and no android/ platform.
   const androidSdkIntegrated = false;
   const testModeActive = prefs.testMode || !appIdConfigured;
-  const consentIntegrated = consent.status !== "error";
+  const consentIntegrated = consent.score >= 60;
   const premiumBypass = true; // ad-context disables every slot when prefs.premium
 
   const blockers: string[] = [];
