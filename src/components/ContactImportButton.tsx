@@ -13,21 +13,29 @@ import { Input } from "@/components/ui/input";
 
 type Row = { name: string; phone: string | null; email: string | null };
 
-// Parse a vCard (.vcf) file into { name, phone, email } records
+// Parse a vCard (.vcf) file into { name, phone, email } records.
+// vCard lines can be folded (continuation lines start with a space/tab) and
+// quoted-printable values use a trailing "=" as a soft line break — both are
+// unfolded here BEFORE decoding, otherwise Arabic names get truncated and
+// stored as "=D8=A9=20=D8=B2...".
 function parseVCF(text: string): Row[] {
+  const unfolded = text
+    .replace(/=\r?\n/g, "")      // quoted-printable soft breaks
+    .replace(/\r?\n[ \t]/g, ""); // RFC 6350 folded lines
   const out: Row[] = [];
-  const cards = text.split(/BEGIN:VCARD/i).slice(1);
+  const cards = unfolded.split(/BEGIN:VCARD/i).slice(1);
   for (const card of cards) {
     const block = card.split(/END:VCARD/i)[0];
     const nameM = block.match(/^FN[^:]*:(.+)$/im) ?? block.match(/^N[^:]*:(.+)$/im);
     const phoneM = block.match(/^TEL[^:]*:(.+)$/im);
     const emailM = block.match(/^EMAIL[^:]*:(.+)$/im);
-    const name = (nameM?.[1] ?? "").replace(/;+/g, " ").replace(/\s+/g, " ").trim();
+    const rawName = (nameM?.[1] ?? "").replace(/;+/g, " ").replace(/\s+/g, " ").trim();
+    const name = normalizeContactName(rawName);
     if (!name) continue;
     out.push({
       name,
       phone: phoneM ? phoneM[1].trim().replace(/\s+/g, "") : null,
-      email: emailM ? emailM[1].trim() : null,
+      email: emailM ? normalizeContactName(emailM[1].trim()) : null,
     });
   }
   return out;
