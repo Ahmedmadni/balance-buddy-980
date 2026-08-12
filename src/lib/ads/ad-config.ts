@@ -17,7 +17,9 @@ export type { AdPlacement, AdFormat } from "./placements";
 export { PLACEMENT_FORMAT, AD_PLACEMENTS, AD_PLACEMENT_IDS, getPlacementDef } from "./placements";
 
 // ----- Web (Google AdSense placeholders) -----
-export const WEB_ADSENSE_CLIENT = "ca-pub-XXXXXXXXXXXXXXXX"; // TODO
+const ENV = (import.meta as any).env ?? {};
+/** Real IDs can be supplied at build time via env vars — no code edit needed. */
+export const WEB_ADSENSE_CLIENT: string = ENV.VITE_ADSENSE_CLIENT || "ca-pub-XXXXXXXXXXXXXXXX";
 export const WEB_ADSENSE_SLOTS: Record<AdPlacement, string> = {
   dashboard_top: "0000000001",
   dashboard_bottom: "0000000002",
@@ -31,7 +33,7 @@ export const WEB_ADSENSE_SLOTS: Record<AdPlacement, string> = {
 };
 
 // ----- Android (Google AdMob placeholders) -----
-export const ANDROID_ADMOB_APP = "ca-app-pub-XXXXXXXXXXXXXXXX~XXXXXXXXXX"; // TODO
+export const ANDROID_ADMOB_APP: string = ENV.VITE_ADMOB_ANDROID_APP_ID || "ca-app-pub-XXXXXXXXXXXXXXXX~XXXXXXXXXX";
 export const ANDROID_ADMOB_UNITS: Record<AdPlacement, string> = {
   dashboard_top: "ca-app-pub-XXX/AND_TOP",
   dashboard_bottom: "ca-app-pub-XXX/AND_BOTTOM",
@@ -45,7 +47,12 @@ export const ANDROID_ADMOB_UNITS: Record<AdPlacement, string> = {
 };
 
 // ----- iOS (Google AdMob placeholders) -----
-export const IOS_ADMOB_APP = "ca-app-pub-XXXXXXXXXXXXXXXX~XXXXXXXXXX"; // TODO
+export const IOS_ADMOB_APP: string = ENV.VITE_ADMOB_IOS_APP_ID || "ca-app-pub-XXXXXXXXXXXXXXXX~XXXXXXXXXX";
+
+/** True when real (non-placeholder) monetization IDs are configured. */
+export function hasRealAdIds(): boolean {
+  return !WEB_ADSENSE_CLIENT.includes("XXXX") || !ANDROID_ADMOB_APP.includes("XXXX");
+}
 export const IOS_ADMOB_UNITS: Record<AdPlacement, string> = {
   dashboard_top: "ca-app-pub-XXX/IOS_TOP",
   dashboard_bottom: "ca-app-pub-XXX/IOS_BOTTOM",
