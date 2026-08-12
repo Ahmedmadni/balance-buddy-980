@@ -47,7 +47,7 @@ function TransactionsPage() {
     queryFn: async () => {
       const [w, c] = await Promise.all([
         supabase.from("wallets").select("id,name,currency,color"),
-        supabase.from("contacts").select("id,display_name"),
+        supabase.from("contacts").select("id,name"),
       ]);
       return { wallets: w.data ?? [], contacts: c.data ?? [] };
     },
@@ -166,7 +166,7 @@ function TransactionsPage() {
               <SelectTrigger><SelectValue /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">كل الأشخاص</SelectItem>
-                {(refs?.contacts ?? []).map((c: any) => <SelectItem key={c.id} value={c.id}>{c.display_name}</SelectItem>)}
+                {(refs?.contacts ?? []).map((c: any) => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}
               </SelectContent>
             </Select>
           </div>

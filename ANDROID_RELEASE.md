@@ -19,7 +19,12 @@
 `capacitor.config.ts` يقرأ `CAP_ENV`:
 
 - **development** (افتراضي): Live Reload من رابط Lovable، `allowMixedContent: true`، تصحيح WebView مفعّل.
-- **production** (`CAP_ENV=production`): لا `server` block، لا cleartext، لا mixed content، لا debugging.
+- **production** (`CAP_ENV=production`): يحمّل الدومين المنشور (`https://balance-buddy-980.lovable.app` أو `CAP_SERVER_URL`)، بدون cleartext، بدون mixed content، بدون debugging.
+
+> ملاحظة مهمة: التطبيق مبني على TanStack Start (SSR) ولا يُنتج ملف `index.html` ثابتاً،
+> لذا لا يمكن حزم الواجهة داخل الـ APK بالكامل — يجب أن يشير `server.url` في الإنتاج
+> إلى نسخة منشورة فعلياً (انشر التطبيق أولاً من زر Publish).
+
 
 ## 3. الأوامر
 
