@@ -1,5 +1,6 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { auditGate } from "@/lib/system/audit-gate";
 import { runSystemHealthCheck, type HealthStatus } from "@/lib/system/health";
 import { validateFinancialIntegrity } from "@/lib/system/integrity";
 import { collectPerformanceMetrics } from "@/lib/system/performance";
@@ -231,15 +232,15 @@ function downloadText(filename: string, content: string) {
 function SystemPage() {
   const qc = useQueryClient();
 
-  const health = useQuery({ queryKey: ["system-health"], queryFn: runSystemHealthCheck });
+  const health = useQuery({ queryKey: ["system-health"], queryFn: () => auditGate(runSystemHealthCheck) });
   const integrity = useQuery({
     queryKey: ["system-integrity"],
-    queryFn: validateFinancialIntegrity,
+    queryFn: () => auditGate(() => auditGate(validateFinancialIntegrity)),
   });
-  const perf = useQuery({ queryKey: ["system-performance"], queryFn: collectPerformanceMetrics });
+  const perf = useQuery({ queryKey: ["system-performance"], queryFn: () => auditGate(collectPerformanceMetrics) });
   const offline = useQuery({
     queryKey: ["system-offline"],
-    queryFn: () => checkOfflineCapabilities(qc.getQueryCache().getAll().length),
+    queryFn: () => auditGate(() => checkOfflineCapabilities(qc.getQueryCache().getAll().length)),
   });
 
   const mobileCompat = auditMobileCompatibility();
@@ -265,52 +266,52 @@ function SystemPage() {
 
   const cachedQueries = qc.getQueryCache().getAll().length;
 
-  const readiness = useQuery({ queryKey: ["ux-readiness"], queryFn: calculateReleaseReadiness });
-  const hints = useQuery({ queryKey: ["ux-hints"], queryFn: getContextualHints });
+  const readiness = useQuery({ queryKey: ["ux-readiness"], queryFn: () => auditGate(calculateReleaseReadiness) });
+  const hints = useQuery({ queryKey: ["ux-hints"], queryFn: () => auditGate(getContextualHints) });
   const emptyStates = auditEmptyStates();
   const quickActions = auditQuickActions();
   const a11y = auditAccessibility();
   const responsive = auditResponsiveLayouts();
 
-  const betaChecklist = useQuery({ queryKey: ["beta-checklist"], queryFn: getBetaUserChecklist });
-  const featureCoverage = useQuery({ queryKey: ["beta-coverage"], queryFn: auditFeatureCoverage });
-  const betaHealth = useQuery({ queryKey: ["beta-health"], queryFn: calculateBetaHealth });
-  const releaseBlockers = useQuery({ queryKey: ["beta-blockers"], queryFn: detectReleaseBlockers });
+  const betaChecklist = useQuery({ queryKey: ["beta-checklist"], queryFn: () => auditGate(getBetaUserChecklist) });
+  const featureCoverage = useQuery({ queryKey: ["beta-coverage"], queryFn: () => auditGate(auditFeatureCoverage) });
+  const betaHealth = useQuery({ queryKey: ["beta-health"], queryFn: () => auditGate(calculateBetaHealth) });
+  const releaseBlockers = useQuery({ queryKey: ["beta-blockers"], queryFn: () => auditGate(detectReleaseBlockers) });
   const friction = detectUserFriction();
 
   const metadataAudit = auditAppMetadata();
   const androidAudit = auditAndroidRelease();
   const iosAudit = auditIOSRelease();
-  const pwaAudit = useQuery({ queryKey: ["release-pwa"], queryFn: auditPWA });
+  const pwaAudit = useQuery({ queryKey: ["release-pwa"], queryFn: () => auditGate(auditPWA) });
   const storeAssets = generateStoreAssetsChecklist();
-  const complianceAudit = useQuery({ queryKey: ["release-compliance"], queryFn: auditCompliance });
-  const prodEnvAudit = useQuery({ queryKey: ["release-prod-env"], queryFn: auditProductionEnvironment });
-  const launchChecklist = useQuery({ queryKey: ["release-launch"], queryFn: generateLaunchChecklist });
+  const complianceAudit = useQuery({ queryKey: ["release-compliance"], queryFn: () => auditGate(auditCompliance) });
+  const prodEnvAudit = useQuery({ queryKey: ["release-prod-env"], queryFn: () => auditGate(auditProductionEnvironment) });
+  const launchChecklist = useQuery({ queryKey: ["release-launch"], queryFn: () => auditGate(generateLaunchChecklist) });
 
   const privacyPolicy = generatePrivacyPolicy();
   const termsOfService = generateTermsOfService();
   const dataExportAudit = auditUserDataExport();
-  const deletionPlan = useQuery({ queryKey: ["compliance-deletion-plan"], queryFn: generateDeletionPlan });
-  const consentReadiness = useQuery({ queryKey: ["compliance-consent"], queryFn: auditConsentReadiness });
-  const productionConfig = useQuery({ queryKey: ["compliance-prod-config"], queryFn: auditProductionConfig });
-  const disasterRecovery = useQuery({ queryKey: ["compliance-disaster-recovery"], queryFn: auditDisasterRecovery });
+  const deletionPlan = useQuery({ queryKey: ["compliance-deletion-plan"], queryFn: () => auditGate(generateDeletionPlan) });
+  const consentReadiness = useQuery({ queryKey: ["compliance-consent"], queryFn: () => auditGate(auditConsentReadiness) });
+  const productionConfig = useQuery({ queryKey: ["compliance-prod-config"], queryFn: () => auditGate(auditProductionConfig) });
+  const disasterRecovery = useQuery({ queryKey: ["compliance-disaster-recovery"], queryFn: () => auditGate(auditDisasterRecovery) });
   const [legalDoc, setLegalDoc] = useState<"privacy" | "terms" | null>(null);
 
-  const finalAudit = useQuery({ queryKey: ["release-final-audit"], queryFn: runFinalProductionAudit });
+  const finalAudit = useQuery({ queryKey: ["release-final-audit"], queryFn: () => auditGate(runFinalProductionAudit) });
 
   // ----- Prompt 25: Production Safety & Operations Layer -----
   const featureFlagsAudit = auditFeatureFlags();
   const crashAudit = auditCrashReporting();
   const remoteConfigQuery = useQuery({
     queryKey: ["remote-config"],
-    queryFn: async () => {
+    queryFn: () => auditGate(async () => {
       await loadRemoteConfig();
       return auditRemoteConfig();
-    },
+    }),
   });
   const notifHealth = useQuery({
     queryKey: ["notification-health"],
-    queryFn: () => processPendingNotifications(),
+    queryFn: () => auditGate(() => processPendingNotifications()),
   });
   const [emergencyState, setEmergencyState] = useState(() => auditEmergencyMode());
   function refreshEmergencyState() {
@@ -318,29 +319,29 @@ function SystemPage() {
   }
   const releaseChannel = getCurrentReleaseChannel();
   const releaseChannelAudit = auditReleaseChannel();
-  const storeReadiness = useQuery({ queryKey: ["store-readiness"], queryFn: auditStoreReadiness });
-  const productionGate = useQuery({ queryKey: ["production-gate"], queryFn: evaluateProductionGate });
+  const storeReadiness = useQuery({ queryKey: ["store-readiness"], queryFn: () => auditGate(auditStoreReadiness) });
+  const productionGate = useQuery({ queryKey: ["production-gate"], queryFn: () => auditGate(evaluateProductionGate) });
   const backupHealth = useQuery({
     queryKey: ["backup-health-ops"],
-    queryFn: async () => {
+    queryFn: () => auditGate(async () => {
       const bundle = await loadLastBackup();
       return bundle ? verifyBackupIntegrity(bundle) : null;
-    },
+    }),
   });
 
   // ----- Prompt 26: Launch Readiness Resolution Center -----
   const accountDeletionAudit = useQuery({
     queryKey: ["account-deletion-audit"],
-    queryFn: auditAccountDeletion,
+    queryFn: () => auditGate(() => auditGate(auditAccountDeletion)),
   });
   const consentManagerAudit = auditConsentManager();
   const legalLinks = validateLegalLinks();
-  const launchBlockers = useQuery({ queryKey: ["launch-blockers"], queryFn: computeLaunchBlockers });
+  const launchBlockers = useQuery({ queryKey: ["launch-blockers"], queryFn: () => auditGate(computeLaunchBlockers) });
   const releaseCertificate = useQuery({
     queryKey: ["release-certificate"],
-    queryFn: generateReleaseCertificate,
+    queryFn: () => auditGate(() => auditGate(generateReleaseCertificate)),
   });
-  const finalAuditCheck = useQuery({ queryKey: ["final-audit-check"], queryFn: performFinalAudit });
+  const finalAuditCheck = useQuery({ queryKey: ["final-audit-check"], queryFn: () => auditGate(performFinalAudit) });
 
   // ----- Prompt 27: Production Deployment, Store Operations & Launch Execution -----
   const environmentChecklist = generateEnvironmentChecklist();
@@ -350,71 +351,71 @@ function SystemPage() {
   const iosReleasePlan = generateIOSReleasePlan();
   const storeMetadata = generateStoreMetadata();
   const supportInfraAudit = auditSupportInfrastructure();
-  const observability = useQuery({ queryKey: ["monitoring-observability"], queryFn: auditObservability });
-  const goNoGo = useQuery({ queryKey: ["release-go-no-go"], queryFn: evaluateLaunchDecision });
+  const observability = useQuery({ queryKey: ["monitoring-observability"], queryFn: () => auditGate(auditObservability) });
+  const goNoGo = useQuery({ queryKey: ["release-go-no-go"], queryFn: () => auditGate(evaluateLaunchDecision) });
 
   // ----- Prompt 28: Release Candidate (RC1), Launch Freeze & Production Certification -----
   const releaseCandidate = generateReleaseCandidate();
   const freezeVerification = runFreezeVerification();
   const dependencyAudit = auditDependencies();
-  const securityAudit = useQuery({ queryKey: ["rc-security"], queryFn: auditSecurity });
-  const performanceCert = useQuery({ queryKey: ["rc-performance"], queryFn: certifyPerformance });
+  const securityAudit = useQuery({ queryKey: ["rc-security"], queryFn: () => auditGate(auditSecurity) });
+  const performanceCert = useQuery({ queryKey: ["rc-performance"], queryFn: () => auditGate(certifyPerformance) });
   const productionCertificate = useQuery({
     queryKey: ["rc-production-certificate"],
-    queryFn: generateProductionCertificate,
+    queryFn: () => auditGate(() => auditGate(generateProductionCertificate)),
   });
-  const finalReleaseReport = useQuery({ queryKey: ["rc-final-report"], queryFn: generateFinalReleaseReport });
+  const finalReleaseReport = useQuery({ queryKey: ["rc-final-report"], queryFn: () => auditGate(generateFinalReleaseReport) });
   const finalReleaseDecision = useQuery({
     queryKey: ["rc-final-decision"],
-    queryFn: evaluateFinalReleaseDecision,
+    queryFn: () => auditGate(() => auditGate(evaluateFinalReleaseDecision)),
   });
 
   // ----- Prompt 29: Final Production Hardening, Store Submission Prep & RC2 Certification -----
   const androidProductionCert = useQuery({
     queryKey: ["android-production-cert"],
-    queryFn: generateAndroidProductionCertificate,
+    queryFn: () => auditGate(() => auditGate(generateAndroidProductionCertificate)),
   });
   const iosProductionCert = useQuery({
     queryKey: ["ios-production-cert"],
-    queryFn: generateIOSProductionCertificate,
+    queryFn: () => auditGate(() => auditGate(generateIOSProductionCertificate)),
   });
   const backupEncryptionAudit = useQuery({
     queryKey: ["backup-encryption-audit"],
-    queryFn: auditBackupEncryption,
+    queryFn: () => auditGate(() => auditGate(auditBackupEncryption)),
   });
   const dependencySecurityAudit = useQuery({
     queryKey: ["dependency-security-audit"],
-    queryFn: auditDependencySecurity,
+    queryFn: () => auditGate(() => auditGate(auditDependencySecurity)),
   });
   const supportCertificate = useQuery({
     queryKey: ["support-certificate"],
-    queryFn: generateSupportCertificate,
+    queryFn: () => auditGate(() => auditGate(generateSupportCertificate)),
   });
   const androidSubmission = useQuery({
     queryKey: ["android-store-submission"],
-    queryFn: generatePlayStoreSubmission,
+    queryFn: () => auditGate(() => auditGate(generatePlayStoreSubmission)),
   });
   const iosSubmission = useQuery({
     queryKey: ["ios-store-submission"],
-    queryFn: generateAppStoreSubmission,
+    queryFn: () => auditGate(() => auditGate(generateAppStoreSubmission)),
   });
-  const rc2Certificate = useQuery({ queryKey: ["rc2-certificate"], queryFn: generateRC2Certificate });
-  const rc2Decision = useQuery({ queryKey: ["rc2-decision"], queryFn: evaluateRC2Decision });
+  const rc2Certificate = useQuery({ queryKey: ["rc2-certificate"], queryFn: () => auditGate(generateRC2Certificate) });
+  const rc2Decision = useQuery({ queryKey: ["rc2-decision"], queryFn: () => auditGate(evaluateRC2Decision) });
 
   // ----- Prompt 30: Production Operations, Deployment Assets & Final Launch Package -----
   const supportOperations = generateSupportOperations();
   const incidentPlaybook = generateIncidentPlaybook();
   const disasterRecoveryPlan = useQuery({
     queryKey: ["disaster-recovery-plan"],
-    queryFn: generateDisasterRecoveryPlan,
+    queryFn: () => auditGate(() => auditGate(generateDisasterRecoveryPlan)),
   });
-  const playStorePackage = useQuery({ queryKey: ["playstore-package"], queryFn: generatePlayStorePackage });
-  const appStorePackage = useQuery({ queryKey: ["appstore-package"], queryFn: generateAppStorePackage });
-  const launchPackage = useQuery({ queryKey: ["launch-package"], queryFn: generateLaunchPackage });
-  const launchCertificate = useQuery({ queryKey: ["launch-certificate"], queryFn: generateLaunchCertificate });
+  const playStorePackage = useQuery({ queryKey: ["playstore-package"], queryFn: () => auditGate(generatePlayStorePackage) });
+  const appStorePackage = useQuery({ queryKey: ["appstore-package"], queryFn: () => auditGate(generateAppStorePackage) });
+  const launchPackage = useQuery({ queryKey: ["launch-package"], queryFn: () => auditGate(generateLaunchPackage) });
+  const launchCertificate = useQuery({ queryKey: ["launch-certificate"], queryFn: () => auditGate(generateLaunchCertificate) });
   const finalLaunchDecision = useQuery({
     queryKey: ["final-launch-decision"],
-    queryFn: generateFinalLaunchDecision,
+    queryFn: () => auditGate(() => auditGate(generateFinalLaunchDecision)),
   });
 
   const recommendations: string[] = [];
