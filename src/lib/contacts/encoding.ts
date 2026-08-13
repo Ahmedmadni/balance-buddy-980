@@ -57,7 +57,39 @@ export function decodeImportedContactName(value: string | null | undefined): str
   }
 }
 
+/** Detects percent-encoded UTF-8 such as "%D8%A3%D8%AD". */
+function isPercentEncoded(v: string): boolean {
+  return /(?:%[0-9A-Fa-f]{2}){2,}/.test(v);
+}
+
+/**
+ * Single reusable normalizer for any imported contact name.
+ * Handles quoted-printable UTF-8, percent-encoded UTF-8, plain Unicode
+ * (Arabic/Latin/mixed), and null/undefined — never double-decodes and
+ * never throws.
+ */
+export function normalizeImportedContactName(value: unknown): string {
+  if (value == null) return "";
+  let s = typeof value === "string" ? value : String(value);
+
+  // Strip control characters (except tab/newline which collapse to space).
+  s = s.replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F]/g, "");
+
+  if (isEncodedContactName(s)) s = decodeImportedContactName(s);
+  else if (isPercentEncoded(s)) {
+    try {
+      s = decodeURIComponent(s);
+    } catch {
+      /* leave as-is */
+    }
+  }
+
+  // vCard structured names use ";" separators — turn into spaces.
+  s = s.replace(/;+/g, " ");
+  return s.replace(/\s+/g, " ").trim();
+}
+
 /** Convenience: decode when needed, otherwise return the name as-is. */
 export function normalizeContactName(value: string | null | undefined): string {
-  return decodeImportedContactName(value) || "";
+  return normalizeImportedContactName(value);
 }

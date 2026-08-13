@@ -13,10 +13,12 @@
 import { APP_VERSION } from "@/lib/mobile/version";
 import type { HealthStatus } from "@/lib/system/health";
 
-// Verified 2026-07-04 by reading capacitor.config.ts directly.
-const ALLOW_MIXED_CONTENT = true; // android.allowMixedContent
-const CLEARTEXT_TRAFFIC = true; // server.cleartext
-const LIVE_RELOAD_ACTIVE = true; // server.url points at a Lovable sandbox
+// Verified 2026-08-13 by reading capacitor.config.ts directly. The config is
+// now CAP_ENV-conditional: these constants describe the PRODUCTION branch
+// (CAP_ENV=production), which is what a release AAB is built with.
+const ALLOW_MIXED_CONTENT = false; // android.allowMixedContent (!isProduction)
+const CLEARTEXT_TRAFFIC = false; // server.cleartext (production branch)
+const LIVE_RELOAD_ACTIVE = false; // production loads the published HTTPS domain
 const DEBUG_FLAGS_ENABLED = false; // android.webContentsDebuggingEnabled
 const ANDROID_PLATFORM_EXISTS = false; // no android/ directory — no build.gradle yet
 
@@ -49,7 +51,7 @@ export function auditAndroidReleaseConfig(): AndroidReleaseConfig {
       status: LIVE_RELOAD_ACTIVE ? "error" : "ok",
       detail: LIVE_RELOAD_ACTIVE
         ? "كائن server في capacitor.config.ts لا يزال يشير لرابط Lovable sandbox — يجب تعليقه/حذفه قبل النشر"
-        : "معطَّل — صحيح للإنتاج",
+        : "معطَّل في وضع الإنتاج — يحمّل الدومين المنشور عبر HTTPS (CAP_SERVER_URL)",
     },
     {
       id: "cleartext_traffic",

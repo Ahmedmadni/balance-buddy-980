@@ -34,9 +34,12 @@ export const WEB_ADSENSE_SLOTS: Record<AdPlacement, string> = {
 
 // ----- Android (Google AdMob placeholders) -----
 export const ANDROID_ADMOB_APP: string = ENV.VITE_ADMOB_ANDROID_APP_ID || "ca-app-pub-XXXXXXXXXXXXXXXX~XXXXXXXXXX";
+/** Explicit ads mode — "test" everywhere unless the build sets ADS_MODE=production. */
+export const ADS_MODE: "test" | "production" =
+  (ENV.VITE_ADS_MODE || ENV.ADS_MODE) === "production" ? "production" : "test";
 export const ANDROID_ADMOB_UNITS: Record<AdPlacement, string> = {
-  dashboard_top: "ca-app-pub-XXX/AND_TOP",
-  dashboard_bottom: "ca-app-pub-XXX/AND_BOTTOM",
+  dashboard_top: ENV.VITE_ADMOB_ANDROID_INTERSTITIAL_ID || "ca-app-pub-XXX/AND_TOP",
+  dashboard_bottom: ENV.VITE_ADMOB_ANDROID_BANNER_ID || "ca-app-pub-XXX/AND_BOTTOM",
   transactions_inline: "ca-app-pub-XXX/AND_TX_INLINE",
   reports_bottom: "ca-app-pub-XXX/AND_REPORTS",
   settings_banner: "ca-app-pub-XXX/AND_SETTINGS",
@@ -54,8 +57,8 @@ export function hasRealAdIds(): boolean {
   return !WEB_ADSENSE_CLIENT.includes("XXXX") || !ANDROID_ADMOB_APP.includes("XXXX");
 }
 export const IOS_ADMOB_UNITS: Record<AdPlacement, string> = {
-  dashboard_top: "ca-app-pub-XXX/IOS_TOP",
-  dashboard_bottom: "ca-app-pub-XXX/IOS_BOTTOM",
+  dashboard_top: ENV.VITE_ADMOB_IOS_INTERSTITIAL_ID || "ca-app-pub-XXX/IOS_TOP",
+  dashboard_bottom: ENV.VITE_ADMOB_IOS_BANNER_ID || "ca-app-pub-XXX/IOS_BOTTOM",
   transactions_inline: "ca-app-pub-XXX/IOS_TX_INLINE",
   reports_bottom: "ca-app-pub-XXX/IOS_REPORTS",
   settings_banner: "ca-app-pub-XXX/IOS_SETTINGS",

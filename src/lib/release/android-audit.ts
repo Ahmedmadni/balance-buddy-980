@@ -19,8 +19,8 @@ const ANDROID_PLATFORM_ADDED = false; // no android/ directory in this repo yet
 const PACKAGE_NAME_MIRROR = "app.lovable.rasd";
 const HAS_ICON_SOURCE = true; // resources/icon.png (1024x1024)
 const HAS_SPLASH_SOURCE = true; // resources/splash.png (2732x2732)
-const ALLOW_MIXED_CONTENT = true; // capacitor.config.ts android.allowMixedContent — must be false for production
-const LIVE_RELOAD_SERVER_ACTIVE = true; // capacitor.config.ts `server` block is not commented out
+const ALLOW_MIXED_CONTENT = false; // production branch (CAP_ENV=production) sets allowMixedContent: false
+const LIVE_RELOAD_SERVER_ACTIVE = false; // production branch loads the published HTTPS domain, not the sandbox
 
 export interface AndroidReleaseCheckItem {
   id: string;
@@ -103,7 +103,9 @@ export function auditAndroidRelease(): AndroidReleaseAuditReport {
       label: "Network Security",
       status: ALLOW_MIXED_CONTENT || LIVE_RELOAD_SERVER_ACTIVE ? "error" : "ok",
       detail:
-        "allowMixedContent: true وكائن server (Live Reload على sandbox خارجي) لا يزالان نشطين في capacitor.config.ts — كلاهما يجب تعطيله/حذفه قبل بناء AAB للنشر الفعلي (راجع MOBILE_BUILD.md، قسم «إنشاء APK/AAB للنشر»)",
+        ALLOW_MIXED_CONTENT || LIVE_RELOAD_SERVER_ACTIVE
+          ? "allowMixedContent / Live Reload نشطان في capacitor.config.ts — يجب تعطيلهما قبل بناء AAB"
+          : "وضع الإنتاج (CAP_ENV=production) يحمّل الدومين المنشور عبر HTTPS فقط، بدون cleartext ولا Live Reload",
     },
     {
       id: "admob_ids",
