@@ -78,7 +78,7 @@ export function auditAdsConfiguration(): AdsConfigurationAudit {
 // PART 14 — auditAds(): runtime-facing readiness snapshot.
 // Reports configured/missing only — never echoes a full secret ID.
 // =============================================================
-import { ADS_MODE, loadAdPrefs, ANDROID_ADMOB_UNITS, IOS_ADMOB_UNITS } from "./ad-config";
+import { ADS_MODE, loadAdPrefs } from "./ad-config";
 import { detectPlatform } from "./ad-provider";
 import { auditConsentManager } from "@/lib/consent/audit";
 
