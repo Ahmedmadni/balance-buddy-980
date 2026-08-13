@@ -73,3 +73,60 @@ export function auditAdsConfiguration(): AdsConfigurationAudit {
 
   return { web, android, ios, placements, generatedAt: new Date().toISOString() };
 }
+
+// =============================================================
+// PART 14 — auditAds(): runtime-facing readiness snapshot.
+// Reports configured/missing only — never echoes a full secret ID.
+// =============================================================
+import { ADS_MODE, loadAdPrefs, ANDROID_ADMOB_UNITS, IOS_ADMOB_UNITS } from "./ad-config";
+import { detectPlatform } from "./ad-provider";
+import { auditConsentManager } from "@/lib/consent/audit";
+
+export interface AdsRuntimeAudit {
+  provider: "noop" | "web-adsense" | "android-admob" | "ios-admob";
+  platform: "web" | "android" | "ios";
+  appIdConfigured: boolean;
+  bannerUnitConfigured: boolean;
+  consentReady: boolean;
+  mode: "test" | "production";
+  adsEnabled: boolean;
+  productionReady: boolean;
+  missing: string[];
+}
+
+export function auditAds(): AdsRuntimeAudit {
+  const platform = detectPlatform();
+  const cfg = auditAdsConfiguration();
+  const prefs = loadAdPrefs();
+  const consent = auditConsentManager();
+
+  const appIdConfigured =
+    platform === "android" ? cfg.android.configured : platform === "ios" ? cfg.ios.configured : cfg.web.configured;
+  const bannerUnitConfigured =
+    platform === "ios"
+      ? !isPlaceholderId(IOS_ADMOB_UNITS.dashboard_bottom)
+      : platform === "android"
+        ? !isPlaceholderId(ANDROID_ADMOB_UNITS.dashboard_bottom)
+        : cfg.placements.some((p) => p.webSlotConfigured);
+
+  const missing: string[] = [];
+  if (!appIdConfigured) missing.push("App/Client ID غير مُعدّ");
+  if (!bannerUnitConfigured) missing.push("Banner Unit ID غير مُعدّ");
+  if (consent.score < 60) missing.push("نظام الموافقة غير جاهز");
+  if (ADS_MODE !== "production") missing.push("وضع الإعلانات = test");
+
+  // No SDK is bundled today — the active provider is always the Noop one.
+  const adsEnabled = prefs.enabled && !prefs.premium && appIdConfigured && bannerUnitConfigured && missing.length === 0;
+
+  return {
+    provider: "noop",
+    platform,
+    appIdConfigured,
+    bannerUnitConfigured,
+    consentReady: consent.score >= 60,
+    mode: ADS_MODE,
+    adsEnabled,
+    productionReady: missing.length === 0,
+    missing,
+  };
+}
