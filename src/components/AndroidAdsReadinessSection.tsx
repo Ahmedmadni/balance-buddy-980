@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useMemo, useState, type ReactNode } from "react";
 import { RefreshCw } from "lucide-react";
 import { getContactsRegressionChecklist, contactsRegressionScore } from "@/lib/contacts/regression";
 import { auditAdsProduction } from "@/lib/ads/production-audit";
@@ -19,7 +19,7 @@ function ScoreChip({ label, score }: { label: string; score: number }) {
   );
 }
 
-function Group({ title, children }: { title: string; children: React.ReactNode }) {
+function Group({ title, children }: { title: string; children: ReactNode }) {
   return (
     <div className="space-y-1">
       <div className="text-xs font-semibold text-muted-foreground">{title}</div>
@@ -87,8 +87,16 @@ export function AndroidAdsReadinessSection() {
         <Row label="AdMob App ID (Android)" ok={ads.appIdConfigured} note={ads.appIdConfigured ? undefined : "غير مُعدّ"} />
         <Row label="Banner Unit ID" ok={ads.bannerIdConfigured} note={ads.bannerIdConfigured ? undefined : "غير مُعدّ"} />
         <Row label="الموافقة (Consent)" ok={adsRuntime.consentReady} />
-        <Row label="الوضع" ok={adsRuntime.mode === "production"} note={adsRuntime.mode === "production" ? "production" : "test"} />
-        <Row label="الإعلانات مفعّلة فعلياً" ok={adsRuntime.adsEnabled} note={adsRuntime.adsEnabled ? "مفعّلة" : "معطّلة (لا توجد معرّفات حقيقية)"} />
+        <Row
+          label="الوضع"
+          ok={adsRuntime.mode === "production"}
+          note={adsRuntime.mode === "production" ? "production" : "test"}
+        />
+        <Row
+          label="الإعلانات مفعّلة فعلياً"
+          ok={adsRuntime.adsEnabled}
+          note={adsRuntime.adsEnabled ? "مفعّلة" : "معطّلة (لا معرّفات حقيقية)"}
+        />
       </Group>
 
       <Group title="جهات الاتصال">
