@@ -29,6 +29,40 @@ function n(v: any): number {
   return Number.isFinite(x) ? x : 0;
 }
 
+/** Parse an optional financial value without confusing a valid zero with absence. */
+export function optionalFinancialNumber(value: unknown): number | null {
+  if (value === null || value === undefined) return null;
+  if (typeof value === "string" && value.trim() === "") return null;
+  const parsed = typeof value === "string" ? Number(value.trim()) : Number(value);
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
+export type DatedMarketValue = {
+  valuation_date: string;
+  market_value: unknown;
+};
+
+/** Return the latest finite history value. A recorded zero is valid. */
+export function latestMarketValue(points?: DatedMarketValue[]): number | null {
+  if (!points?.length) return null;
+  const valid = points
+    .map((point) => ({ point, value: optionalFinancialNumber(point.market_value) }))
+    .filter((entry): entry is { point: DatedMarketValue; value: number } => entry.value !== null)
+    .sort((a, b) => String(a.point.valuation_date).localeCompare(String(b.point.valuation_date)));
+  return valid.length ? valid[valid.length - 1].value : null;
+}
+
+/** History first, then an explicitly present current value, then book value. */
+export function resolveMarketValue(
+  currentValue: unknown,
+  bookValue: number,
+  history?: DatedMarketValue[],
+): number {
+  const historical = latestMarketValue(history);
+  if (historical !== null) return historical;
+  return optionalFinancialNumber(currentValue) ?? bookValue;
+}
+
 function classOf(tx: AssetTx): AssetTxClass {
   if (tx.tx_class) return tx.tx_class as AssetTxClass;
   // Fallback for legacy rows without tx_class
@@ -66,7 +100,7 @@ export function computeAssetMetrics(
     else if (c === "sale") saleProceeds += a;
   }
   const bookValue = baseValue + capex + capitalContribution;
-  const marketValue = n(asset.current_value) || bookValue;
+  const marketValue = resolveMarketValue(asset.current_value, bookValue);
   const unrealizedPnl = marketValue - bookValue;
   const sold = asset.status === "sold" || n(asset.sold_amount) > 0 || saleProceeds > 0;
   const realizedPnl = sold ? (n(asset.sold_amount) || saleProceeds) - bookValue : 0;

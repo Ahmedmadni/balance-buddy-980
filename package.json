@@ -10,6 +10,8 @@
     "build:dev": "vite build --mode development",
     "preview": "vite preview",
     "lint": "eslint .",
+    "test:financial": "bun test src/lib/person-ledger.test.ts",
+    "test:market-value": "bun test src/lib/assets/market-value.test.ts",
     "format": "prettier --write .",
     "android:add": "npx cap add android",
     "android:assets": "npx capacitor-assets generate --android",
