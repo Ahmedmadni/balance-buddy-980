@@ -9,6 +9,7 @@ import { formatMoney, formatDate } from "@/lib/format";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { PersonTxForm, kindMeta, kindSign } from "@/components/PersonTxForm";
+import { mutatePersonLedger } from "@/lib/person-ledger";
 
 export const Route = createFileRoute("/_authenticated/app/people/$id")({
   head: () => ({ meta: [{ title: "كشف الحساب — رصد" }] }),
@@ -47,21 +48,24 @@ function PersonDetail() {
   const invalidate = () => {
     qc.invalidateQueries({ queryKey: ["person_ledger"] });
     qc.invalidateQueries({ queryKey: ["dashboard"] });
+    qc.invalidateQueries({ queryKey: ["wallets-list"] });
+    qc.invalidateQueries({ queryKey: ["wallet-detail"] });
+    qc.invalidateQueries({ queryKey: ["transactions"] });
+    qc.invalidateQueries({ queryKey: ["reports"] });
   };
 
   const del = useMutation({
-    mutationFn: async (rid: string) => { const { error } = await supabase.from("person_ledger").delete().eq("id", rid); if (error) throw error; },
+    mutationFn: async (rid: string) => mutatePersonLedger("delete", rid),
     onSuccess: () => { toast.success("تم الحذف"); invalidate(); },
-    onError: (e: any) => toast.error("خطأ", { description: e.message }),
+    onError: (e: any) => toast.error("خطأ", { description: e.userMessage ?? "تعذر حفظ الحركة" }),
   });
 
   const toggleSettled = useMutation({
     mutationFn: async ({ rid, settled }: { rid: string; settled: boolean }) => {
-      const { error } = await supabase.from("person_ledger").update({ settled_at: settled ? new Date().toISOString() : null } as any).eq("id", rid);
-      if (error) throw error;
+      await mutatePersonLedger("update", rid, { settled_at: settled ? new Date().toISOString() : null });
     },
     onSuccess: () => { toast.success("تم التحديث"); invalidate(); },
-    onError: (e: any) => toast.error("خطأ", { description: e.message }),
+    onError: (e: any) => toast.error("خطأ", { description: e.userMessage ?? "تعذر حفظ الحركة" }),
   });
 
   const enriched = useMemo(() => {

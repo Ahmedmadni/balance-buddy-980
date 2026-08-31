@@ -7,7 +7,7 @@
 // Does NOT modify transactions, balances, triggers, or v_account_statement.
 // Does NOT post any accounting entries.
 
-import { computeAssetMetrics, type AssetTx } from "./calculator";
+import { computeAssetMetrics, resolveMarketValue, type AssetTx } from "./calculator";
 import { computeDepreciation, type DepreciationProfile } from "./depreciation";
 import { classifyAsset } from "@/lib/zakat/engine";
 
@@ -57,14 +57,6 @@ const n = (v: any) => {
   const x = typeof v === "string" ? parseFloat(v) : Number(v);
   return Number.isFinite(x) ? x : 0;
 };
-
-function lastMarketValue(points?: MarketValuePoint[]): number | null {
-  if (!points || points.length === 0) return null;
-  const sorted = [...points].sort((a, b) =>
-    String(a.valuation_date).localeCompare(String(b.valuation_date)),
-  );
-  return n(sorted[sorted.length - 1].market_value);
-}
 
 /** Read zakat settings for an asset (from meta.zakat), with smart defaults. */
 export function readAssetZakatSettings(
@@ -116,8 +108,7 @@ export function computeAssetZakat(input: AssetZakatInput): AssetZakatResult {
     bookValue = Math.max(0, investmentCost - dep.accumulated_depreciation);
   }
 
-  const mv = lastMarketValue(marketValues);
-  const marketValue = mv !== null ? mv : (n(asset.current_value) || bookValue);
+  const marketValue = resolveMarketValue(asset.current_value, bookValue, marketValues);
 
   const ownership = (n(asset.ownership_pct) || 100) / 100;
 

@@ -3,7 +3,7 @@
 // and investment_transactions to compute return metrics.
 // Does NOT modify transactions, balances, or accounting state.
 
-import { computeAssetMetrics, type AssetTx } from "./calculator";
+import { computeAssetMetrics, resolveMarketValue, type AssetTx } from "./calculator";
 import { computeDepreciation, type DepreciationProfile } from "./depreciation";
 
 export interface MarketValuePoint {
@@ -68,12 +68,6 @@ const n = (v: any) => {
   return Number.isFinite(x) ? x : 0;
 };
 
-function lastMarketValue(points?: MarketValuePoint[]): number | null {
-  if (!points || points.length === 0) return null;
-  const sorted = [...points].sort((a, b) => String(a.valuation_date).localeCompare(String(b.valuation_date)));
-  return n(sorted[sorted.length - 1].market_value);
-}
-
 export function computeInvestmentPerformance(input: PerformanceInput): InvestmentPerformance {
   const { asset, txs, marketValues, depreciationProfile, asOf = new Date() } = input;
   const base = computeAssetMetrics(asset, txs);
@@ -90,8 +84,7 @@ export function computeInvestmentPerformance(input: PerformanceInput): Investmen
   const bookValue = Math.max(0, investmentCost - accumulatedDepreciation);
 
   // Market value: latest history point, else current_value, else book value
-  const mv = lastMarketValue(marketValues);
-  const marketValue = mv !== null ? mv : (n(asset.current_value) || bookValue);
+  const marketValue = resolveMarketValue(asset.current_value, bookValue, marketValues);
 
   const sold = asset.status === "sold" || n(asset.sold_amount) > 0;
   const unrealizedGain = sold ? 0 : marketValue - bookValue;

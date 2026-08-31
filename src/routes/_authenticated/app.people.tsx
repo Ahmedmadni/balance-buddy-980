@@ -111,7 +111,15 @@ function PeoplePage() {
             <Button className="shrink-0"><Plus className="h-4 w-4" /> حركة جديدة</Button>
           </DialogTrigger>
           <DialogContent className="max-w-md">
-            <PersonTxForm onDone={() => { setOpenNew(false); qc.invalidateQueries({ queryKey: ["person_ledger"] }); qc.invalidateQueries({ queryKey: ["dashboard"] }); }} />
+            <PersonTxForm onDone={() => {
+              setOpenNew(false);
+              qc.invalidateQueries({ queryKey: ["person_ledger"] });
+              qc.invalidateQueries({ queryKey: ["wallets-list"] });
+              qc.invalidateQueries({ queryKey: ["wallet-detail"] });
+              qc.invalidateQueries({ queryKey: ["dashboard"] });
+              qc.invalidateQueries({ queryKey: ["transactions"] });
+              qc.invalidateQueries({ queryKey: ["reports"] });
+            }} />
           </DialogContent>
         </Dialog>
       </div>

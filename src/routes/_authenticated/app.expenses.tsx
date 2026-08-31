@@ -1,6 +1,7 @@
 import { createFileRoute, Link, useSearch, useNavigate } from "@tanstack/react-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { mutatePersonLedger } from "@/lib/person-ledger";
 import { useEffect, useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -118,6 +119,9 @@ function ExpensesPage() {
                 qc.invalidateQueries({ queryKey: ["dashboard"] });
                 qc.invalidateQueries({ queryKey: ["people"] });
                 qc.invalidateQueries({ queryKey: ["person-ledger"] });
+                qc.invalidateQueries({ queryKey: ["person_ledger"] });
+                qc.invalidateQueries({ queryKey: ["transactions"] });
+                qc.invalidateQueries({ queryKey: ["reports"] });
               }}
             />
           </DialogContent>
@@ -329,12 +333,11 @@ function ExpenseForm({ categories, projects, wallets, onDone }: { categories: an
       if (aErr) throw aErr;
 
       // 3) For each participant, create a person_ledger "lend" row.
-      //    Linking to the same wallet debits it via the ledger sync trigger,
+      //    Linking to the same wallet debits it inside the atomic ledger RPC,
       //    so the wallet ends up debited the full paid amount overall.
       if (split && participants.length > 0) {
         const catLabel = categories.find((c) => c.id === categoryId)?.name ?? "مصروف";
         const ledgerRows = participants.map((p) => ({
-          user_id: u.user.id,
           contact_id: p.contactId,
           contact_name: p.name.trim(),
           kind: "lend",
@@ -344,8 +347,9 @@ function ExpenseForm({ categories, projects, wallets, onDone }: { categories: an
           notes: `تقسيم مصروف: ${catLabel}${note ? ` — ${note}` : ""}`,
           wallet_id: walletId,
         }));
-        const { error: lErr } = await supabase.from("person_ledger").insert(ledgerRows);
-        if (lErr) throw lErr;
+        for (const ledgerRow of ledgerRows) {
+          await mutatePersonLedger("create", null, ledgerRow as any);
+        }
       }
     },
     onSuccess: () => {
@@ -484,4 +488,3 @@ function ExpenseForm({ categories, projects, wallets, onDone }: { categories: an
     </form>
   );
 }
-

@@ -12,7 +12,7 @@ import { cn } from "@/lib/utils";
 import { buildPersonStatement, type StatementRow } from "@/lib/statement";
 import { StatementTable } from "@/components/StatementTable";
 import { kindSign, PersonTxForm, type PersonLedgerInitial } from "@/components/PersonTxForm";
-import { deleteWalletTxForSource } from "@/lib/wallet-sync";
+import { mutatePersonLedger } from "@/lib/person-ledger";
 import { toast } from "sonner";
 
 export function PersonStatementDrawer({
@@ -43,6 +43,8 @@ export function PersonStatementDrawer({
     qc.invalidateQueries({ queryKey: ["wallets-list"] });
     qc.invalidateQueries({ queryKey: ["wallet-detail"] });
     qc.invalidateQueries({ queryKey: ["dashboard"] });
+    qc.invalidateQueries({ queryKey: ["transactions"] });
+    qc.invalidateQueries({ queryKey: ["reports"] });
   };
 
   const rows = data?.rows ?? [];
@@ -176,13 +178,11 @@ export function PersonStatementDrawer({
               <AlertDialogAction onClick={async () => {
                 if (!confirmDel?.sourceId) return;
                 try {
-                  await deleteWalletTxForSource("person_ledger", confirmDel.sourceId);
-                  const { error } = await supabase.from("person_ledger").delete().eq("id", confirmDel.sourceId);
-                  if (error) throw error;
+                  await mutatePersonLedger("delete", confirmDel.sourceId);
                   toast.success("تم الحذف");
                   invalidate();
                 } catch (e: any) {
-                  toast.error("تعذر الحذف", { description: e.message });
+                  toast.error("تعذر الحذف", { description: e.userMessage ?? "تعذر حفظ الحركة" });
                 } finally {
                   setConfirmDel(null);
                 }

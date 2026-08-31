@@ -15,6 +15,7 @@ import { QuickActionsRow } from "@/components/dashboard/QuickActionsRow";
 import { AdSlot } from "@/components/ads/AdSlot";
 import { UpcomingEventsWidget } from "@/components/dashboard/UpcomingEventsWidget";
 import { WealthOverviewWidgets } from "@/components/dashboard/WealthOverviewWidgets";
+import { resolveMarketValue } from "@/lib/assets/calculator";
 
 export const Route = createFileRoute("/_authenticated/app/")({
   head: () => ({ meta: [{ title: "اللوحة الرئيسية — رصد" }] }),
@@ -126,7 +127,7 @@ function Dashboard() {
     if (inv.status === "closed") continue;
     const cur = inv.currency;
     const invested = Number(inv.principal) + (investedByInv.get(inv.id) ?? 0);
-    const value = Number(inv.current_value) || invested;
+    const value = resolveMarketValue(inv.current_value, invested);
     const profit = value - invested + (returnsByInv.get(inv.id) ?? 0);
     investmentsTotal[cur] = (investmentsTotal[cur] ?? 0) + value;
     investmentsProfit[cur] = (investmentsProfit[cur] ?? 0) + profit;
@@ -472,4 +473,3 @@ function DashboardPrivacyToggle() {
 }
 
 export const _unused = TrendingUp;
-

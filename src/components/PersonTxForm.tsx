@@ -13,7 +13,7 @@ import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { ArrowDownRight, ArrowUpRight, HandCoins, CircleCheck } from "lucide-react";
 import { ContactPicker } from "@/components/ContactPicker";
-import { personLedgerWalletKind, syncWalletTx } from "@/lib/wallet-sync";
+import { mutatePersonLedger } from "@/lib/person-ledger";
 
 export const LEDGER_KINDS = [
   { value: "lend", label: "سلّفته", short: "تسليف", icon: ArrowUpRight, color: "text-success", bg: "bg-success/10 hover:bg-success/20 border-success/30", sign: "+" },
@@ -94,12 +94,9 @@ export function PersonTxForm({
 
   const mut = useMutation({
     mutationFn: async () => {
-      const { data: u } = await supabase.auth.getUser();
-      if (!u.user) throw new Error("غير مسجل");
       if (!contact.id) throw new Error("اختر جهة اتصال");
       const amt = parseFloat(amount);
       const payload: any = {
-        user_id: u.user.id,
         contact_id: contact.id,
         contact_name: contact.name.trim(),
         kind,
@@ -112,30 +109,10 @@ export function PersonTxForm({
         wallet_id: walletId !== "none" ? walletId : null,
       };
 
-      let rowId: string;
-      if (isEdit) {
-        const { error } = await supabase.from("person_ledger").update(payload).eq("id", initial!.id);
-        if (error) throw error;
-        rowId = initial!.id;
-      } else {
-        const { data: ins, error } = await supabase.from("person_ledger").insert(payload).select("id").single();
-        if (error) throw error;
-        rowId = (ins as any).id;
-      }
-
-      await syncWalletTx({
-        userId: u.user.id,
-        walletId: walletId !== "none" ? walletId : null,
-        walletKind: personLedgerWalletKind(kind),
-        amount: amt,
-        currency,
-        happenedAt,
-        notes: notes.trim() ? `${kindMeta(kind).label} — ${contact.name.trim()}: ${notes.trim()}` : `${kindMeta(kind).label} — ${contact.name.trim()}`,
-        source: { kind: "person_ledger", id: rowId },
-      });
+      await mutatePersonLedger(isEdit ? "update" : "create", initial?.id ?? null, payload);
     },
     onSuccess: () => { toast.success(isEdit ? "تم التحديث" : "تم تسجيل الحركة"); onDone(); },
-    onError: (e: any) => toast.error("خطأ", { description: e.message }),
+    onError: (e: any) => toast.error("خطأ", { description: e.userMessage ?? "تعذر حفظ الحركة" }),
   });
 
   return (
