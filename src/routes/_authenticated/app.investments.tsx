@@ -22,6 +22,7 @@ import { DepreciationTab } from "@/components/DepreciationTab";
 import { InvestmentPerformanceTab } from "@/components/InvestmentPerformanceTab";
 import { AssetZakatTab } from "@/components/AssetZakatTab";
 import { computeDepreciation, type DepreciationProfile } from "@/lib/assets/depreciation";
+import { syncWalletTx, deleteWalletTxForSource, investmentWalletKind } from "@/lib/wallet-sync";
 import { isDepreciable, defaultsFor } from "@/lib/assets/depreciation-defaults";
 
 
@@ -926,28 +927,32 @@ function InvestmentTxForm({ investment, wallets, onDone }: any) {
       const affectsWallet = txClass !== "personal_benefit" && txClass !== "adjustment";
       const useWallet = affectsWallet && walletId !== "none";
 
-      const { error } = await supabase.from("investment_transactions").insert({
-        user_id: u.user.id,
-        investment_id: investment.id,
-        kind: legacyKind,
-        tx_class: txClass,
-        amount: amt,
-        currency: investment.currency,
-        wallet_id: useWallet ? walletId : null,
-        affects_wallet: affectsWallet,
-        happened_at: happenedAt,
-        notes: notes || null,
-      } as any);
+      const { data: inserted, error } = await supabase
+        .from("investment_transactions")
+        .insert({
+          user_id: u.user.id,
+          investment_id: investment.id,
+          kind: legacyKind,
+          tx_class: txClass,
+          amount: amt,
+          currency: investment.currency,
+          wallet_id: useWallet ? walletId : null,
+          affects_wallet: affectsWallet,
+          happened_at: happenedAt,
+          notes: notes || null,
+        } as any)
+        .select("id")
+        .single();
       if (error) throw error;
 
-      // Update asset value based on class
+      // Update asset value based on class — CapEx no longer touches
+      // current_value (market value is independent of capital movements);
+      // adjustment stays the one explicit "set the market value" entry
+      // point, and sale still records the closing status/proceeds only.
       if (updateValue) {
-        const cur = Number(investment.current_value) || 0;
         const base = Number(investment.base_value ?? investment.principal) || 0;
         const updates: any = {};
-        if (txClass === "capex") {
-          updates.current_value = cur + amt;
-        } else if (txClass === "adjustment") {
+        if (txClass === "adjustment") {
           updates.current_value = amt; // amount = new market value
         } else if (txClass === "sale") {
           updates.status = "sold";
@@ -960,23 +965,20 @@ function InvestmentTxForm({ investment, wallets, onDone }: any) {
         }
       }
 
-      // Sync wallet — CapEx/OpEx/Capital Contribution leave wallet, Income/Sale enter wallet
-      if (useWallet) {
-        const walletKind =
-          txClass === "capex" || txClass === "opex" || txClass === "capital_contribution" ? "send" :
-          txClass === "income" || txClass === "sale" ? "receive" : null;
-        if (walletKind) {
-          await supabase.from("wallet_transactions").insert({
-            user_id: u.user.id,
-            wallet_id: walletId,
-            kind: walletKind,
-            amount: amt,
-            currency: investment.currency,
-            happened_at: happenedAt,
-            notes: `${meta.label} — ${investment.name}`,
-          });
-        }
-      }
+      // Link the wallet effect to this transaction via the existing
+      // source_kind/source_id mechanism (wallet-sync.ts) — the same one
+      // already used for person_ledger — so a later edit/delete of this
+      // transaction can find and resync/remove its wallet mirror safely.
+      await syncWalletTx({
+        userId: u.user.id,
+        walletId: useWallet ? walletId : null,
+        walletKind: investmentWalletKind(legacyKind),
+        amount: amt,
+        currency: investment.currency,
+        happenedAt,
+        notes: `${meta.label} — ${investment.name}`,
+        source: { kind: "investment_transactions", id: (inserted as any).id },
+      });
     },
     onSuccess: () => { toast.success("تمت الإضافة"); onDone(); },
     onError: (e: any) => toast.error("خطأ", { description: e.message }),
@@ -1027,12 +1029,10 @@ function InvestmentTxForm({ investment, wallets, onDone }: any) {
 
       <div><Label>ملاحظة</Label><Input value={notes} onChange={(e) => setNotes(e.target.value)} maxLength={200} /></div>
 
-      {(txClass === "capex" || txClass === "adjustment" || txClass === "sale") && (
+      {(txClass === "adjustment" || txClass === "sale") && (
         <div className="flex items-center justify-between rounded-xl border bg-accent/30 p-3">
           <div className="text-xs text-muted-foreground">
-            {txClass === "capex" ? "إضافة المبلغ لقيمة الأصل" :
-             txClass === "adjustment" ? "تحديث القيمة السوقية" :
-             "تسجيل البيع وإغلاق الأصل"}
+            {txClass === "adjustment" ? "تحديث القيمة السوقية" : "تسجيل البيع وإغلاق الأصل"}
           </div>
           <Switch checked={updateValue} onCheckedChange={setUpdateValue} />
         </div>
@@ -1065,10 +1065,30 @@ function InvestmentTxEditForm({ tx, wallets, onDone }: any) {
 
   const meta = TX_CLASS_META[txClass];
 
+  // Whether this transaction already has a linked wallet_transactions
+  // mirror (source_kind/source_id) — transactions added before this
+  // linkage existed won't have one, so editing them can't safely resync
+  // whatever wallet effect they originally applied.
+  const { data: linkedWalletTx, isLoading: linkedTxLoading } = useQuery({
+    queryKey: ["investment-tx-wallet-link", tx.id],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("wallet_transactions")
+        .select("id")
+        .eq("source_kind", "investment_transactions")
+        .eq("source_id", tx.id)
+        .maybeSingle();
+      return data;
+    },
+  });
+
   const mut = useMutation({
     mutationFn: async () => {
       const amt = parseFloat(amount);
       if (!amt) throw new Error("أدخل المبلغ");
+
+      const { data: u } = await supabase.auth.getUser();
+      if (!u.user) throw new Error("غير مسجل");
 
       // Keep legacy `kind` in sync with tx_class — the DB sync trigger falls
       // back to `kind` for any tx_class it doesn't explicitly branch on
@@ -1100,6 +1120,23 @@ function InvestmentTxEditForm({ tx, wallets, onDone }: any) {
         } as any)
         .eq("id", tx.id);
       if (error) throw error;
+
+      // Resync the linked wallet mirror: syncWalletTx() looks up the
+      // existing wallet_transactions row by (source_kind, source_id) and
+      // updates it in place (moving wallet/amount if changed), inserts one
+      // if none exists yet, or removes it if no wallet is selected anymore
+      // — so a wallet A→B / amount change never leaves a duplicate or a
+      // stale effect on the old wallet.
+      await syncWalletTx({
+        userId: u.user.id,
+        walletId: useWallet ? walletId : null,
+        walletKind: investmentWalletKind(legacyKind),
+        amount: amt,
+        currency: tx.currency,
+        happenedAt,
+        notes: `${meta.label} — ${notes || ""}`.trim(),
+        source: { kind: "investment_transactions", id: tx.id },
+      });
     },
     onSuccess: () => { toast.success("تم تحديث الحركة"); onDone(); },
     onError: (e: any) => toast.error("خطأ", { description: e.message }),
@@ -1148,7 +1185,13 @@ function InvestmentTxEditForm({ tx, wallets, onDone }: any) {
       <div><Label>ملاحظة</Label><Input value={notes} onChange={(e) => setNotes(e.target.value)} maxLength={200} /></div>
 
       <div className="rounded-lg border border-amber-500/30 bg-amber-500/5 p-2.5 text-[11px] text-amber-800 dark:text-amber-200">
-        التعديل يُحدّث رأس المال والقيمة الدفترية والأداء تلقائياً. لا يُعاد ضبط أي تحديث سابق طُبِّق على قيمة الأصل أو أي حركة محفظة أُنشئت عند الإضافة الأصلية لهذه الحركة.
+        {linkedTxLoading ? (
+          "جارٍ التحقق من ارتباط هذه الحركة بالمحفظة..."
+        ) : linkedWalletTx ? (
+          "سيُحدَّث أثر المحفظة المرتبط بهذه الحركة تلقائياً (نفس المبلغ/المحفظة الجديدين). لا يُعاد ضبط أي تحديث سابق طُبِّق على قيمة الأصل نفسه (مثل تعديل يدوي للقيمة السوقية أو إغلاق بيع)."
+        ) : (
+          "هذه الحركة لا ترتبط حالياً بأي أثر محفظة معروف — إن كانت أُنشئت قبل إضافة الربط الآمن فقد أثّرت على رصيد المحفظة وقتها دون رابط يمكن تتبّعه أو تصحيحه هنا. إن اخترت محفظة الآن سيُنشأ أثر جديد مرتبط بأمان، بلا علاقة بأي أثر سابق غير مرتبط."
+        )}
       </div>
 
       <DialogFooter><Button type="submit" className="w-full" disabled={mut.isPending}>حفظ التعديل</Button></DialogFooter>
@@ -1162,10 +1205,27 @@ function InvestmentTxDeleteConfirm({ tx, allTxs, asset, onDone, onCancel }: any)
   const before = computeAssetMetrics(asset ?? {}, allTxs);
   const after = computeAssetMetrics(asset ?? {}, allTxs.filter((t: any) => t.id !== tx.id));
 
+  // Show whether a linked wallet effect will also be reversed.
+  const { data: linkedWalletTx, isLoading: linkedTxLoading } = useQuery({
+    queryKey: ["investment-tx-wallet-link", tx.id],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("wallet_transactions")
+        .select("id, wallet_id, amount, kind")
+        .eq("source_kind", "investment_transactions")
+        .eq("source_id", tx.id)
+        .maybeSingle();
+      return data;
+    },
+  });
+
   const del = useMutation({
     mutationFn: async () => {
       const { error } = await supabase.from("investment_transactions").delete().eq("id", tx.id);
       if (error) throw error;
+      // Reverse the linked wallet mirror, if one exists, so the wallet
+      // balance never keeps reflecting a transaction that no longer exists.
+      await deleteWalletTxForSource("investment_transactions", tx.id);
     },
     onSuccess: () => { toast.success("تم حذف الحركة"); onDone(); },
     onError: (e: any) => toast.error("خطأ", { description: e.message }),
@@ -1194,10 +1254,16 @@ function InvestmentTxDeleteConfirm({ tx, allTxs, asset, onDone, onCancel }: any)
           <span className="text-muted-foreground">صافي الربح</span>
           <span className="font-medium tabular-nums">{formatMoney(before.totalPnl, tx.currency)} ← {formatMoney(after.totalPnl, tx.currency)}</span>
         </div>
+        <div className="flex justify-between pt-1 border-t border-destructive/20">
+          <span className="text-muted-foreground">أثر المحفظة</span>
+          <span className="font-medium">
+            {linkedTxLoading ? "..." : linkedWalletTx ? "سيُعاد للمحفظة تلقائياً" : "لا أثر محفظة مرتبط معروف"}
+          </span>
+        </div>
       </div>
 
       <div className="text-[11px] text-muted-foreground">
-        هذا الإجراء نهائي ولا يمكن التراجع عنه. لن يتأثر الأصل نفسه أو بقية الحركات — فقط هذه الحركة ستُحذف.
+        هذا الإجراء نهائي ولا يمكن التراجع عنه. لن يتأثر الأصل نفسه أو بقية الحركات — فقط هذه الحركة (وأثرها على المحفظة المرتبطة إن وُجد) ستُحذف.
       </div>
 
       <DialogFooter className="flex gap-2">
