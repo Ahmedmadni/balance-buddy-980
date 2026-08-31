@@ -200,8 +200,6 @@ function AppLayout() {
           <PrivacyToggle />
           <ThemeToggle />
 
-            <PrivacyToggle />
-
           <Sheet open={open} onOpenChange={setOpen}>
             <SheetTrigger asChild>
               <Button variant="ghost" size="icon"><Menu /></Button>

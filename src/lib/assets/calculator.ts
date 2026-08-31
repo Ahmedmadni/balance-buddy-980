@@ -1,7 +1,7 @@
 // Unified Asset financial calculator
 // Pure functions — easy to unit test.
 
-export type AssetTxClass = "capex" | "opex" | "income" | "adjustment" | "personal_benefit" | "sale";
+export type AssetTxClass = "capex" | "opex" | "income" | "adjustment" | "personal_benefit" | "sale" | "capital_contribution";
 
 export type AssetTx = {
   tx_class?: AssetTxClass | string | null;
@@ -12,11 +12,12 @@ export type AssetTx = {
 export type AssetMetrics = {
   baseValue: number;
   capex: number;
+  capitalContribution: number; // new capital injected into the asset — NOT a capex expense
   opex: number;
   income: number;
   personalBenefit: number;
-  netCashflow: number;     // income − opex − capex
-  bookValue: number;       // base + capex
+  netCashflow: number;     // income − opex − capex − capitalContribution
+  bookValue: number;       // base + capex + capitalContribution
   marketValue: number;     // current_value (or bookValue if missing)
   unrealizedPnl: number;   // marketValue − bookValue
   realizedPnl: number;     // sale proceeds − bookValue (if sold)
@@ -53,24 +54,25 @@ export function computeAssetMetrics(
   txs: AssetTx[],
 ): AssetMetrics {
   const baseValue = n(asset.base_value ?? asset.principal);
-  let capex = 0, opex = 0, income = 0, personalBenefit = 0, saleProceeds = 0;
+  let capex = 0, capitalContribution = 0, opex = 0, income = 0, personalBenefit = 0, saleProceeds = 0;
   for (const t of txs) {
     const c = classOf(t);
     const a = n(t.amount);
     if (c === "capex") capex += a;
+    else if (c === "capital_contribution") capitalContribution += a;
     else if (c === "opex") opex += a;
     else if (c === "income") income += a;
     else if (c === "personal_benefit") personalBenefit += a;
     else if (c === "sale") saleProceeds += a;
   }
-  const bookValue = baseValue + capex;
+  const bookValue = baseValue + capex + capitalContribution;
   const marketValue = n(asset.current_value) || bookValue;
   const unrealizedPnl = marketValue - bookValue;
   const sold = asset.status === "sold" || n(asset.sold_amount) > 0 || saleProceeds > 0;
   const realizedPnl = sold ? (n(asset.sold_amount) || saleProceeds) - bookValue : 0;
-  const netCashflow = income - opex - capex + (sold ? (n(asset.sold_amount) || saleProceeds) : 0);
+  const netCashflow = income - opex - capex - capitalContribution + (sold ? (n(asset.sold_amount) || saleProceeds) : 0);
   const totalPnl = unrealizedPnl + realizedPnl + income - opex;
-  return { baseValue, capex, opex, income, personalBenefit, netCashflow, bookValue, marketValue, unrealizedPnl, realizedPnl, totalPnl };
+  return { baseValue, capex, capitalContribution, opex, income, personalBenefit, netCashflow, bookValue, marketValue, unrealizedPnl, realizedPnl, totalPnl };
 }
 
 export const TX_CLASS_META: Record<AssetTxClass, { label: string; short: string; sign: "+" | "−" | "="; color: string; description: string }> = {
@@ -80,4 +82,5 @@ export const TX_CLASS_META: Record<AssetTxClass, { label: string; short: string;
   adjustment: { label: "تعديل قيمة", short: "Adj", sign: "=", color: "text-muted-foreground", description: "إعادة تقييم القيمة السوقية" },
   personal_benefit: { label: "منفعة شخصية", short: "Benefit", sign: "=", color: "text-violet-600", description: "استخدام شخصي — تحليلي فقط" },
   sale: { label: "بيع الأصل", short: "Sale", sign: "+", color: "text-success", description: "إغلاق الأصل بمبلغ البيع" },
+  capital_contribution: { label: "زيادة رأس المال", short: "Capital", sign: "−", color: "text-indigo-600", description: "زيادة رأس المال المستثمر في الأصل — إضافة استثمار جديدة، وليست مصروفاً رأسمالياً" },
 };
