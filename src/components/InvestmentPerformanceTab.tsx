@@ -103,6 +103,7 @@ export function InvestmentPerformanceTab({ asset }: { asset: any }) {
             <Stat label="الإيرادات" value={formatMoney(active.income, cur)} tone="text-success" />
             <Stat label="المصروفات التشغيلية" value={formatMoney(active.opex, cur)} tone="text-amber-600" />
             <Stat label="المصروفات الرأسمالية" value={formatMoney(active.capex, cur)} tone="text-blue-600" />
+            <Stat label="زيادة رأس المال" value={formatMoney(active.capitalContribution, cur)} tone="text-indigo-600" />
             <Stat label="مجمع الإهلاك" value={formatMoney(active.accumulatedDepreciation, cur)} tone="text-muted-foreground" />
             <Stat label="القيمة الدفترية" value={formatMoney(active.bookValue, cur)} />
             <Stat label="القيمة السوقية" value={formatMoney(active.marketValue, cur)} accent />

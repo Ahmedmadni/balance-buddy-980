@@ -33,8 +33,9 @@ export interface PerformanceInput {
 export interface InvestmentPerformance {
   currency: string;
   // Cost & value
-  investmentCost: number;        // base + capex
+  investmentCost: number;        // base + capex + capitalContribution
   capex: number;
+  capitalContribution: number;
   opex: number;
   income: number;
   operatingProfit: number;       // income − opex
@@ -77,7 +78,7 @@ export function computeInvestmentPerformance(input: PerformanceInput): Investmen
   const { asset, txs, marketValues, depreciationProfile, asOf = new Date() } = input;
   const base = computeAssetMetrics(asset, txs);
 
-  const investmentCost = base.baseValue + base.capex;
+  const investmentCost = base.baseValue + base.capex + base.capitalContribution;
   const operatingProfit = base.income - base.opex;
 
   // Depreciation
@@ -127,6 +128,7 @@ export function computeInvestmentPerformance(input: PerformanceInput): Investmen
     currency: asset.currency,
     investmentCost,
     capex: base.capex,
+    capitalContribution: base.capitalContribution,
     opex: base.opex,
     income: base.income,
     operatingProfit,
@@ -178,6 +180,7 @@ export function combinePerformance(items: InvestmentPerformance[]): InvestmentPe
     currency: cur,
     investmentCost,
     capex: sum("capex"),
+    capitalContribution: sum("capitalContribution"),
     opex: sum("opex"),
     income: sum("income"),
     operatingProfit,

@@ -22,6 +22,7 @@ import { DepreciationTab } from "@/components/DepreciationTab";
 import { InvestmentPerformanceTab } from "@/components/InvestmentPerformanceTab";
 import { AssetZakatTab } from "@/components/AssetZakatTab";
 import { computeDepreciation, type DepreciationProfile } from "@/lib/assets/depreciation";
+import { syncWalletTx, deleteWalletTxForSource, investmentWalletKind } from "@/lib/wallet-sync";
 import { isDepreciable, defaultsFor } from "@/lib/assets/depreciation-defaults";
 
 
@@ -43,13 +44,14 @@ const INV_TYPES = [
 const typeLabel = (v: string) => INV_TYPES.find((t) => t.value === v)?.label ?? v;
 const typeIcon = (v: string) => INV_TYPES.find((t) => t.value === v)?.icon ?? "💎";
 
-// Asset transaction classes (CapEx / OpEx / Income / Adjustment / Sale)
+// Asset transaction classes (CapEx / OpEx / Income / Adjustment / Sale / Capital Contribution)
 const TX_CLASSES: { value: AssetTxClass; label: string; emoji: string }[] = [
   { value: "capex", label: "مصروف رأسمالي", emoji: "🔧" },
   { value: "opex", label: "مصروف تشغيلي", emoji: "⛽" },
   { value: "income", label: "دخل / إيراد", emoji: "💰" },
   { value: "adjustment", label: "تعديل قيمة", emoji: "📊" },
   { value: "sale", label: "بيع الأصل", emoji: "🏁" },
+  { value: "capital_contribution", label: "زيادة رأس المال", emoji: "➕" },
 ];
 
 function MetricCard({ label, value, cur, tone, accent, signed }: { label: string; value: number; cur: string; tone?: string; accent?: boolean; signed?: boolean }) {
@@ -78,6 +80,8 @@ function InvestmentsPage() {
   const [editing, setEditing] = useState<any | null>(null);
   const [txFor, setTxFor] = useState<any | null>(null);
   const [detail, setDetail] = useState<any | null>(null);
+  const [editingTx, setEditingTx] = useState<any | null>(null);
+  const [deletingTx, setDeletingTx] = useState<any | null>(null);
   const [search, setSearch] = useState("");
   const [filterType, setFilterType] = useState<string>("all");
   const [filterStatus, setFilterStatus] = useState<string>("active");
@@ -354,6 +358,38 @@ function InvestmentsPage() {
         </DialogContent>
       </Dialog>
 
+      <Dialog open={!!editingTx} onOpenChange={(v) => !v && setEditingTx(null)}>
+        <DialogContent className="max-w-md">
+          {editingTx && (
+            <InvestmentTxEditForm
+              tx={editingTx}
+              wallets={data?.wallets ?? []}
+              onDone={() => {
+                setEditingTx(null);
+                qc.invalidateQueries({ queryKey: ["investments-list"] });
+              }}
+            />
+          )}
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={!!deletingTx} onOpenChange={(v) => !v && setDeletingTx(null)}>
+        <DialogContent className="max-w-md">
+          {deletingTx && (
+            <InvestmentTxDeleteConfirm
+              tx={deletingTx}
+              allTxs={txByInv.get(deletingTx.investment_id) ?? []}
+              asset={(data?.items ?? []).find((i: any) => i.id === deletingTx.investment_id)}
+              onCancel={() => setDeletingTx(null)}
+              onDone={() => {
+                setDeletingTx(null);
+                qc.invalidateQueries({ queryKey: ["investments-list"] });
+              }}
+            />
+          )}
+        </DialogContent>
+      </Dialog>
+
       <Dialog open={!!detail} onOpenChange={(v) => !v && setDetail(null)}>
         <DialogContent className="max-w-2xl max-h-[88vh] overflow-y-auto">
           {detail && (() => {
@@ -456,6 +492,14 @@ function InvestmentsPage() {
                       </div>
                     )}
 
+                    <Button
+                      type="button"
+                      className="w-full pt-2"
+                      onClick={() => { setDetail(null); setTxFor({ ...detail, _preset_tx_class: "capital_contribution" }); }}
+                    >
+                      <Plus className="h-4 w-4" /> زيادة رأس المال
+                    </Button>
+
                     <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 pt-2 border-t">
                       {(["capex","opex","income","adjustment"] as AssetTxClass[]).map((c) => {
                         const tm = TX_CLASS_META[c];
@@ -483,6 +527,10 @@ function InvestmentsPage() {
                             <div className="text-[11px] text-muted-foreground">{formatDate(t.happened_at)}{t.notes ? ` · ${t.notes}` : ""}</div>
                           </div>
                           <div className={cn("font-bold tabular-nums", tm.color)}>{tm.sign === "−" ? "−" : tm.sign === "+" ? "+" : ""}{formatMoney(t.amount, t.currency)}</div>
+                          <div className="flex items-center gap-0.5 shrink-0">
+                            <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setEditingTx(t)}><Pencil className="h-3.5 w-3.5" /></Button>
+                            <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setDeletingTx(t)}><Trash2 className="h-3.5 w-3.5 text-destructive" /></Button>
+                          </div>
                         </div>
                       );
                     })}
@@ -873,33 +921,38 @@ function InvestmentTxForm({ investment, wallets, onDone }: any) {
         txClass === "sale" ? "withdraw" :
         txClass === "adjustment" ? "revaluation" :
         txClass === "opex" ? "capital_add" : // OpEx not in old enum — fallback
+        txClass === "capital_contribution" ? "capital_add" : // maps to the same legacy bucket as capex — DB trigger resolves the real type from tx_class directly
         "capital_add";
 
       const affectsWallet = txClass !== "personal_benefit" && txClass !== "adjustment";
       const useWallet = affectsWallet && walletId !== "none";
 
-      const { error } = await supabase.from("investment_transactions").insert({
-        user_id: u.user.id,
-        investment_id: investment.id,
-        kind: legacyKind,
-        tx_class: txClass,
-        amount: amt,
-        currency: investment.currency,
-        wallet_id: useWallet ? walletId : null,
-        affects_wallet: affectsWallet,
-        happened_at: happenedAt,
-        notes: notes || null,
-      } as any);
+      const { data: inserted, error } = await supabase
+        .from("investment_transactions")
+        .insert({
+          user_id: u.user.id,
+          investment_id: investment.id,
+          kind: legacyKind,
+          tx_class: txClass,
+          amount: amt,
+          currency: investment.currency,
+          wallet_id: useWallet ? walletId : null,
+          affects_wallet: affectsWallet,
+          happened_at: happenedAt,
+          notes: notes || null,
+        } as any)
+        .select("id")
+        .single();
       if (error) throw error;
 
-      // Update asset value based on class
+      // Update asset value based on class — CapEx no longer touches
+      // current_value (market value is independent of capital movements);
+      // adjustment stays the one explicit "set the market value" entry
+      // point, and sale still records the closing status/proceeds only.
       if (updateValue) {
-        const cur = Number(investment.current_value) || 0;
         const base = Number(investment.base_value ?? investment.principal) || 0;
         const updates: any = {};
-        if (txClass === "capex") {
-          updates.current_value = cur + amt;
-        } else if (txClass === "adjustment") {
+        if (txClass === "adjustment") {
           updates.current_value = amt; // amount = new market value
         } else if (txClass === "sale") {
           updates.status = "sold";
@@ -912,23 +965,20 @@ function InvestmentTxForm({ investment, wallets, onDone }: any) {
         }
       }
 
-      // Sync wallet — CapEx/OpEx leave wallet, Income/Sale enter wallet
-      if (useWallet) {
-        const walletKind =
-          txClass === "capex" || txClass === "opex" ? "send" :
-          txClass === "income" || txClass === "sale" ? "receive" : null;
-        if (walletKind) {
-          await supabase.from("wallet_transactions").insert({
-            user_id: u.user.id,
-            wallet_id: walletId,
-            kind: walletKind,
-            amount: amt,
-            currency: investment.currency,
-            happened_at: happenedAt,
-            notes: `${meta.label} — ${investment.name}`,
-          });
-        }
-      }
+      // Link the wallet effect to this transaction via the existing
+      // source_kind/source_id mechanism (wallet-sync.ts) — the same one
+      // already used for person_ledger — so a later edit/delete of this
+      // transaction can find and resync/remove its wallet mirror safely.
+      await syncWalletTx({
+        userId: u.user.id,
+        walletId: useWallet ? walletId : null,
+        walletKind: investmentWalletKind(legacyKind),
+        amount: amt,
+        currency: investment.currency,
+        happenedAt,
+        notes: `${meta.label} — ${investment.name}`,
+        source: { kind: "investment_transactions", id: (inserted as any).id },
+      });
     },
     onSuccess: () => { toast.success("تمت الإضافة"); onDone(); },
     onError: (e: any) => toast.error("خطأ", { description: e.message }),
@@ -940,7 +990,7 @@ function InvestmentTxForm({ investment, wallets, onDone }: any) {
 
       <div>
         <Label>نوع الحركة</Label>
-        <div className="grid grid-cols-5 gap-1.5 mt-1.5">
+        <div className="grid grid-cols-3 gap-1.5 mt-1.5">
           {TX_CLASSES.map((t) => (
             <button key={t.value} type="button" onClick={() => setTxClass(t.value)}
               className={cn("flex flex-col items-center gap-0.5 rounded-xl border p-2 text-[10px] font-medium transition",
@@ -972,19 +1022,17 @@ function InvestmentTxForm({ investment, wallets, onDone }: any) {
             </SelectContent>
           </Select>
           <div className="text-[10px] text-muted-foreground mt-1">
-            {txClass === "capex" || txClass === "opex" ? "سيُخصم المبلغ من المحفظة" : "سيُضاف المبلغ إلى المحفظة"}
+            {txClass === "capex" || txClass === "opex" || txClass === "capital_contribution" ? "سيُخصم المبلغ من المحفظة" : "سيُضاف المبلغ إلى المحفظة"}
           </div>
         </div>
       )}
 
       <div><Label>ملاحظة</Label><Input value={notes} onChange={(e) => setNotes(e.target.value)} maxLength={200} /></div>
 
-      {(txClass === "capex" || txClass === "adjustment" || txClass === "sale") && (
+      {(txClass === "adjustment" || txClass === "sale") && (
         <div className="flex items-center justify-between rounded-xl border bg-accent/30 p-3">
           <div className="text-xs text-muted-foreground">
-            {txClass === "capex" ? "إضافة المبلغ لقيمة الأصل" :
-             txClass === "adjustment" ? "تحديث القيمة السوقية" :
-             "تسجيل البيع وإغلاق الأصل"}
+            {txClass === "adjustment" ? "تحديث القيمة السوقية" : "تسجيل البيع وإغلاق الأصل"}
           </div>
           <Switch checked={updateValue} onCheckedChange={setUpdateValue} />
         </div>
@@ -992,5 +1040,236 @@ function InvestmentTxForm({ investment, wallets, onDone }: any) {
 
       <DialogFooter><Button type="submit" className="w-full" disabled={mut.isPending}>حفظ</Button></DialogFooter>
     </form>
+  );
+}
+
+// =========== Edit / Delete an existing investment transaction ===========
+// Scoped intentionally to the investment_transactions row itself: amount,
+// date, notes, tx_class, wallet. It does NOT retroactively reconcile
+// investments.current_value/status/sold_amount or any wallet_transactions
+// row that may have been created when the transaction was first added —
+// those side effects aren't tracked anywhere against the source row (no
+// back-reference column), so attempting to auto-reverse/reapply them here
+// would be guesswork. computeAssetMetrics()/computeInvestmentPerformance()
+// read the transaction list live, so book value, totals, and performance
+// are always correct after an edit or delete — no separate recompute step
+// is needed. The DB's AFTER trigger (tg_sync_tx_investment_tx) mirrors
+// UPDATE/DELETE into public.transactions automatically.
+
+function InvestmentTxEditForm({ tx, wallets, onDone }: any) {
+  const [txClass, setTxClass] = useState<AssetTxClass>((tx.tx_class as AssetTxClass) ?? "capex");
+  const [amount, setAmount] = useState(String(tx.amount ?? ""));
+  const [walletId, setWalletId] = useState<string>(tx.wallet_id ?? "none");
+  const [happenedAt, setHappenedAt] = useState(tx.happened_at ?? todayISO());
+  const [notes, setNotes] = useState(tx.notes ?? "");
+
+  const meta = TX_CLASS_META[txClass];
+
+  // Whether this transaction already has a linked wallet_transactions
+  // mirror (source_kind/source_id) — transactions added before this
+  // linkage existed won't have one, so editing them can't safely resync
+  // whatever wallet effect they originally applied.
+  const { data: linkedWalletTx, isLoading: linkedTxLoading } = useQuery({
+    queryKey: ["investment-tx-wallet-link", tx.id],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("wallet_transactions")
+        .select("id")
+        .eq("source_kind", "investment_transactions")
+        .eq("source_id", tx.id)
+        .maybeSingle();
+      return data;
+    },
+  });
+
+  const mut = useMutation({
+    mutationFn: async () => {
+      const amt = parseFloat(amount);
+      if (!amt) throw new Error("أدخل المبلغ");
+
+      const { data: u } = await supabase.auth.getUser();
+      if (!u.user) throw new Error("غير مسجل");
+
+      // Keep legacy `kind` in sync with tx_class — the DB sync trigger falls
+      // back to `kind` for any tx_class it doesn't explicitly branch on
+      // (currently only capital_contribution), so an edit that changes
+      // tx_class without updating `kind` could mirror the wrong direction
+      // into public.transactions. Same mapping as InvestmentTxForm's insert.
+      const legacyKind =
+        txClass === "capex" ? "capital_add" :
+        txClass === "income" ? "return" :
+        txClass === "sale" ? "withdraw" :
+        txClass === "adjustment" ? "revaluation" :
+        txClass === "opex" ? "capital_add" :
+        txClass === "capital_contribution" ? "capital_add" :
+        "capital_add";
+
+      const affectsWallet = txClass !== "personal_benefit" && txClass !== "adjustment";
+      const useWallet = affectsWallet && walletId !== "none";
+
+      const { error } = await supabase
+        .from("investment_transactions")
+        .update({
+          tx_class: txClass,
+          kind: legacyKind,
+          amount: amt,
+          wallet_id: useWallet ? walletId : null,
+          affects_wallet: affectsWallet,
+          happened_at: happenedAt,
+          notes: notes || null,
+        } as any)
+        .eq("id", tx.id);
+      if (error) throw error;
+
+      // Resync the linked wallet mirror: syncWalletTx() looks up the
+      // existing wallet_transactions row by (source_kind, source_id) and
+      // updates it in place (moving wallet/amount if changed), inserts one
+      // if none exists yet, or removes it if no wallet is selected anymore
+      // — so a wallet A→B / amount change never leaves a duplicate or a
+      // stale effect on the old wallet.
+      await syncWalletTx({
+        userId: u.user.id,
+        walletId: useWallet ? walletId : null,
+        walletKind: investmentWalletKind(legacyKind),
+        amount: amt,
+        currency: tx.currency,
+        happenedAt,
+        notes: `${meta.label} — ${notes || ""}`.trim(),
+        source: { kind: "investment_transactions", id: tx.id },
+      });
+    },
+    onSuccess: () => { toast.success("تم تحديث الحركة"); onDone(); },
+    onError: (e: any) => toast.error("خطأ", { description: e.message }),
+  });
+
+  return (
+    <form onSubmit={(e) => { e.preventDefault(); mut.mutate(); }} className="space-y-3">
+      <DialogHeader><DialogTitle>تعديل الحركة</DialogTitle></DialogHeader>
+
+      <div>
+        <Label>نوع الحركة</Label>
+        <div className="grid grid-cols-3 gap-1.5 mt-1.5">
+          {TX_CLASSES.map((t) => (
+            <button key={t.value} type="button" onClick={() => setTxClass(t.value)}
+              className={cn("flex flex-col items-center gap-0.5 rounded-xl border p-2 text-[10px] font-medium transition",
+                txClass === t.value ? "border-primary bg-primary/10 text-primary" : "border-border hover:border-primary/40")}>
+              <span className="text-base leading-none">{t.emoji}</span>
+              <span>{t.label}</span>
+            </button>
+          ))}
+        </div>
+        <div className="text-[10px] text-muted-foreground mt-1.5">{meta.description}</div>
+      </div>
+
+      <div className="grid grid-cols-2 gap-3">
+        <div>
+          <Label>{txClass === "adjustment" ? "القيمة السوقية الجديدة" : "المبلغ"}</Label>
+          <Input type="number" step="0.01" value={amount} onChange={(e) => setAmount(e.target.value)} required dir="ltr" />
+        </div>
+        <div><Label>التاريخ</Label><Input type="date" value={happenedAt} onChange={(e) => setHappenedAt(e.target.value)} dir="ltr" /></div>
+      </div>
+
+      {txClass !== "adjustment" && txClass !== "personal_benefit" && (
+        <div>
+          <Label className="flex items-center gap-1"><WalletIcon className="h-3.5 w-3.5" /> المحفظة المتأثرة</Label>
+          <Select value={walletId} onValueChange={setWalletId}>
+            <SelectTrigger><SelectValue /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="none">— بدون تأثير على المحافظ</SelectItem>
+              {wallets.map((w: any) => <SelectItem key={w.id} value={w.id}>{w.name}</SelectItem>)}
+            </SelectContent>
+          </Select>
+        </div>
+      )}
+
+      <div><Label>ملاحظة</Label><Input value={notes} onChange={(e) => setNotes(e.target.value)} maxLength={200} /></div>
+
+      <div className="rounded-lg border border-amber-500/30 bg-amber-500/5 p-2.5 text-[11px] text-amber-800 dark:text-amber-200">
+        {linkedTxLoading ? (
+          "جارٍ التحقق من ارتباط هذه الحركة بالمحفظة..."
+        ) : linkedWalletTx ? (
+          "سيُحدَّث أثر المحفظة المرتبط بهذه الحركة تلقائياً (نفس المبلغ/المحفظة الجديدين). لا يُعاد ضبط أي تحديث سابق طُبِّق على قيمة الأصل نفسه (مثل تعديل يدوي للقيمة السوقية أو إغلاق بيع)."
+        ) : (
+          "هذه الحركة لا ترتبط حالياً بأي أثر محفظة معروف — إن كانت أُنشئت قبل إضافة الربط الآمن فقد أثّرت على رصيد المحفظة وقتها دون رابط يمكن تتبّعه أو تصحيحه هنا. إن اخترت محفظة الآن سيُنشأ أثر جديد مرتبط بأمان، بلا علاقة بأي أثر سابق غير مرتبط."
+        )}
+      </div>
+
+      <DialogFooter><Button type="submit" className="w-full" disabled={mut.isPending}>حفظ التعديل</Button></DialogFooter>
+    </form>
+  );
+}
+
+function InvestmentTxDeleteConfirm({ tx, allTxs, asset, onDone, onCancel }: any) {
+  const cls = (tx.tx_class || "capex") as AssetTxClass;
+  const tm = TX_CLASS_META[cls] ?? TX_CLASS_META.capex;
+  const before = computeAssetMetrics(asset ?? {}, allTxs);
+  const after = computeAssetMetrics(asset ?? {}, allTxs.filter((t: any) => t.id !== tx.id));
+
+  // Show whether a linked wallet effect will also be reversed.
+  const { data: linkedWalletTx, isLoading: linkedTxLoading } = useQuery({
+    queryKey: ["investment-tx-wallet-link", tx.id],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("wallet_transactions")
+        .select("id, wallet_id, amount, kind")
+        .eq("source_kind", "investment_transactions")
+        .eq("source_id", tx.id)
+        .maybeSingle();
+      return data;
+    },
+  });
+
+  const del = useMutation({
+    mutationFn: async () => {
+      const { error } = await supabase.from("investment_transactions").delete().eq("id", tx.id);
+      if (error) throw error;
+      // Reverse the linked wallet mirror, if one exists, so the wallet
+      // balance never keeps reflecting a transaction that no longer exists.
+      await deleteWalletTxForSource("investment_transactions", tx.id);
+    },
+    onSuccess: () => { toast.success("تم حذف الحركة"); onDone(); },
+    onError: (e: any) => toast.error("خطأ", { description: e.message }),
+  });
+
+  return (
+    <div className="space-y-3">
+      <DialogHeader><DialogTitle>حذف الحركة؟</DialogTitle></DialogHeader>
+
+      <div className="flex items-center gap-3 rounded-xl border bg-card p-3">
+        <span className={cn("text-lg leading-none", tm.color)}>{tm.sign}</span>
+        <div className="flex-1 min-w-0">
+          <div className="text-sm font-medium">{tm.label}</div>
+          <div className="text-[11px] text-muted-foreground">{formatDate(tx.happened_at)}{tx.notes ? ` · ${tx.notes}` : ""}</div>
+        </div>
+        <div className={cn("font-bold tabular-nums", tm.color)}>{formatMoney(tx.amount, tx.currency)}</div>
+      </div>
+
+      <div className="rounded-xl border border-destructive/30 bg-destructive/5 p-3 text-xs space-y-1.5">
+        <div className="font-semibold text-destructive">أثر الحذف على الأصل</div>
+        <div className="flex justify-between">
+          <span className="text-muted-foreground">القيمة الدفترية</span>
+          <span className="font-medium tabular-nums">{formatMoney(before.bookValue, tx.currency)} ← {formatMoney(after.bookValue, tx.currency)}</span>
+        </div>
+        <div className="flex justify-between">
+          <span className="text-muted-foreground">صافي الربح</span>
+          <span className="font-medium tabular-nums">{formatMoney(before.totalPnl, tx.currency)} ← {formatMoney(after.totalPnl, tx.currency)}</span>
+        </div>
+        <div className="flex justify-between pt-1 border-t border-destructive/20">
+          <span className="text-muted-foreground">أثر المحفظة</span>
+          <span className="font-medium">
+            {linkedTxLoading ? "..." : linkedWalletTx ? "سيُعاد للمحفظة تلقائياً" : "لا أثر محفظة مرتبط معروف"}
+          </span>
+        </div>
+      </div>
+
+      <div className="text-[11px] text-muted-foreground">
+        هذا الإجراء نهائي ولا يمكن التراجع عنه. لن يتأثر الأصل نفسه أو بقية الحركات — فقط هذه الحركة (وأثرها على المحفظة المرتبطة إن وُجد) ستُحذف.
+      </div>
+
+      <DialogFooter className="flex gap-2">
+        <Button type="button" variant="outline" className="flex-1" onClick={onCancel}>إلغاء</Button>
+        <Button type="button" variant="destructive" className="flex-1" disabled={del.isPending} onClick={() => del.mutate()}>حذف نهائياً</Button>
+      </DialogFooter>
+    </div>
   );
 }
