@@ -102,9 +102,13 @@ import { generateAppStorePackage } from "@/lib/submission/appstore";
 import { generateLaunchPackage } from "@/lib/launch/package";
 import { generateLaunchCertificate } from "@/lib/launch/certificate";
 import { generateFinalLaunchDecision } from "@/lib/launch/decision";
+import {
+  auditLegacyInvestmentWalletLinks,
+  generateLegacyInvestmentRepairPlan,
+} from "@/lib/wallet-sync-audit";
 import { loadLastBackup } from "@/lib/backup/engine";
 import { verifyBackupIntegrity } from "@/lib/backup/integrity";
-import { formatMoney } from "@/lib/format";
+import { formatMoney, formatDate } from "@/lib/format";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useState } from "react";
@@ -167,6 +171,8 @@ import {
   Lock,
   Zap,
   PackageCheck,
+  Unlink,
+  Search,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -417,6 +423,15 @@ function SystemPage() {
     queryKey: ["final-launch-decision"],
     queryFn: () => auditGate(() => auditGate(generateFinalLaunchDecision)),
   });
+
+  // ----- Prompt 33: Legacy Investment Wallet Link Audit (read-only) -----
+  const legacyWalletLinkAudit = useQuery({
+    queryKey: ["legacy-investment-wallet-link-audit"],
+    queryFn: () => auditGate(auditLegacyInvestmentWalletLinks),
+  });
+  const legacyWalletLinkRepairPlan = legacyWalletLinkAudit.data
+    ? generateLegacyInvestmentRepairPlan(legacyWalletLinkAudit.data)
+    : null;
 
   const recommendations: string[] = [];
   if (health.data?.status === "error")
@@ -2620,6 +2635,95 @@ function SystemPage() {
         </div>
       </Section>
 
+      {/* Legacy Investment Wallet Link Audit (Prompt 33) — read-only, no auto-linking */}
+      <Section title="Legacy Investment Link Audit" icon={Unlink}>
+        {legacyWalletLinkAudit.isLoading ? (
+          <SkeletonRows />
+        ) : legacyWalletLinkAudit.data ? (
+          <div className="space-y-5">
+            <div className="rounded-xl border border-primary/20 bg-primary/5 p-3 text-[11px] text-muted-foreground">
+              تدقيق للقراءة فقط — لا يُنشئ أو يُعدّل أو يحذف أي حركة. أي حالة تحتاج ربطاً فعلياً "تتطلب مراجعة يدوية" ولا يوجد أي زر ينفّذ ربطاً تلقائياً.
+            </div>
+
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2.5">
+              <MetricCard icon={Unlink} label="Total Legacy Unlinked" value={String(legacyWalletLinkAudit.data.totalUnlinked)} />
+              <MetricCard icon={XCircle} label="High Risk" value={String(legacyWalletLinkAudit.data.highRiskCount)} />
+              <MetricCard icon={AlertTriangle} label="Medium Risk" value={String(legacyWalletLinkAudit.data.mediumRiskCount)} />
+              <MetricCard icon={CheckCircle2} label="Low Risk" value={String(legacyWalletLinkAudit.data.lowRiskCount)} />
+              <MetricCard icon={Search} label="Possible Matches" value={String(legacyWalletLinkAudit.data.withPossibleMatchesCount)} />
+              <MetricCard
+                icon={ShieldQuestion}
+                label="Unresolved"
+                value={String(legacyWalletLinkRepairPlan?.entries.filter((e) => e.recommended_action === "unresolved").length ?? 0)}
+              />
+            </div>
+
+            {legacyWalletLinkAudit.data.items.length === 0 ? (
+              <div className="rounded-xl border border-dashed p-6 text-center text-xs text-muted-foreground">
+                لا توجد حركات استثمار قديمة غير مرتبطة بمحفظة — كل الحركات ذات wallet_id لها رابط source_kind/source_id سليم.
+              </div>
+            ) : (
+              <div className="overflow-x-auto rounded-xl border">
+                <table className="w-full text-[11px]" dir="rtl">
+                  <thead className="bg-muted/50 text-muted-foreground">
+                    <tr>
+                      <th className="p-2 text-right font-semibold">الأصل</th>
+                      <th className="p-2 text-right font-semibold">النوع</th>
+                      <th className="p-2 text-right font-semibold">المبلغ</th>
+                      <th className="p-2 text-right font-semibold">التاريخ</th>
+                      <th className="p-2 text-right font-semibold">المخاطرة</th>
+                      <th className="p-2 text-right font-semibold">مطابقات محتملة</th>
+                      <th className="p-2 text-right font-semibold">الإجراء الموصى به</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {legacyWalletLinkAudit.data.items.map((item) => {
+                      const plan = legacyWalletLinkRepairPlan?.entries.find((e) => e.investment_tx_id === item.investment_tx_id);
+                      return (
+                        <tr key={item.investment_tx_id} className="border-t">
+                          <td className="p-2">{item.asset_name}</td>
+                          <td className="p-2">{item.tx_class ?? "—"}</td>
+                          <td className="p-2 tabular-nums">{formatMoney(item.amount, item.currency)}</td>
+                          <td className="p-2">{formatDate(item.happened_at)}</td>
+                          <td className="p-2">
+                            <span
+                              className={cn(
+                                "rounded-full px-2 py-0.5 text-[10px] font-semibold",
+                                item.risk === "HIGH"
+                                  ? "bg-destructive/15 text-destructive"
+                                  : item.risk === "MEDIUM"
+                                    ? "bg-warning/15 text-warning"
+                                    : "bg-success/15 text-success",
+                              )}
+                            >
+                              {item.risk}
+                            </span>
+                          </td>
+                          <td className="p-2">
+                            {item.possible_matches.length === 0
+                              ? "—"
+                              : item.possible_matches.map((m) => `${m.confidence}`).join("، ")}
+                          </td>
+                          <td className="p-2">
+                            {plan?.recommended_action === "no_action" ? (
+                              "لا إجراء مطلوب"
+                            ) : (
+                              <span className="text-amber-700 dark:text-amber-300 font-medium">يتطلب مراجعة يدوية</span>
+                            )}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+        ) : (
+          <SkeletonRows />
+        )}
+      </Section>
+
       <div className="flex justify-end">
         <Button
           variant="outline"
@@ -2675,6 +2779,7 @@ function SystemPage() {
             qc.invalidateQueries({ queryKey: ["launch-package"] });
             qc.invalidateQueries({ queryKey: ["launch-certificate"] });
             qc.invalidateQueries({ queryKey: ["final-launch-decision"] });
+            qc.invalidateQueries({ queryKey: ["legacy-investment-wallet-link-audit"] });
             refreshEmergencyState();
           }}
         >
