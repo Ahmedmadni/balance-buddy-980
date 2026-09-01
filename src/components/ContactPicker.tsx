@@ -10,6 +10,7 @@ import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogT
 import { ChevronsUpDown, Check, Plus, User } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
+import { normalizeContactName } from "@/lib/contacts/encoding";
 
 export type Contact = { id: string; name: string; phone: string | null };
 
@@ -36,7 +37,10 @@ export function ContactPicker({
         .select("id,name,phone")
         .order("name");
       if (error) throw error;
-      return (data ?? []) as Contact[];
+      // Decode legacy quoted-printable names at read time (see
+      // src/lib/contacts/encoding.ts) so the picker is correct even before
+      // the stored value is repaired via the Contacts page.
+      return (data ?? []).map((c: Contact) => ({ ...c, name: normalizeContactName(c.name) })) as Contact[];
     },
   });
 
