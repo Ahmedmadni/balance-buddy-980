@@ -15,6 +15,7 @@ import { QuickActionsRow } from "@/components/dashboard/QuickActionsRow";
 import { AdSlot } from "@/components/ads/AdSlot";
 import { UpcomingEventsWidget } from "@/components/dashboard/UpcomingEventsWidget";
 import { WealthOverviewWidgets } from "@/components/dashboard/WealthOverviewWidgets";
+import { computeAssetMetrics } from "@/lib/assets/calculator";
 
 export const Route = createFileRoute("/_authenticated/app/")({
   head: () => ({ meta: [{ title: "اللوحة الرئيسية — رصد" }] }),
@@ -31,8 +32,8 @@ function Dashboard() {
         supabase.from("wallets").select("id,name,opening_balance,currency,color,type"),
         supabase.from("wallet_transactions").select("wallet_id,kind,amount,currency,happened_at"),
         supabase.from("expense_allocations").select("amount,currency,period"),
-        supabase.from("investments").select("id,principal,current_value,currency,status"),
-        supabase.from("investment_transactions").select("investment_id,kind,amount,currency"),
+        supabase.from("investments").select("id,principal,base_value,current_value,currency,status,sold_amount,sold_at"),
+        supabase.from("investment_transactions").select("investment_id,kind,tx_class,amount,currency,happened_at"),
       ]);
       return {
         ledger: ledgerRes.data ?? [],
@@ -113,23 +114,20 @@ function Dashboard() {
   for (const c of allCurs) monthlyNet[c] = (monthlyInflow[c] ?? 0) - (monthlyOutflow[c] ?? 0);
 
   // Investments totals by currency
-  const investedByInv = new Map<string, number>();
-  const returnsByInv = new Map<string, number>();
+  const txByInvestment = new Map<string, any[]>();
   for (const tx of d.invTxs as any[]) {
-    if (tx.kind === "capital_add") investedByInv.set(tx.investment_id, (investedByInv.get(tx.investment_id) ?? 0) + Number(tx.amount));
-    else if (tx.kind === "capital_withdraw") investedByInv.set(tx.investment_id, (investedByInv.get(tx.investment_id) ?? 0) - Number(tx.amount));
-    else if (tx.kind === "return" || tx.kind === "profit") returnsByInv.set(tx.investment_id, (returnsByInv.get(tx.investment_id) ?? 0) + Number(tx.amount));
+    const rows = txByInvestment.get(tx.investment_id) ?? [];
+    rows.push(tx);
+    txByInvestment.set(tx.investment_id, rows);
   }
   const investmentsTotal: Record<string, number> = {};
   const investmentsProfit: Record<string, number> = {};
   for (const inv of d.investments as any[]) {
     if (inv.status === "closed") continue;
     const cur = inv.currency;
-    const invested = Number(inv.principal) + (investedByInv.get(inv.id) ?? 0);
-    const value = Number(inv.current_value) || invested;
-    const profit = value - invested + (returnsByInv.get(inv.id) ?? 0);
-    investmentsTotal[cur] = (investmentsTotal[cur] ?? 0) + value;
-    investmentsProfit[cur] = (investmentsProfit[cur] ?? 0) + profit;
+    const metrics = computeAssetMetrics(inv, txByInvestment.get(inv.id) ?? []);
+    investmentsTotal[cur] = (investmentsTotal[cur] ?? 0) + metrics.marketValue;
+    investmentsProfit[cur] = (investmentsProfit[cur] ?? 0) + metrics.totalPnl;
   }
 
   const byCat: Record<string, { name: string; color: string; value: number }> = {};
@@ -472,4 +470,3 @@ function DashboardPrivacyToggle() {
 }
 
 export const _unused = TrendingUp;
-

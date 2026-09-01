@@ -105,15 +105,16 @@ export function InvestmentPerformanceTab({ asset }: { asset: any }) {
             <Stat label="المصروفات الرأسمالية" value={formatMoney(active.capex, cur)} tone="text-blue-600" />
             <Stat label="زيادة رأس المال" value={formatMoney(active.capitalContribution, cur)} tone="text-indigo-600" />
             <Stat label="مجمع الإهلاك" value={formatMoney(active.accumulatedDepreciation, cur)} tone="text-muted-foreground" />
-            <Stat label="القيمة الدفترية" value={formatMoney(active.bookValue, cur)} />
+            <Stat label={active.sold ? "القيمة الدفترية عند البيع" : "القيمة الدفترية"} value={formatMoney(active.bookValue, cur)} />
             <Stat label="القيمة السوقية" value={formatMoney(active.marketValue, cur)} accent />
+            {active.sold && <Stat label="حصيلة البيع" value={formatMoney(active.saleProceeds, cur)} tone="text-success" />}
             <Stat
-              label="الربح غير المحقق"
+              label="الربح/الخسارة غير المحققة"
               value={`${active.unrealizedGain >= 0 ? "+" : ""}${formatMoney(active.unrealizedGain, cur)}`}
               tone={active.unrealizedGain >= 0 ? "text-success" : "text-destructive"}
             />
             <Stat
-              label="الربح المحقق"
+              label="الربح/الخسارة المحققة"
               value={`${active.realizedGain >= 0 ? "+" : ""}${formatMoney(active.realizedGain, cur)}`}
               tone={active.realizedGain >= 0 ? "text-success" : "text-destructive"}
             />
@@ -130,7 +131,7 @@ export function InvestmentPerformanceTab({ asset }: { asset: any }) {
           </div>
 
           {/* If sold today */}
-          <div className="rounded-2xl border-2 border-dashed border-primary/30 bg-primary/5 p-4 space-y-2">
+          {!active.sold && <div className="rounded-2xl border-2 border-dashed border-primary/30 bg-primary/5 p-4 space-y-2">
             <div className="flex items-center gap-2">
               <Coins className="h-4 w-4 text-primary" />
               <div className="font-bold text-sm">إذا تم بيع الأصل اليوم</div>
@@ -156,7 +157,7 @@ export function InvestmentPerformanceTab({ asset }: { asset: any }) {
                 accent
               />
             </div>
-          </div>
+          </div>}
 
           {/* Components breakdown when relevant */}
           {(scope === "components" || scope === "unified") && children.length > 0 && (
