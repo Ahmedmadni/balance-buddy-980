@@ -13,6 +13,7 @@
     "test:financial": "bun test src/lib/person-ledger.test.ts",
     "test:market-value": "bun test src/lib/assets/market-value.test.ts",
     "test:sale-semantics": "bun test src/lib/assets/sale-semantics.test.ts",
+    "test:route-perf": "bun test src/components/motion/RouteProgressBar.test.ts src/router.config.test.ts",
     "format": "prettier --write .",
     "android:add": "npx cap add android",
     "android:assets": "npx capacitor-assets generate --android",

@@ -17,6 +17,7 @@ import { createAuditEntry } from "@/lib/system/audit";
 import { initErrorTracking } from "@/lib/system/errors";
 import { registerServiceWorker } from "@/lib/pwa/register";
 import { ConsentBanner } from "@/components/ConsentBanner";
+import { RouteProgressBar } from "@/components/motion/RouteProgressBar";
 
 function NotFoundComponent() {
   return (
@@ -127,6 +128,7 @@ function RootComponent() {
   return (
     <QueryClientProvider client={queryClient}>
       <AdProviderRoot>
+        <RouteProgressBar />
         <Outlet />
         <Toaster position="top-center" richColors closeButton />
         <ConsentBanner />
