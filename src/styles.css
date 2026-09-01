@@ -170,3 +170,10 @@ html.privacy-on [data-private]:hover {
   filter: blur(0);
 }
 
+/* Indeterminate sweep for the global route-transition progress bar */
+@keyframes route-progress {
+  0% { transform: translateX(-100%); }
+  50% { transform: translateX(150%); }
+  100% { transform: translateX(150%); }
+}
+
