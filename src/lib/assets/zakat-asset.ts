@@ -108,7 +108,7 @@ export function computeAssetZakat(input: AssetZakatInput): AssetZakatResult {
     bookValue = Math.max(0, investmentCost - dep.accumulated_depreciation);
   }
 
-  const marketValue = resolveMarketValue(asset.current_value, bookValue, marketValues);
+  const marketValue = metrics.sold ? 0 : resolveMarketValue(asset.current_value, bookValue, marketValues);
 
   const ownership = (n(asset.ownership_pct) || 100) / 100;
 
@@ -127,7 +127,9 @@ export function computeAssetZakat(input: AssetZakatInput): AssetZakatResult {
   }
 
   let zakatableValue = 0;
-  if (settings.is_zakatable && settings.method !== "excluded") {
+  // A fully sold asset has no remaining asset exposure. Any received proceeds
+  // belong to the wallet/cash calculation and must not be counted here again.
+  if (!metrics.sold && settings.is_zakatable && settings.method !== "excluded") {
     if (effectiveMethod === "custom_value") zakatableValue = n(settings.custom_value);
     else if (effectiveMethod === "book_value") zakatableValue = bookValue * ownership;
     else zakatableValue = marketValue * ownership;
