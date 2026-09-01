@@ -3,7 +3,7 @@
 // and investment_transactions to compute return metrics.
 // Does NOT modify transactions, balances, or accounting state.
 
-import { computeAssetMetrics, resolveMarketValue, type AssetTx } from "./calculator";
+import { computeAssetMetrics, resolveAssetSale, resolveMarketValue, type AssetTx } from "./calculator";
 import { computeDepreciation, type DepreciationProfile } from "./depreciation";
 
 export interface MarketValuePoint {
@@ -19,6 +19,8 @@ export interface PerformanceInput {
     principal?: any;
     current_value?: any;
     sold_amount?: any;
+    sold_at?: string | null;
+    realized_pnl?: any;
     status?: string;
     acquired_at?: string | null;
     start_date?: string | null;
@@ -39,6 +41,7 @@ export interface InvestmentPerformance {
   opex: number;
   income: number;
   operatingProfit: number;       // income − opex
+  saleProceeds: number;          // proceeds, not profit
   accumulatedDepreciation: number;
   bookValue: number;             // investmentCost − accumulated_depreciation
   marketValue: number;           // last market value (or current_value fallback)
@@ -75,20 +78,24 @@ export function computeInvestmentPerformance(input: PerformanceInput): Investmen
   const investmentCost = base.baseValue + base.capex + base.capitalContribution;
   const operatingProfit = base.income - base.opex;
 
+  // A completed sale freezes depreciation at the sale date when one is known.
+  const preliminarySale = resolveAssetSale(asset, txs, 0);
+  const depreciationAsOf = preliminarySale.saleDate ? new Date(preliminarySale.saleDate) : asOf;
+
   // Depreciation
   let accumulatedDepreciation = 0;
   if (depreciationProfile && depreciationProfile.useful_life_months > 0) {
-    const dep = computeDepreciation(depreciationProfile, investmentCost, asOf);
+    const dep = computeDepreciation(depreciationProfile, investmentCost, depreciationAsOf);
     accumulatedDepreciation = dep.accumulated_depreciation;
   }
   const bookValue = Math.max(0, investmentCost - accumulatedDepreciation);
 
   // Market value: latest history point, else current_value, else book value
-  const marketValue = resolveMarketValue(asset.current_value, bookValue, marketValues);
-
-  const sold = asset.status === "sold" || n(asset.sold_amount) > 0;
+  const sale = resolveAssetSale(asset, txs, bookValue);
+  const marketValue = sale.sold ? 0 : resolveMarketValue(asset.current_value, bookValue, marketValues);
+  const sold = sale.sold;
   const unrealizedGain = sold ? 0 : marketValue - bookValue;
-  const realizedGain = sold ? (n(asset.sold_amount) || 0) - bookValue : 0;
+  const realizedGain = sale.realizedGain;
   const totalReturn = operatingProfit + realizedGain + unrealizedGain;
   const roi = investmentCost > 0 ? totalReturn / investmentCost : 0;
 
@@ -108,13 +115,13 @@ export function computeInvestmentPerformance(input: PerformanceInput): Investmen
     annualizedReturn = factor > 0 ? Math.pow(factor, 1 / holdingYears) - 1 : null;
   }
 
-  const expectedSaleGain = marketValue - bookValue;
+  const expectedSaleGain = sold ? realizedGain : marketValue - bookValue;
   const ifSoldToday = {
-    marketValue,
+    marketValue: sold ? sale.saleProceeds : marketValue,
     bookValue,
     expectedSaleGain,
     operatingProfit,
-    totalReturn: operatingProfit + expectedSaleGain + (sold ? realizedGain : 0),
+    totalReturn: sold ? totalReturn : operatingProfit + expectedSaleGain,
   };
 
   return {
@@ -125,6 +132,7 @@ export function computeInvestmentPerformance(input: PerformanceInput): Investmen
     opex: base.opex,
     income: base.income,
     operatingProfit,
+    saleProceeds: sale.saleProceeds,
     accumulatedDepreciation,
     bookValue,
     marketValue,
@@ -154,6 +162,7 @@ export function combinePerformance(items: InvestmentPerformance[]): InvestmentPe
 
   const investmentCost = sum("investmentCost");
   const operatingProfit = sum("operatingProfit");
+  const saleProceeds = sum("saleProceeds");
   const accumulatedDepreciation = sum("accumulatedDepreciation");
   const bookValue = sum("bookValue");
   const marketValue = sum("marketValue");
@@ -177,6 +186,7 @@ export function combinePerformance(items: InvestmentPerformance[]): InvestmentPe
     opex: sum("opex"),
     income: sum("income"),
     operatingProfit,
+    saleProceeds,
     accumulatedDepreciation,
     bookValue,
     marketValue,
@@ -187,13 +197,13 @@ export function combinePerformance(items: InvestmentPerformance[]): InvestmentPe
     annualizedReturn,
     holdingYears: null,
     ifSoldToday: {
-      marketValue,
+      marketValue: compat.reduce((total, item) => total + item.ifSoldToday.marketValue, 0),
       bookValue,
-      expectedSaleGain: marketValue - bookValue,
+      expectedSaleGain: compat.reduce((total, item) => total + item.ifSoldToday.expectedSaleGain, 0),
       operatingProfit,
-      totalReturn: operatingProfit + (marketValue - bookValue) + realizedGain,
+      totalReturn: compat.reduce((total, item) => total + item.ifSoldToday.totalReturn, 0),
     },
-    sold: false,
+    sold: compat.every((i) => i.sold),
     hasDepreciation: accumulatedDepreciation > 0,
     hasMarketHistory: compat.some((i) => i.hasMarketHistory),
   };

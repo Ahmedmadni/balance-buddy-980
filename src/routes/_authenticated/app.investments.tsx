@@ -542,20 +542,21 @@ function InvestmentsPage() {
                       <MetricCard label="إجمالي الإيرادات" value={m.income} cur={cur} tone="text-success" />
                       <MetricCard label="إجمالي المصروفات" value={m.opex + m.capex} cur={cur} tone="text-amber-600" />
                       <MetricCard label="صافي الربح" value={m.totalPnl} cur={cur} tone={m.totalPnl >= 0 ? "text-success" : "text-destructive"} signed />
-                      <MetricCard label="القيمة الدفترية" value={m.bookValue} cur={cur} />
+                      <MetricCard label={m.sold ? "القيمة الدفترية عند البيع" : "القيمة الدفترية"} value={m.bookValue} cur={cur} />
                       <MetricCard label="القيمة السوقية" value={m.marketValue} cur={cur} accent />
                       <MetricCard label="صافي التدفق النقدي" value={m.netCashflow} cur={cur} tone={m.netCashflow >= 0 ? "text-success" : "text-destructive"} signed />
                       <MetricCard label="CapEx" value={m.capex} cur={cur} tone="text-blue-600" />
                       <MetricCard label="OpEx" value={m.opex} cur={cur} tone="text-amber-600" />
-                      <MetricCard label="غير محقق P&L" value={m.unrealizedPnl} cur={cur} tone={m.unrealizedPnl >= 0 ? "text-success" : "text-destructive"} signed />
+                      <MetricCard label="الربح/الخسارة غير المحققة" value={m.unrealizedPnl} cur={cur} tone={m.unrealizedPnl >= 0 ? "text-success" : "text-destructive"} signed />
+                      {m.sold && <MetricCard label="الربح/الخسارة المحققة" value={m.realizedPnl} cur={cur} tone={m.realizedPnl >= 0 ? "text-success" : "text-destructive"} signed />}
                     </div>
                     <div className="rounded-xl border bg-accent/20 p-3 text-xs space-y-1">
                       <div className="flex justify-between"><span className="text-muted-foreground">العائد الحالي</span>
                         <span className={cn("font-bold tabular-nums", pnlPct >= 0 ? "text-success" : "text-destructive")}>{pnlPct >= 0 ? "+" : ""}{pnlPct.toFixed(2)}%</span>
                       </div>
                       <div className="flex justify-between"><span className="text-muted-foreground">عدد الحركات</span><span className="font-medium tabular-nums">{txs.length}</span></div>
-                      {detail.sold_amount > 0 && (
-                        <div className="flex justify-between"><span className="text-muted-foreground">قيمة البيع</span><span className="font-bold tabular-nums text-success">{formatMoney(detail.sold_amount, cur)}</span></div>
+                      {m.sold && (
+                        <div className="flex justify-between"><span className="text-muted-foreground">حصيلة البيع</span><span className="font-bold tabular-nums text-success">{formatMoney(m.saleProceeds, cur)}</span></div>
                       )}
                     </div>
                     <AdSlot slot="asset_details_bottom" />
@@ -912,7 +913,7 @@ function InvestmentTxForm({ investment, wallets, onDone }: any) {
       const { data: u } = await supabase.auth.getUser();
       if (!u.user) throw new Error("غير مسجل");
       const amt = parseFloat(amount);
-      if (!amt) throw new Error("أدخل المبلغ");
+      if (!Number.isFinite(amt) || (txClass === "sale" ? amt < 0 : amt <= 0)) throw new Error("أدخل المبلغ");
 
       // Map tx_class → legacy kind for compatibility with old reports/triggers
       const legacyKind =
@@ -925,7 +926,7 @@ function InvestmentTxForm({ investment, wallets, onDone }: any) {
         "capital_add";
 
       const affectsWallet = txClass !== "personal_benefit" && txClass !== "adjustment";
-      const useWallet = affectsWallet && walletId !== "none";
+      const useWallet = affectsWallet && walletId !== "none" && amt > 0;
 
       const { data: inserted, error } = await supabase
         .from("investment_transactions")
@@ -950,7 +951,6 @@ function InvestmentTxForm({ investment, wallets, onDone }: any) {
       // adjustment stays the one explicit "set the market value" entry
       // point, and sale still records the closing status/proceeds only.
       if (updateValue) {
-        const base = Number(investment.base_value ?? investment.principal) || 0;
         const updates: any = {};
         if (txClass === "adjustment") {
           updates.current_value = amt; // amount = new market value
@@ -958,7 +958,6 @@ function InvestmentTxForm({ investment, wallets, onDone }: any) {
           updates.status = "sold";
           updates.sold_at = happenedAt;
           updates.sold_amount = amt;
-          updates.realized_pnl = amt - (base);
         }
         if (Object.keys(updates).length) {
           await supabase.from("investments").update(updates).eq("id", investment.id);
@@ -1006,7 +1005,7 @@ function InvestmentTxForm({ investment, wallets, onDone }: any) {
       <div className="grid grid-cols-2 gap-3">
         <div>
           <Label>{txClass === "adjustment" ? "القيمة السوقية الجديدة" : "المبلغ"}</Label>
-          <Input type="number" step="0.01" value={amount} onChange={(e) => setAmount(e.target.value)} required dir="ltr" />
+          <Input type="number" step="0.01" min={txClass === "sale" ? "0" : "0.01"} value={amount} onChange={(e) => setAmount(e.target.value)} required dir="ltr" />
         </div>
         <div><Label>التاريخ</Label><Input type="date" value={happenedAt} onChange={(e) => setHappenedAt(e.target.value)} dir="ltr" /></div>
       </div>
@@ -1085,7 +1084,7 @@ function InvestmentTxEditForm({ tx, wallets, onDone }: any) {
   const mut = useMutation({
     mutationFn: async () => {
       const amt = parseFloat(amount);
-      if (!amt) throw new Error("أدخل المبلغ");
+      if (!Number.isFinite(amt) || (txClass === "sale" ? amt < 0 : amt <= 0)) throw new Error("أدخل المبلغ");
 
       const { data: u } = await supabase.auth.getUser();
       if (!u.user) throw new Error("غير مسجل");
@@ -1105,7 +1104,7 @@ function InvestmentTxEditForm({ tx, wallets, onDone }: any) {
         "capital_add";
 
       const affectsWallet = txClass !== "personal_benefit" && txClass !== "adjustment";
-      const useWallet = affectsWallet && walletId !== "none";
+      const useWallet = affectsWallet && walletId !== "none" && amt > 0;
 
       const { error } = await supabase
         .from("investment_transactions")
@@ -1164,7 +1163,7 @@ function InvestmentTxEditForm({ tx, wallets, onDone }: any) {
       <div className="grid grid-cols-2 gap-3">
         <div>
           <Label>{txClass === "adjustment" ? "القيمة السوقية الجديدة" : "المبلغ"}</Label>
-          <Input type="number" step="0.01" value={amount} onChange={(e) => setAmount(e.target.value)} required dir="ltr" />
+          <Input type="number" step="0.01" min={txClass === "sale" ? "0" : "0.01"} value={amount} onChange={(e) => setAmount(e.target.value)} required dir="ltr" />
         </div>
         <div><Label>التاريخ</Label><Input type="date" value={happenedAt} onChange={(e) => setHappenedAt(e.target.value)} dir="ltr" /></div>
       </div>
