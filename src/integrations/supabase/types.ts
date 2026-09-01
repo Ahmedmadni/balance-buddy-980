@@ -1319,14 +1319,6 @@ export type Database = {
       }
     }
     Functions: {
-      mutate_person_ledger: {
-        Args: {
-          p_data?: Json
-          p_ledger_id?: string | null
-          p_operation: string
-        }
-        Returns: Json
-      }
       _wallet_kind_dir: {
         Args: { _kind: string }
         Returns: Database["public"]["Enums"]["txn_direction"]
