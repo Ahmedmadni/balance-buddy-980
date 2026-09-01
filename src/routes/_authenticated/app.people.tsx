@@ -11,6 +11,7 @@ import { cn } from "@/lib/utils";
 import { PersonTxForm, kindSign } from "@/components/PersonTxForm";
 import { PersonStatementDrawer } from "@/components/PersonStatementDrawer";
 import { AdSlot } from "@/components/ads/AdSlot";
+import { normalizeContactName } from "@/lib/contacts/encoding";
 
 export const Route = createFileRoute("/_authenticated/app/people")({
   head: () => ({ meta: [{ title: "الديون — رصد" }] }),
@@ -77,7 +78,7 @@ function PeoplePage() {
       if (!r.contact_id) continue;
       const c = cmap.get(r.contact_id);
       if (!map.has(r.contact_id)) {
-        map.set(r.contact_id, { id: r.contact_id, name: c?.name ?? r.contact_name, phone: c?.phone ?? null, txCount: 0, lastDate: r.happened_at, byCurrency: {} });
+        map.set(r.contact_id, { id: r.contact_id, name: normalizeContactName(c?.name ?? r.contact_name), phone: c?.phone ?? null, txCount: 0, lastDate: r.happened_at, byCurrency: {} });
       }
       const p = map.get(r.contact_id)!;
       p.txCount++;
@@ -86,7 +87,7 @@ function PeoplePage() {
 
       if ((r.kind === "lend" || r.kind === "borrow") && r.due_date && !r.settled_at && r.reminder_enabled) {
         due.push({
-          id: r.id, name: c?.name ?? r.contact_name, contact_id: r.contact_id,
+          id: r.id, name: normalizeContactName(c?.name ?? r.contact_name), contact_id: r.contact_id,
           amount: Number(r.amount), currency: r.currency, due_date: r.due_date,
           overdue: r.due_date < today,
         });

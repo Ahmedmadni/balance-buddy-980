@@ -13,6 +13,7 @@ import { buildPersonStatement, type StatementRow } from "@/lib/statement";
 import { StatementTable } from "@/components/StatementTable";
 import { kindSign, PersonTxForm, type PersonLedgerInitial } from "@/components/PersonTxForm";
 import { mutatePersonLedger } from "@/lib/person-ledger";
+import { normalizeContactName } from "@/lib/contacts/encoding";
 import { toast } from "sonner";
 
 export function PersonStatementDrawer({
@@ -48,7 +49,7 @@ export function PersonStatementDrawer({
   };
 
   const rows = data?.rows ?? [];
-  const name = data?.contact?.name ?? contactName ?? rows[0]?.contact_name ?? "—";
+  const name = normalizeContactName(data?.contact?.name ?? contactName ?? rows[0]?.contact_name) || "—";
   const phone = data?.contact?.phone ?? null;
 
   // Group by currency

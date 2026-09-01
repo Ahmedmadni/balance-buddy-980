@@ -15,7 +15,7 @@ import { StatementTable } from "@/components/StatementTable";
 import { typeMeta } from "@/routes/_authenticated/app.wallets";
 import { toast } from "sonner";
 
-export const Route = createFileRoute("/_authenticated/app/wallets/$id")({
+export const Route = createFileRoute("/_authenticated/app/wallets_/$id")({
   head: () => ({ meta: [{ title: "كشف الحساب — رصد" }] }),
   component: WalletDetail,
 });

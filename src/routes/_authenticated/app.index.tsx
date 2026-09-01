@@ -16,6 +16,7 @@ import { AdSlot } from "@/components/ads/AdSlot";
 import { UpcomingEventsWidget } from "@/components/dashboard/UpcomingEventsWidget";
 import { WealthOverviewWidgets } from "@/components/dashboard/WealthOverviewWidgets";
 import { computeAssetMetrics } from "@/lib/assets/calculator";
+import { isExpenseWalletTx } from "@/lib/transactions/classify";
 
 export const Route = createFileRoute("/_authenticated/app/")({
   head: () => ({ meta: [{ title: "اللوحة الرئيسية — رصد" }] }),
@@ -30,7 +31,7 @@ function Dashboard() {
         supabase.from("person_ledger").select("contact_id,contact_name,kind,amount,currency,due_date,reminder_enabled,settled_at"),
         supabase.from("expenses").select("wallet_id,amount,currency,spent_at,categories(name,color)"),
         supabase.from("wallets").select("id,name,opening_balance,currency,color,type"),
-        supabase.from("wallet_transactions").select("wallet_id,kind,amount,currency,happened_at"),
+        supabase.from("wallet_transactions").select("wallet_id,kind,amount,currency,happened_at,source_kind"),
         supabase.from("expense_allocations").select("amount,currency,period"),
         supabase.from("investments").select("id,principal,base_value,current_value,currency,status,sold_amount,sold_at"),
         supabase.from("investment_transactions").select("investment_id,kind,tx_class,amount,currency,happened_at"),
@@ -97,16 +98,28 @@ function Dashboard() {
 
   const monthlyInflow: Record<string, number> = {};
   const monthlyOutflow: Record<string, number> = {};
+  // True personal expenses only — excludes wallet_transactions mirrored from
+  // person_ledger/investment_transactions/zakat_records (a debt lend/borrow,
+  // a capital contribution, a zakat payment). Those correctly reduce the
+  // wallet balance and count toward monthlyOutflow (cash outflow), but they
+  // are not expenses: a "سلفته" (lend) is a receivable, not spent money.
+  const monthlyExpenseOnly: Record<string, number> = {};
   const INFLOW = new Set(["deposit", "receive", "adjustment"]);
   const OUTFLOW = new Set(["withdraw", "send"]);
   for (const t of d.txs as any[]) {
     if ((t.happened_at as string).slice(0, 7) !== currentMonth) continue;
     if (INFLOW.has(t.kind)) monthlyInflow[t.currency] = (monthlyInflow[t.currency] ?? 0) + Number(t.amount);
-    else if (OUTFLOW.has(t.kind)) monthlyOutflow[t.currency] = (monthlyOutflow[t.currency] ?? 0) + Number(t.amount);
+    else if (OUTFLOW.has(t.kind)) {
+      monthlyOutflow[t.currency] = (monthlyOutflow[t.currency] ?? 0) + Number(t.amount);
+      if (isExpenseWalletTx(t.kind, t.source_kind, OUTFLOW)) {
+        monthlyExpenseOnly[t.currency] = (monthlyExpenseOnly[t.currency] ?? 0) + Number(t.amount);
+      }
+    }
   }
   for (const e of d.expenses as any[]) {
     if ((e.spent_at as string).slice(0, 7) === currentMonth) {
       monthlyOutflow[e.currency] = (monthlyOutflow[e.currency] ?? 0) + Number(e.amount);
+      monthlyExpenseOnly[e.currency] = (monthlyExpenseOnly[e.currency] ?? 0) + Number(e.amount);
     }
   }
   const monthlyNet: Record<string, number> = {};
@@ -229,7 +242,7 @@ function Dashboard() {
             </div>
             <div className="grid gap-4 sm:grid-cols-3">
               <FlowStat label="الإيرادات" amounts={monthlyInflow} tone="positive" />
-              <FlowStat label="المصروفات" amounts={monthlyOutflow} tone="negative" />
+              <FlowStat label="المصروفات" amounts={monthlyExpenseOnly} tone="negative" />
               <FlowStat label="صافي التدفق" amounts={monthlyNet} tone="signed" />
             </div>
             <div className="mt-6 h-56">
