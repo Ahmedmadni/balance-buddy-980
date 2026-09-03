@@ -22,7 +22,6 @@ import { DepreciationTab } from "@/components/DepreciationTab";
 import { InvestmentPerformanceTab } from "@/components/InvestmentPerformanceTab";
 import { AssetZakatTab } from "@/components/AssetZakatTab";
 import { computeDepreciation, type DepreciationProfile } from "@/lib/assets/depreciation";
-import { syncWalletTx, deleteWalletTxForSource, investmentWalletKind } from "@/lib/wallet-sync";
 import { isDepreciable, defaultsFor } from "@/lib/assets/depreciation-defaults";
 
 
@@ -928,10 +927,10 @@ function InvestmentTxForm({ investment, wallets, onDone }: any) {
       const affectsWallet = txClass !== "personal_benefit" && txClass !== "adjustment";
       const useWallet = affectsWallet && walletId !== "none" && amt > 0;
 
-      const { data: inserted, error } = await supabase
-        .from("investment_transactions")
-        .insert({
-          user_id: u.user.id,
+      const { error } = await (supabase.rpc as any)("mutate_investment_transaction", {
+        p_operation: "create",
+        p_transaction_id: null,
+        p_data: {
           investment_id: investment.id,
           kind: legacyKind,
           tx_class: txClass,
@@ -941,43 +940,10 @@ function InvestmentTxForm({ investment, wallets, onDone }: any) {
           affects_wallet: affectsWallet,
           happened_at: happenedAt,
           notes: notes || null,
-        } as any)
-        .select("id")
-        .single();
-      if (error) throw error;
-
-      // Update asset value based on class — CapEx no longer touches
-      // current_value (market value is independent of capital movements);
-      // adjustment stays the one explicit "set the market value" entry
-      // point, and sale still records the closing status/proceeds only.
-      if (updateValue) {
-        const updates: any = {};
-        if (txClass === "adjustment") {
-          updates.current_value = amt; // amount = new market value
-        } else if (txClass === "sale") {
-          updates.status = "sold";
-          updates.sold_at = happenedAt;
-          updates.sold_amount = amt;
-        }
-        if (Object.keys(updates).length) {
-          await supabase.from("investments").update(updates).eq("id", investment.id);
-        }
-      }
-
-      // Link the wallet effect to this transaction via the existing
-      // source_kind/source_id mechanism (wallet-sync.ts) — the same one
-      // already used for person_ledger — so a later edit/delete of this
-      // transaction can find and resync/remove its wallet mirror safely.
-      await syncWalletTx({
-        userId: u.user.id,
-        walletId: useWallet ? walletId : null,
-        walletKind: investmentWalletKind(legacyKind),
-        amount: amt,
-        currency: investment.currency,
-        happenedAt,
-        notes: `${meta.label} — ${investment.name}`,
-        source: { kind: "investment_transactions", id: (inserted as any).id },
+          update_investment: updateValue,
+        },
       });
+      if (error) throw error;
     },
     onSuccess: () => { toast.success("تمت الإضافة"); onDone(); },
     onError: (e: any) => toast.error("خطأ", { description: e.message }),
@@ -1106,9 +1072,10 @@ function InvestmentTxEditForm({ tx, wallets, onDone }: any) {
       const affectsWallet = txClass !== "personal_benefit" && txClass !== "adjustment";
       const useWallet = affectsWallet && walletId !== "none" && amt > 0;
 
-      const { error } = await supabase
-        .from("investment_transactions")
-        .update({
+      const { error } = await (supabase.rpc as any)("mutate_investment_transaction", {
+        p_operation: "update",
+        p_transaction_id: tx.id,
+        p_data: {
           tx_class: txClass,
           kind: legacyKind,
           amount: amt,
@@ -1116,26 +1083,9 @@ function InvestmentTxEditForm({ tx, wallets, onDone }: any) {
           affects_wallet: affectsWallet,
           happened_at: happenedAt,
           notes: notes || null,
-        } as any)
-        .eq("id", tx.id);
-      if (error) throw error;
-
-      // Resync the linked wallet mirror: syncWalletTx() looks up the
-      // existing wallet_transactions row by (source_kind, source_id) and
-      // updates it in place (moving wallet/amount if changed), inserts one
-      // if none exists yet, or removes it if no wallet is selected anymore
-      // — so a wallet A→B / amount change never leaves a duplicate or a
-      // stale effect on the old wallet.
-      await syncWalletTx({
-        userId: u.user.id,
-        walletId: useWallet ? walletId : null,
-        walletKind: investmentWalletKind(legacyKind),
-        amount: amt,
-        currency: tx.currency,
-        happenedAt,
-        notes: `${meta.label} — ${notes || ""}`.trim(),
-        source: { kind: "investment_transactions", id: tx.id },
+        },
       });
+      if (error) throw error;
     },
     onSuccess: () => { toast.success("تم تحديث الحركة"); onDone(); },
     onError: (e: any) => toast.error("خطأ", { description: e.message }),
@@ -1220,11 +1170,12 @@ function InvestmentTxDeleteConfirm({ tx, allTxs, asset, onDone, onCancel }: any)
 
   const del = useMutation({
     mutationFn: async () => {
-      const { error } = await supabase.from("investment_transactions").delete().eq("id", tx.id);
+      const { error } = await (supabase.rpc as any)("mutate_investment_transaction", {
+        p_operation: "delete",
+        p_transaction_id: tx.id,
+        p_data: {},
+      });
       if (error) throw error;
-      // Reverse the linked wallet mirror, if one exists, so the wallet
-      // balance never keeps reflecting a transaction that no longer exists.
-      await deleteWalletTxForSource("investment_transactions", tx.id);
     },
     onSuccess: () => { toast.success("تم حذف الحركة"); onDone(); },
     onError: (e: any) => toast.error("خطأ", { description: e.message }),
