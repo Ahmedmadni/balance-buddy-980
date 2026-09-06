@@ -144,6 +144,12 @@ function WalletDetail() {
         </DialogContent>
       </Dialog>
 
+      <Dialog open={!!editTr} onOpenChange={(v) => { if (!v) setEditTr(null); }}>
+        <DialogContent className="max-w-md">
+          {editTr && <WalletTransferForm wallets={data?.allW ?? []} initial={editTr} onDone={() => { setEditTr(null); invalidate(); }} />}
+        </DialogContent>
+      </Dialog>
+
       <AlertDialog open={!!confirmDel} onOpenChange={(v) => { if (!v) setConfirmDel(null); }}>
         <AlertDialogContent>
           <AlertDialogHeader>
@@ -156,10 +162,14 @@ function WalletDetail() {
               if (!confirmDel?.sourceTable || !confirmDel.sourceId) return;
               try {
                 if (confirmDel.sourceTable === "wallet_transactions") {
-                  // If it's part of a transfer pair, delete both legs
                   const r = confirmDel.raw as any;
                   if (r?.transfer_group_id) {
-                    await supabase.from("wallet_transactions").delete().eq("transfer_group_id", r.transfer_group_id);
+                    const { error } = await (supabase.rpc as any)("mutate_wallet_transfer", {
+                      p_operation: "delete",
+                      p_transfer_group_id: r.transfer_group_id,
+                      p_data: {},
+                    });
+                    if (error) throw error;
                   } else {
                     await supabase.from("wallet_transactions").delete().eq("id", confirmDel.sourceId);
                   }
