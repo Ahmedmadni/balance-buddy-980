@@ -26,6 +26,7 @@ function WalletDetail() {
   const [openTx, setOpenTx] = useState(false);
   const [openTr, setOpenTr] = useState(false);
   const [editTx, setEditTx] = useState<WalletTxInitial | null>(null);
+  const [editTr, setEditTr] = useState<WalletTransferInitial | null>(null);
   const [confirmDel, setConfirmDel] = useState<StatementRow | null>(null);
 
   const { data, isLoading } = useQuery({
@@ -108,6 +109,19 @@ function WalletDetail() {
           }}
           onEdit={(row) => {
             if (row.sourceTable === "wallet_transactions" && row.raw) {
+              const r = row.raw as any;
+              if (r.transfer_group_id) {
+                const isOut = r.kind === "transfer_out";
+                setEditTr({
+                  transfer_group_id: r.transfer_group_id,
+                  from_wallet_id: isOut ? r.wallet_id : (r.counterparty_wallet_id ?? ""),
+                  to_wallet_id: isOut ? (r.counterparty_wallet_id ?? "") : r.wallet_id,
+                  amount: r.amount,
+                  happened_at: r.happened_at,
+                  notes: r.notes,
+                });
+                return;
+              }
               setEditTx({
                 id: row.raw.id,
                 kind: row.raw.kind,
