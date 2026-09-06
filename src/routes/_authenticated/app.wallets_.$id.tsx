@@ -9,7 +9,7 @@ import { ArrowRight, Plus, ArrowLeftRight } from "lucide-react";
 import { formatMoney } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { computeWalletBalance } from "@/lib/wallet-balance";
-import { WalletTxForm, WalletTransferForm, type WalletTxInitial } from "@/components/WalletTxForm";
+import { WalletTxForm, WalletTransferForm, type WalletTxInitial, type WalletTransferInitial } from "@/components/WalletTxForm";
 import { buildWalletStatement, type StatementRow } from "@/lib/statement";
 import { StatementTable } from "@/components/StatementTable";
 import { typeMeta } from "@/routes/_authenticated/app.wallets";
