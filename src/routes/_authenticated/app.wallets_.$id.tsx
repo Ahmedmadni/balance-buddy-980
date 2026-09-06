@@ -9,7 +9,7 @@ import { ArrowRight, Plus, ArrowLeftRight } from "lucide-react";
 import { formatMoney } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { computeWalletBalance } from "@/lib/wallet-balance";
-import { WalletTxForm, WalletTransferForm, type WalletTxInitial } from "@/components/WalletTxForm";
+import { WalletTxForm, WalletTransferForm, type WalletTxInitial, type WalletTransferInitial } from "@/components/WalletTxForm";
 import { buildWalletStatement, type StatementRow } from "@/lib/statement";
 import { StatementTable } from "@/components/StatementTable";
 import { typeMeta } from "@/routes/_authenticated/app.wallets";
@@ -26,6 +26,7 @@ function WalletDetail() {
   const [openTx, setOpenTx] = useState(false);
   const [openTr, setOpenTr] = useState(false);
   const [editTx, setEditTx] = useState<WalletTxInitial | null>(null);
+  const [editTr, setEditTr] = useState<WalletTransferInitial | null>(null);
   const [confirmDel, setConfirmDel] = useState<StatementRow | null>(null);
 
   const { data, isLoading } = useQuery({
@@ -108,6 +109,19 @@ function WalletDetail() {
           }}
           onEdit={(row) => {
             if (row.sourceTable === "wallet_transactions" && row.raw) {
+              const r = row.raw as any;
+              if (r.transfer_group_id) {
+                const isOut = r.kind === "transfer_out";
+                setEditTr({
+                  transfer_group_id: r.transfer_group_id,
+                  from_wallet_id: isOut ? r.wallet_id : (r.counterparty_wallet_id ?? ""),
+                  to_wallet_id: isOut ? (r.counterparty_wallet_id ?? "") : r.wallet_id,
+                  amount: r.amount,
+                  happened_at: r.happened_at,
+                  notes: r.notes,
+                });
+                return;
+              }
               setEditTx({
                 id: row.raw.id,
                 kind: row.raw.kind,
@@ -130,6 +144,12 @@ function WalletDetail() {
         </DialogContent>
       </Dialog>
 
+      <Dialog open={!!editTr} onOpenChange={(v) => { if (!v) setEditTr(null); }}>
+        <DialogContent className="max-w-md">
+          {editTr && <WalletTransferForm wallets={data?.allW ?? []} initial={editTr} onDone={() => { setEditTr(null); invalidate(); }} />}
+        </DialogContent>
+      </Dialog>
+
       <AlertDialog open={!!confirmDel} onOpenChange={(v) => { if (!v) setConfirmDel(null); }}>
         <AlertDialogContent>
           <AlertDialogHeader>
@@ -142,10 +162,14 @@ function WalletDetail() {
               if (!confirmDel?.sourceTable || !confirmDel.sourceId) return;
               try {
                 if (confirmDel.sourceTable === "wallet_transactions") {
-                  // If it's part of a transfer pair, delete both legs
                   const r = confirmDel.raw as any;
                   if (r?.transfer_group_id) {
-                    await supabase.from("wallet_transactions").delete().eq("transfer_group_id", r.transfer_group_id);
+                    const { error } = await (supabase.rpc as any)("mutate_wallet_transfer", {
+                      p_operation: "delete",
+                      p_transfer_group_id: r.transfer_group_id,
+                      p_data: {},
+                    });
+                    if (error) throw error;
                   } else {
                     await supabase.from("wallet_transactions").delete().eq("id", confirmDel.sourceId);
                   }

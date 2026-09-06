@@ -130,38 +130,51 @@ export function WalletTxForm({ wallet, onDone, initial }: { wallet: { id: string
   );
 }
 
-export function WalletTransferForm({ wallets, defaultFromId, onDone }: { wallets: any[]; defaultFromId?: string; onDone: () => void }) {
-  const [fromId, setFromId] = useState<string>(defaultFromId ?? wallets[0]?.id ?? "");
-  const [toId, setToId] = useState<string>(wallets.find((w) => w.id !== (defaultFromId ?? wallets[0]?.id))?.id ?? "");
-  const [amount, setAmount] = useState("");
-  const [happenedAt, setHappenedAt] = useState(todayISO());
-  const [notes, setNotes] = useState("");
+export type WalletTransferInitial = {
+  transfer_group_id: string;
+  from_wallet_id: string;
+  to_wallet_id: string;
+  amount: number | string;
+  happened_at: string;
+  notes: string | null;
+};
+
+export function WalletTransferForm({ wallets, defaultFromId, onDone, initial }: { wallets: any[]; defaultFromId?: string; onDone: () => void; initial?: WalletTransferInitial | null }) {
+  const isEdit = !!initial;
+  const [fromId, setFromId] = useState<string>(initial?.from_wallet_id ?? defaultFromId ?? wallets[0]?.id ?? "");
+  const [toId, setToId] = useState<string>(initial?.to_wallet_id ?? wallets.find((w) => w.id !== (defaultFromId ?? wallets[0]?.id))?.id ?? "");
+  const [amount, setAmount] = useState(initial ? String(initial.amount) : "");
+  const [happenedAt, setHappenedAt] = useState(initial?.happened_at ?? todayISO());
+  const [notes, setNotes] = useState(initial?.notes ?? "");
 
   const from = wallets.find((w) => w.id === fromId);
   const to = wallets.find((w) => w.id === toId);
 
   const mut = useMutation({
     mutationFn: async () => {
-      const { data: u } = await supabase.auth.getUser();
-      if (!u.user) throw new Error("غير مسجل");
       if (fromId === toId) throw new Error("اختر حسابين مختلفين");
       if (!from || !to) throw new Error("اختر الحسابات");
       if (from.currency !== to.currency) throw new Error("تحويل بعملات مختلفة غير مدعوم بعد");
-      const tg = (crypto as any).randomUUID();
-      const a = parseFloat(amount);
-      const { error } = await supabase.from("wallet_transactions").insert([
-        { user_id: u.user.id, wallet_id: fromId, kind: "transfer_out", amount: a, currency: from.currency, happened_at: happenedAt, notes: notes || null, counterparty_wallet_id: toId, transfer_group_id: tg },
-        { user_id: u.user.id, wallet_id: toId, kind: "transfer_in", amount: a, currency: to.currency, happened_at: happenedAt, notes: notes || null, counterparty_wallet_id: fromId, transfer_group_id: tg },
-      ] as any);
+      const { error } = await (supabase.rpc as any)("mutate_wallet_transfer", {
+        p_operation: isEdit ? "update" : "create",
+        p_transfer_group_id: isEdit ? initial!.transfer_group_id : null,
+        p_data: {
+          from_wallet_id: fromId,
+          to_wallet_id: toId,
+          amount: parseFloat(amount),
+          happened_at: happenedAt,
+          notes: notes.trim() || null,
+        },
+      });
       if (error) throw error;
     },
-    onSuccess: () => { toast.success("تم التحويل"); onDone(); },
-    onError: (e: any) => toast.error("خطأ", { description: e.message }),
+    onSuccess: () => { toast.success(isEdit ? "تم تحديث التحويل" : "تم التحويل"); onDone(); },
+    onError: (e: any) => toast.error("تعذر تنفيذ التحويل", { description: e.message }),
   });
 
   return (
     <form onSubmit={(e) => { e.preventDefault(); mut.mutate(); }} className="space-y-4">
-      <DialogHeader><DialogTitle>تحويل بين الحسابات</DialogTitle></DialogHeader>
+      <DialogHeader><DialogTitle>{isEdit ? "تعديل التحويل" : "تحويل بين الحسابات"}</DialogTitle></DialogHeader>
 
       <div className="grid grid-cols-2 gap-3">
         <div>
