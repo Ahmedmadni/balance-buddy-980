@@ -44,7 +44,7 @@ export async function mutatePersonLedger(
 ): Promise<{ id: string; operation: PersonLedgerOperation; wallet_mirror: boolean }> {
   const { data: result, error } = await supabase.rpc("mutate_person_ledger", {
     p_operation: operation,
-    p_ledger_id: ledgerId,
+    p_ledger_id: ledgerId ?? undefined,
     p_data: data as Json,
   });
   if (error) throw new PersonLedgerMutationError(personLedgerErrorMessage(error), error);
