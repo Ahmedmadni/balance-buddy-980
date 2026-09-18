@@ -92,7 +92,12 @@ function SettingsPage() {
         <TabsContent value="contacts"><ContactsSection /></TabsContent>
         <TabsContent value="reminders"><ReminderSettingsSection /></TabsContent>
         <TabsContent value="notifications"><NotificationSettingsSection /></TabsContent>
-        <TabsContent value="backup"><BackupRestoreSection /></TabsContent>
+        <TabsContent value="backup">
+          <div className="space-y-6">
+            <BackupV2Section />
+            <BackupRestoreSection />
+          </div>
+        </TabsContent>
         <TabsContent value="advanced"><AdvancedPlaceholder /></TabsContent>
         <TabsContent value="system"><SystemToolsSection /></TabsContent>
         <TabsContent value="mobile"><MobileSettingsSection /></TabsContent>
