@@ -59,6 +59,13 @@ export type Database = {
             referencedRelation: "investments"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "asset_market_values_user_investment_fkey"
+            columns: ["user_id", "investment_id"]
+            isOneToOne: false
+            referencedRelation: "investments"
+            referencedColumns: ["user_id", "id"]
+          },
         ]
       }
       attachments: {
@@ -202,6 +209,13 @@ export type Database = {
             referencedRelation: "debts"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "debt_payments_user_debt_fkey"
+            columns: ["user_id", "debt_id"]
+            isOneToOne: false
+            referencedRelation: "debts"
+            referencedColumns: ["user_id", "id"]
+          },
         ]
       }
       debts: {
@@ -311,6 +325,13 @@ export type Database = {
             referencedRelation: "investments"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "depreciation_profiles_user_investment_fkey"
+            columns: ["user_id", "investment_id"]
+            isOneToOne: false
+            referencedRelation: "investments"
+            referencedColumns: ["user_id", "id"]
+          },
         ]
       }
       exchange_rates: {
@@ -379,6 +400,13 @@ export type Database = {
             referencedRelation: "expenses"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "expense_allocations_user_expense_fkey"
+            columns: ["user_id", "expense_id"]
+            isOneToOne: false
+            referencedRelation: "expenses"
+            referencedColumns: ["user_id", "id"]
+          },
         ]
       }
       expenses: {
@@ -443,6 +471,27 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "expenses_user_category_fkey"
+            columns: ["user_id", "category_id"]
+            isOneToOne: false
+            referencedRelation: "categories"
+            referencedColumns: ["user_id", "id"]
+          },
+          {
+            foreignKeyName: "expenses_user_project_fkey"
+            columns: ["user_id", "project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["user_id", "id"]
+          },
+          {
+            foreignKeyName: "expenses_user_wallet_fkey"
+            columns: ["user_id", "wallet_id"]
+            isOneToOne: false
+            referencedRelation: "wallets"
+            referencedColumns: ["user_id", "id"]
+          },
+          {
             foreignKeyName: "expenses_wallet_id_fkey"
             columns: ["wallet_id"]
             isOneToOne: false
@@ -504,6 +553,20 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "investments"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "investment_transactions_user_investment_fkey"
+            columns: ["user_id", "investment_id"]
+            isOneToOne: false
+            referencedRelation: "investments"
+            referencedColumns: ["user_id", "id"]
+          },
+          {
+            foreignKeyName: "investment_transactions_user_wallet_fkey"
+            columns: ["user_id", "wallet_id"]
+            isOneToOne: false
+            referencedRelation: "wallets"
+            referencedColumns: ["user_id", "id"]
           },
           {
             foreignKeyName: "investment_transactions_wallet_id_fkey"
@@ -608,6 +671,20 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "investments_user_parent_fkey"
+            columns: ["user_id", "parent_investment_id"]
+            isOneToOne: false
+            referencedRelation: "investments"
+            referencedColumns: ["user_id", "id"]
+          },
+          {
+            foreignKeyName: "investments_user_wallet_fkey"
+            columns: ["user_id", "wallet_id"]
+            isOneToOne: false
+            referencedRelation: "wallets"
+            referencedColumns: ["user_id", "id"]
+          },
+          {
             foreignKeyName: "investments_wallet_id_fkey"
             columns: ["wallet_id"]
             isOneToOne: false
@@ -675,6 +752,20 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "contacts"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "person_ledger_user_contact_fkey"
+            columns: ["user_id", "contact_id"]
+            isOneToOne: false
+            referencedRelation: "contacts"
+            referencedColumns: ["user_id", "id"]
+          },
+          {
+            foreignKeyName: "person_ledger_user_wallet_fkey"
+            columns: ["user_id", "wallet_id"]
+            isOneToOne: false
+            referencedRelation: "wallets"
+            referencedColumns: ["user_id", "id"]
           },
           {
             foreignKeyName: "person_ledger_wallet_id_fkey"
@@ -1069,6 +1160,34 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "wallet_transactions_user_category_fkey"
+            columns: ["user_id", "category_id"]
+            isOneToOne: false
+            referencedRelation: "wallet_tx_categories"
+            referencedColumns: ["user_id", "id"]
+          },
+          {
+            foreignKeyName: "wallet_transactions_user_contact_fkey"
+            columns: ["user_id", "contact_id"]
+            isOneToOne: false
+            referencedRelation: "contacts"
+            referencedColumns: ["user_id", "id"]
+          },
+          {
+            foreignKeyName: "wallet_transactions_user_counterparty_wallet_fkey"
+            columns: ["user_id", "counterparty_wallet_id"]
+            isOneToOne: false
+            referencedRelation: "wallets"
+            referencedColumns: ["user_id", "id"]
+          },
+          {
+            foreignKeyName: "wallet_transactions_user_wallet_fkey"
+            columns: ["user_id", "wallet_id"]
+            isOneToOne: false
+            referencedRelation: "wallets"
+            referencedColumns: ["user_id", "id"]
+          },
+          {
             foreignKeyName: "wallet_transactions_wallet_id_fkey"
             columns: ["wallet_id"]
             isOneToOne: false
@@ -1327,6 +1446,7 @@ export type Database = {
         Args: { _kind: string }
         Returns: Database["public"]["Enums"]["txn_type"]
       }
+      export_user_backup: { Args: never; Returns: Json }
       mutate_investment_transaction: {
         Args: { p_data?: Json; p_operation: string; p_transaction_id?: string }
         Returns: Json
@@ -1343,6 +1463,7 @@ export type Database = {
         }
         Returns: Json
       }
+      restore_user_backup: { Args: { p_backup: Json }; Returns: Json }
     }
     Enums: {
       contact_kind:
