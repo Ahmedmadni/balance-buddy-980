@@ -16,6 +16,7 @@ import {
   HelpCircle,
 } from "lucide-react";
 import { BackupRestoreSection } from "@/components/BackupRestoreSection";
+import { BackupV2Section } from "@/components/BackupV2Section";
 import { toast } from "sonner";
 import { typeMeta, WALLET_TYPES } from "./app.wallets";
 import { computeWalletBalance } from "@/lib/wallet-balance";
@@ -92,7 +93,12 @@ function SettingsPage() {
         <TabsContent value="contacts"><ContactsSection /></TabsContent>
         <TabsContent value="reminders"><ReminderSettingsSection /></TabsContent>
         <TabsContent value="notifications"><NotificationSettingsSection /></TabsContent>
-        <TabsContent value="backup"><BackupRestoreSection /></TabsContent>
+        <TabsContent value="backup">
+          <div className="space-y-6">
+            <BackupV2Section />
+            <BackupRestoreSection />
+          </div>
+        </TabsContent>
         <TabsContent value="advanced"><AdvancedPlaceholder /></TabsContent>
         <TabsContent value="system"><SystemToolsSection /></TabsContent>
         <TabsContent value="mobile"><MobileSettingsSection /></TabsContent>
