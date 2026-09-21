@@ -1,0 +1,39 @@
+name: A11 regression
+
+on:
+  push:
+    branches: [main, a11-automated-regression-suite]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  application:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.4.2
+      - run: bun install --frozen-lockfile
+      - run: bun run test:unit
+      - run: bun run typecheck
+      - name: Lint A11 TypeScript
+        run: bunx eslint scripts/run-db-regression.mjs src/lib/a11-regression-manifest.test.ts
+      - run: bun run build
+
+  database:
+    if: ${{ vars.RASD_ENABLE_DB_REGRESSION == 'true' }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: supabase/setup-cli@v1
+        with:
+          version: 2.117.0
+      - run: supabase start
+      - name: Run rollback-only database regressions
+        env:
+          RASD_TEST_DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:54322/postgres
+        run: node scripts/run-db-regression.mjs

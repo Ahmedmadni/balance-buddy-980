@@ -38,6 +38,29 @@ BEGIN
     AND wallet_id = wallet_a AND kind = 'withdraw' AND amount = 100;
   IF n <> 1 THEN RAISE EXCEPTION 'create did not produce exactly one withdrawal'; END IF;
 
+  -- A11: a non-wallet-affecting adjustment never creates a cash mirror.
+  result := public.mutate_investment_transaction('create', NULL, jsonb_build_object(
+    'investment_id', investment_id, 'kind', 'revaluation', 'tx_class', 'adjustment',
+    'amount', 125, 'currency', 'SAR', 'wallet_id', wallet_a,
+    'affects_wallet', false, 'happened_at', '2026-09-01'));
+  IF (result->>'wallet_mirror')::boolean OR EXISTS (
+    SELECT 1 FROM public.wallet_transactions
+    WHERE source_kind='investment_transactions' AND source_id=(result->>'id')::uuid
+  ) THEN RAISE EXCEPTION 'non-wallet adjustment created a wallet mirror'; END IF;
+
+  -- A11: a sale updates the authoritative sold snapshot and creates one deposit.
+  result := public.mutate_investment_transaction('create', NULL, jsonb_build_object(
+    'investment_id', investment_id, 'kind', 'withdraw', 'tx_class', 'sale',
+    'amount', 75, 'currency', 'SAR', 'wallet_id', wallet_a,
+    'affects_wallet', true, 'update_investment', true, 'happened_at', '2026-09-02'));
+  IF (SELECT status FROM public.investments WHERE id=investment_id) <> 'sold'
+    OR (SELECT sold_amount FROM public.investments WHERE id=investment_id) <> 75
+  THEN RAISE EXCEPTION 'sale did not reconcile sold state'; END IF;
+  SELECT count(*) INTO n FROM public.wallet_transactions
+  WHERE source_kind='investment_transactions' AND source_id=(result->>'id')::uuid
+    AND kind='deposit' AND amount=75;
+  IF n <> 1 THEN RAISE EXCEPTION 'sale did not create exactly one wallet deposit'; END IF;
+
   PERFORM public.mutate_investment_transaction('update', transaction_id,
     jsonb_build_object('amount', 150, 'wallet_id', wallet_b, 'kind', 'return', 'tx_class', 'income'));
   SELECT count(*) INTO n FROM public.wallet_transactions
@@ -53,6 +76,12 @@ BEGIN
   IF (SELECT wallet_id FROM public.investment_transactions WHERE id = transaction_id) IS DISTINCT FROM wallet_b
     OR (SELECT amount FROM public.wallet_transactions WHERE source_kind = 'investment_transactions' AND source_id = transaction_id) IS DISTINCT FROM 150::numeric
   THEN RAISE EXCEPTION 'failed update was not atomic'; END IF;
+
+  PERFORM public.mutate_investment_transaction('update', transaction_id,
+    jsonb_build_object('amount', 151));
+  SELECT count(*) INTO n FROM public.wallet_transactions
+  WHERE source_kind='investment_transactions' AND source_id=transaction_id;
+  IF n <> 1 THEN RAISE EXCEPTION 'repeated reconciliation created a duplicate wallet mirror'; END IF;
 
   PERFORM public.mutate_investment_transaction('update', transaction_id,
     jsonb_build_object('wallet_id', NULL));
