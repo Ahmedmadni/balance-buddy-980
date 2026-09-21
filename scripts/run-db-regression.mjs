@@ -9,6 +9,7 @@ const defaultTests = [
   "supabase/tests/wallet_transfer_rpc.sql",
   "supabase/tests/derived_transactions.sql",
   "supabase/tests/ownership_delete_uniqueness.sql",
+  "supabase/tests/backup_restore_v2.sql",
 ];
 
 function fail(message) {
