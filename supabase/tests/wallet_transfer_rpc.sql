@@ -11,6 +11,7 @@ DECLARE
   transfer_id uuid;
   result jsonb;
   n bigint;
+  failed boolean;
 BEGIN
   INSERT INTO auth.users (id, instance_id, aud, role, email, encrypted_password, email_confirmed_at)
   VALUES (owner_id, '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated',
@@ -42,17 +43,25 @@ BEGIN
     OR NOT EXISTS (SELECT 1 FROM public.wallet_transactions WHERE transfer_group_id=transfer_id AND wallet_id=wallet_c AND kind='transfer_in' AND amount=400)
   THEN RAISE EXCEPTION 'A03 update did not atomically reconcile both sides'; END IF;
 
+  failed := false;
   BEGIN
     PERFORM public.mutate_wallet_transfer('create', NULL, jsonb_build_object(
       'from_wallet_id', wallet_a, 'to_wallet_id', wallet_a, 'amount', 1));
-    RAISE EXCEPTION 'A03 same-wallet transfer should fail';
-  EXCEPTION WHEN SQLSTATE '22023' THEN NULL; END;
+  EXCEPTION WHEN raise_exception THEN
+    IF SQLERRM IS DISTINCT FROM 'Source and destination wallets must be different' THEN RAISE; END IF;
+    failed := true;
+  END;
+  IF NOT failed THEN RAISE EXCEPTION 'A03 same-wallet transfer was accepted'; END IF;
 
+  failed := false;
   BEGIN
     PERFORM public.mutate_wallet_transfer('create', NULL, jsonb_build_object(
       'from_wallet_id', wallet_a, 'to_wallet_id', wallet_usd, 'amount', 1));
-    RAISE EXCEPTION 'A03 incompatible currency should fail';
-  EXCEPTION WHEN SQLSTATE '22023' THEN NULL; END;
+  EXCEPTION WHEN raise_exception THEN
+    IF SQLERRM IS DISTINCT FROM 'Wallet transfers require matching currencies' THEN RAISE; END IF;
+    failed := true;
+  END;
+  IF NOT failed THEN RAISE EXCEPTION 'A03 incompatible currency was accepted'; END IF;
 
   PERFORM public.mutate_wallet_transfer('delete', transfer_id, '{}'::jsonb);
   IF EXISTS (SELECT 1 FROM public.wallet_transactions WHERE transfer_group_id = transfer_id)
