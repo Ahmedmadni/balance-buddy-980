@@ -6,7 +6,7 @@
 - Database tests are transaction-scoped SQL scripts under `supabase/tests`; they use `DO` assertions and always roll back.
 - `supabase/config.toml` contains only the linked production project id. There is no seed or checked-in disposable database configuration.
 - There was no GitHub Actions workflow before A11.
-- The checked-in migrations reproduce A01 and A02, but do not contain the A03-A05 or A09-A10 database changes visible in the generated Supabase types. This is migration drift and prevents a clean local database from running the full suite.
+- The original A11 inspection found that A03-A05, A06, and A09-A10 existed in production but were absent from the checked-in migration history. The audited production definitions are now captured by the schema-parity migrations dated `20260902` and `20260903`, so a fresh local database can reproduce those objects without querying or modifying production.
 
 ## Commands
 
@@ -35,4 +35,4 @@ Remote database targets are refused unless `RASD_CONFIRM_NON_PRODUCTION=1` is al
 - A05/A10: composite ownership boundaries plus representative SET NULL and CASCADE behavior.
 - A07/A08: Bun unit regressions for explicit zero valuations and completed-sale semantics.
 - A09: duplicate valuation-date and depreciation-profile rejection.
-- A06: runtime round-trip remains deferred until a disposable local/test database reproduces the current production schema.
+- A06: the audited backup/restore v2 RPC definitions are checked in; destructive runtime round-trip certification remains deferred until the suite is run on a disposable local/test database.
