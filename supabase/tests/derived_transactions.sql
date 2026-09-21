@@ -5,7 +5,7 @@ DO $test$
 DECLARE
   owner_id uuid := '13000000-0000-0000-0000-000000000001';
   wallet_id uuid := '33000000-0000-0000-0000-000000000001';
-  source_id uuid := '43000000-0000-0000-0000-000000000001';
+  wallet_tx_id uuid := '43000000-0000-0000-0000-000000000001';
   n bigint;
 BEGIN
   IF has_table_privilege('authenticated', 'public.transactions', 'INSERT')
@@ -26,18 +26,18 @@ BEGIN
 
   INSERT INTO public.wallet_transactions
     (id, user_id, wallet_id, kind, amount, currency, happened_at, notes)
-  VALUES (source_id, owner_id, wallet_id, 'deposit', 10, 'SAR', '2026-09-01', 'A04 insert');
-  SELECT count(*) INTO n FROM public.transactions
-  WHERE source_kind='wallet_transactions' AND source_id=source_id AND amount=10 AND direction='in';
+  VALUES (wallet_tx_id, owner_id, wallet_id, 'deposit', 10, 'SAR', '2026-09-01', 'A04 insert');
+  SELECT count(*) INTO n FROM public.transactions t
+  WHERE t.source_kind='wallet_transactions' AND t.source_id=wallet_tx_id AND t.amount=10 AND t.direction='in';
   IF n <> 1 THEN RAISE EXCEPTION 'A04 source insert did not create one derived row'; END IF;
 
-  UPDATE public.wallet_transactions SET amount=20, kind='withdraw', notes='A04 update' WHERE id=source_id;
-  SELECT count(*) INTO n FROM public.transactions
-  WHERE source_kind='wallet_transactions' AND source_id=source_id AND amount=20 AND direction='out';
+  UPDATE public.wallet_transactions SET amount=20, kind='withdraw', notes='A04 update' WHERE id=wallet_tx_id;
+  SELECT count(*) INTO n FROM public.transactions t
+  WHERE t.source_kind='wallet_transactions' AND t.source_id=wallet_tx_id AND t.amount=20 AND t.direction='out';
   IF n <> 1 THEN RAISE EXCEPTION 'A04 source update did not reconcile the derived row'; END IF;
 
-  DELETE FROM public.wallet_transactions WHERE id=source_id;
-  IF EXISTS (SELECT 1 FROM public.transactions WHERE source_kind='wallet_transactions' AND source_id=source_id)
+  DELETE FROM public.wallet_transactions WHERE id=wallet_tx_id;
+  IF EXISTS (SELECT 1 FROM public.transactions t WHERE t.source_kind='wallet_transactions' AND t.source_id=wallet_tx_id)
   THEN RAISE EXCEPTION 'A04 source delete did not delete the derived row'; END IF;
 END
 $test$;

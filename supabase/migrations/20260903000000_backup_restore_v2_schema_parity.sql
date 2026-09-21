@@ -196,7 +196,7 @@ BEGIN
 
   RETURN v_result;
 END;
-$function$
+$function$;
 
 CREATE OR REPLACE FUNCTION public.restore_user_backup(p_backup jsonb)
  RETURNS jsonb
@@ -1212,7 +1212,7 @@ BEGIN
     'restored_at', now()
   );
 END;
-$function$
+$function$;
 
 REVOKE ALL ON FUNCTION public.export_user_backup() FROM PUBLIC, anon;
 REVOKE ALL ON FUNCTION public.restore_user_backup(jsonb) FROM PUBLIC, anon;

@@ -25,14 +25,17 @@ jobs:
       - run: bun run build
 
   database:
-    if: ${{ vars.RASD_ENABLE_DB_REGRESSION == 'true' }}
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
       - uses: supabase/setup-cli@v1
         with:
           version: 2.117.0
-      - run: supabase start
+      - name: Start disposable local Supabase
+        run: supabase start
+      - name: Rebuild schema from checked-in migrations
+        run: supabase db reset --local
       - name: Run rollback-only database regressions
         env:
           RASD_TEST_DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:54322/postgres

@@ -20,6 +20,10 @@ const suites = {
     "supabase/tests/ownership_delete_uniqueness.sql",
     ["cross-user", "SET NULL", "CASCADE", "duplicate market valuation", "duplicate depreciation"],
   ],
+  A06: [
+    "supabase/tests/backup_restore_v2.sql",
+    ["export_user_backup", "restore_user_backup", "rasd-backup", "derived transaction"],
+  ],
 } as const;
 
 const schemaParityMigrations = {
