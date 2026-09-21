@@ -79,6 +79,16 @@ BEGIN
   WHERE source_kind='person_ledger' AND source_id=(result->>'id')::uuid AND kind='deposit';
   IF n <> 1 THEN RAISE EXCEPTION 'test 3 failed'; END IF;
 
+  -- A11: pay is the fourth canonical direction and creates one withdrawal.
+  result := public.mutate_person_ledger('create', NULL, jsonb_build_object(
+    'contact_id', contact_id, 'contact_name', 'أحمد', 'kind', 'pay',
+    'amount', 50, 'currency', 'SAR', 'happened_at', '2026-08-04', 'wallet_id', wallet_a
+  ));
+  SELECT count(*) INTO n FROM public.wallet_transactions
+  WHERE source_kind='person_ledger' AND source_id=(result->>'id')::uuid
+    AND wallet_id=wallet_a AND kind='withdraw' AND amount=50;
+  IF n <> 1 THEN RAISE EXCEPTION 'A11 pay direction failed'; END IF;
+
   -- 5: amount update reconciles the existing mirror.
   PERFORM public.mutate_person_ledger('update', ledger_id, '{"amount":1500}'::jsonb);
   SELECT count(*) INTO n FROM public.wallet_transactions
@@ -165,6 +175,9 @@ BEGIN
   -- 18/19: uniqueness and a single balance-affecting derived effect.
   SELECT count(*) INTO n FROM public.wallet_transactions WHERE source_kind='person_ledger' AND source_id=ledger_id;
   IF n <> 1 THEN RAISE EXCEPTION 'test 18 failed'; END IF;
+  PERFORM public.mutate_person_ledger('update', ledger_id, '{"amount":34}'::jsonb);
+  SELECT count(*) INTO n FROM public.wallet_transactions WHERE source_kind='person_ledger' AND source_id=ledger_id;
+  IF n <> 1 THEN RAISE EXCEPTION 'A11 repeated reconciliation created a duplicate mirror'; END IF;
   SELECT count(*) INTO n FROM public.transactions WHERE affects_balance AND account_id=wallet_a
     AND source_kind='wallet_transactions'
     AND source_id=(SELECT id FROM public.wallet_transactions WHERE source_kind='person_ledger' AND source_id=ledger_id);

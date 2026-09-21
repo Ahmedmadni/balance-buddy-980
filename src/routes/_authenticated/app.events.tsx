@@ -12,7 +12,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import {
   computeUpcomingEvents, EVENT_LABEL, PRIORITY_LABEL, PRIORITY_TONE,
-  type EventType, type EventPriority, type UpcomingEvent,
+  type EventType, type EventPriority, type UpcomingEvent, type UpcomingBuckets,
 } from "@/lib/events/engine";
 import { NotificationCenter } from "@/components/NotificationCenter";
 import { cn } from "@/lib/utils";
@@ -52,7 +52,7 @@ function EventsPage() {
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["upcoming-events"] }); toast.success("تم الحذف"); },
   });
 
-  const sections: { key: keyof NonNullable<typeof data>; label: string; tone: string }[] = [
+  const sections: { key: Exclude<keyof UpcomingBuckets, "all">; label: string; tone: string }[] = [
     { key: "overdue", label: "متأخر", tone: "text-destructive" },
     { key: "today", label: "اليوم", tone: "text-warning" },
     { key: "this_week", label: "هذا الأسبوع", tone: "text-primary" },

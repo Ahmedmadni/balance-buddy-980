@@ -1,0 +1,38 @@
+# A11 automated regression suite
+
+## Architecture discovered on `main`
+
+- Application tests use Bun's built-in `bun:test` runner. There is no Vitest/Jest configuration.
+- Database tests are transaction-scoped SQL scripts under `supabase/tests`; they use `DO` assertions and always roll back.
+- `supabase/config.toml` contains only the linked production project id. There is no seed or checked-in disposable database configuration.
+- There was no GitHub Actions workflow before A11.
+- The checked-in migrations reproduce A01 and A02, but do not contain the A03-A05 or A09-A10 database changes visible in the generated Supabase types. This is migration drift and prevents a clean local database from running the full suite.
+
+## Commands
+
+```bash
+bun install --frozen-lockfile
+bun run test:unit
+bun run typecheck
+bun run lint
+bun run build
+```
+
+Database tests require `psql` and a disposable database with the current schema:
+
+```bash
+RASD_TEST_DATABASE_URL=postgresql://postgres:postgres@127.0.0.1:54322/postgres bun run test:db
+```
+
+Remote database targets are refused unless `RASD_CONFIRM_NON_PRODUCTION=1` is also set. The known production project ref is always refused. Every SQL test must contain both `BEGIN` and `ROLLBACK`.
+
+## Coverage
+
+- A01: all four ledger directions, wallet mirror integrity, atomic updates/deletes, and duplicate prevention.
+- A02: wallet and non-wallet transactions, mirror reconciliation, sale state, deletion, and duplicate prevention.
+- A03: reciprocal transfer sides, atomic update/delete, same-wallet rejection, and currency rejection.
+- A04: read-only derived table privileges and source insert/update/delete synchronization.
+- A05/A10: composite ownership boundaries plus representative SET NULL and CASCADE behavior.
+- A07/A08: Bun unit regressions for explicit zero valuations and completed-sale semantics.
+- A09: duplicate valuation-date and depreciation-profile rejection.
+- A06: runtime round-trip remains deferred until a disposable local/test database reproduces the current production schema.
