@@ -434,7 +434,7 @@ BEGIN
   );
 
 END;
-$function$
+$function$;
 
 CREATE OR REPLACE FUNCTION public._sync_tx_from_wallet_tx()
  RETURNS trigger
@@ -474,7 +474,8 @@ BEGIN
     description = EXCLUDED.description, notes = EXCLUDED.notes,
     updated_at = now();
   RETURN NEW;
-END $function$
+END;
+$function$;
 
 CREATE OR REPLACE FUNCTION public._sync_tx_from_expense()
  RETURNS trigger
@@ -503,7 +504,8 @@ BEGIN
     notes = EXCLUDED.notes, affects_balance = EXCLUDED.affects_balance,
     updated_at = now();
   RETURN NEW;
-END $function$
+END;
+$function$;
 
 CREATE OR REPLACE FUNCTION public._sync_tx_from_person_ledger()
  RETURNS trigger
@@ -539,7 +541,8 @@ BEGIN
     notes = EXCLUDED.notes, affects_balance = EXCLUDED.affects_balance,
     meta = EXCLUDED.meta, updated_at = now();
   RETURN NEW;
-END $function$
+END;
+$function$;
 
 CREATE OR REPLACE FUNCTION public._sync_tx_from_investment_tx()
  RETURNS trigger
@@ -596,7 +599,8 @@ BEGIN
     meta = EXCLUDED.meta,
     updated_at = now();
   RETURN NEW;
-END $function$
+END;
+$function$;
 
 REVOKE ALL ON FUNCTION public.mutate_wallet_transfer(text, uuid, jsonb) FROM PUBLIC, anon;
 GRANT EXECUTE ON FUNCTION public.mutate_wallet_transfer(text, uuid, jsonb) TO authenticated, service_role;
