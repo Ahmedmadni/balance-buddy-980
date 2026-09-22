@@ -41,7 +41,11 @@ export function exportStatementPdf(rows: StatementRow[], meta: ExportMeta) {
   w.document.write(html);
   w.document.close();
   // Give the browser a moment to layout before invoking print
-  setTimeout(() => { try { w.focus(); w.print(); } catch {} }, 350);
+  setTimeout(() => {
+    try { w.focus(); w.print(); } catch {
+      // Printing can be blocked by the browser after the export window opens.
+    }
+  }, 350);
 }
 
 function renderStatementHTML(rows: StatementRow[], meta: ExportMeta) {

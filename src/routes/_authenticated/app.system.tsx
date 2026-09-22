@@ -2136,7 +2136,8 @@ function SystemPage() {
           <div>
             <div className="text-xs font-semibold text-muted-foreground mb-2 flex items-center gap-1.5">
               <Package className="h-3.5 w-3.5" /> Dependency Audit — {dependencyAudit.dependencyCount} dependencies،{" "}
-              {dependencyAudit.devDependencyCount} devDependencies، {dependencyAudit.vulnerabilities.high} high/
+              {dependencyAudit.devDependencyCount} devDependencies، {dependencyAudit.vulnerabilities.critical} critical/
+              {dependencyAudit.vulnerabilities.high} high/
               {dependencyAudit.vulnerabilities.moderate} moderate/{dependencyAudit.vulnerabilities.low} low
             </div>
             <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
