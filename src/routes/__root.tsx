@@ -112,7 +112,9 @@ function RootComponent() {
       const theme = saved === "dark" || saved === "light" ? saved : prefersDark ? "dark" : "light";
       document.documentElement.classList.toggle("dark", theme === "dark");
       document.documentElement.style.colorScheme = theme;
-    } catch {}
+    } catch {
+      // Best-effort persistence; route rendering must continue if storage is blocked.
+    }
     initErrorTracking();
     registerServiceWorker();
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event) => {

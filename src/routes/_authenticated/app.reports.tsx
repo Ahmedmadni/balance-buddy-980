@@ -43,7 +43,7 @@ function ReportsPage() {
         if (error) throw error;
         return { rows: data ?? [] };
       } else if (type === "expenses") {
-        let q = supabase.from("expense_allocations")
+        const q = supabase.from("expense_allocations")
           .select("amount,currency,period,expenses(id,note,category_id,project_id,wallet_id,categories(name),projects(name),wallets(name))")
           .gte("period", from.slice(0, 7) + "-01")
           .lte("period", to.slice(0, 7) + "-01")

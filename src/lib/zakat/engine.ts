@@ -86,7 +86,7 @@ export function nextZakatDate(settings: Pick<ZakatSettings, "annual_date_type" |
   const m = parseInt(mStr) || 1;
 
   if (settings.annual_date_type === "gregorian") {
-    let yr = today.getFullYear();
+    const yr = today.getFullYear();
     let candidate = new Date(yr, m - 1, d);
     if (candidate.getTime() < today.getTime()) candidate = new Date(yr + 1, m - 1, d);
     return candidate;

@@ -521,7 +521,7 @@ function cattleDue(n: number): string {
   if (n < 30) return "لا زكاة (دون النصاب)";
   // في كل 30: تبيع، وفي كل 40: مسنة
   const musinna = Math.floor(n / 40);
-  let remaining = n - musinna * 40;
+  const remaining = n - musinna * 40;
   const tabi = Math.floor(remaining / 30);
   // معالجة بسيطة
   if (n < 40) return "تبيع أو تبيعة (عمر سنة)";

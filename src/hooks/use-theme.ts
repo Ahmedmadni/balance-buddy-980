@@ -30,7 +30,9 @@ export function useTheme() {
     const next: Theme = theme === "dark" ? "light" : "dark";
     setTheme(next);
     apply(next);
-    try { localStorage.setItem(KEY, next); } catch {}
+    try { localStorage.setItem(KEY, next); } catch {
+      // Storage can be unavailable in privacy-restricted browser contexts.
+    }
   };
 
   return { theme, toggle };

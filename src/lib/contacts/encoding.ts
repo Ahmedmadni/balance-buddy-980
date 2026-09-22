@@ -72,8 +72,14 @@ export function normalizeImportedContactName(value: unknown): string {
   if (value == null) return "";
   let s = typeof value === "string" ? value : String(value);
 
-  // Strip control characters (except tab/newline which collapse to space).
-  s = s.replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F]/g, "");
+  // Strip control characters, preserving tab/newline/carriage-return so the
+  // whitespace normalizer below can collapse them safely.
+  s = [...s]
+    .filter((character) => {
+      const code = character.charCodeAt(0);
+      return code === 9 || code === 10 || code === 13 || (code >= 32 && code !== 127);
+    })
+    .join("");
 
   if (isEncodedContactName(s)) s = decodeImportedContactName(s);
   else if (isPercentEncoded(s)) {
