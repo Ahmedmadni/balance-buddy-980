@@ -48,7 +48,7 @@ export function PersonStatementDrawer({
     qc.invalidateQueries({ queryKey: ["reports"] });
   };
 
-  const rows = data?.rows ?? [];
+  const rows = useMemo(() => data?.rows ?? [], [data?.rows]);
   const name = normalizeContactName(data?.contact?.name ?? contactName ?? rows[0]?.contact_name) || "—";
   const phone = data?.contact?.phone ?? null;
 

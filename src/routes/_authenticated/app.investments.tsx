@@ -130,10 +130,15 @@ function InvestmentsPage() {
     onError: (e: any) => toast.error(e.message || "فشل التفعيل"),
   });
 
-  const txByInv = new Map<string, any[]>();
-  for (const t of data?.txs ?? []) {
-    const a = txByInv.get(t.investment_id) ?? []; a.push(t); txByInv.set(t.investment_id, a);
-  }
+  const txByInv = useMemo(() => {
+    const map = new Map<string, any[]>();
+    for (const transaction of data?.txs ?? []) {
+      const transactions = map.get(transaction.investment_id) ?? [];
+      transactions.push(transaction);
+      map.set(transaction.investment_id, transactions);
+    }
+    return map;
+  }, [data?.txs]);
 
   // Latest active depreciation profile per investment
   const depProfileByInv = useMemo(() => {

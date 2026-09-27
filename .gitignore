@@ -38,3 +38,8 @@ android/app/*.jks
 *.keystore
 *.jks
 local.properties
+
+# Playwright
+playwright-report/
+test-results/
+e2e/.auth/

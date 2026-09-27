@@ -7,7 +7,8 @@ function then:
 
 1. validates the request origin when an allow-list is configured;
 2. validates the JWT with Supabase Auth;
-3. reauthenticates the same email/password user;
+3. reauthenticates the same email/password user, or requires an explicit OAuth
+   login completed within the previous five minutes;
 4. deletes attachment objects, including orphaned objects under the user's
    Storage prefix;
 5. deletes user-owned rows leaf-first so retries are safe;
@@ -50,9 +51,9 @@ supabase functions deploy delete-account
 7. Repeat with an intentionally interrupted request before Auth deletion to
    verify a retry safely completes.
 
-The current reauthentication flow supports email/password accounts. Accounts
-that do not have an email/password credential receive
-`password_reauthentication_unavailable`; add a provider-specific recent-login
-challenge before enabling permanent deletion for those providers.
+OAuth reauthentication forces the provider login prompt and returns the user to
+the deletion dialog. The Edge Function checks Supabase Auth's server-maintained
+`last_sign_in_at` timestamp; refreshing an access token is not accepted as a
+fresh sign-in.
 
 No database migration is required by this implementation.

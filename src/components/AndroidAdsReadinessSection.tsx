@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState, type ReactNode } from "react";
+import { useCallback, useState, type ReactNode } from "react";
 import { RefreshCw } from "lucide-react";
 import { getContactsRegressionChecklist, contactsRegressionScore } from "@/lib/contacts/regression";
 import { auditAdsProduction } from "@/lib/ads/production-audit";
@@ -29,15 +29,15 @@ function Group({ title, children }: { title: string; children: ReactNode }) {
 }
 
 export function AndroidAdsReadinessSection() {
-  const [nonce, setNonce] = useState(0);
+  const [, setNonce] = useState(0);
   const refresh = useCallback(() => setNonce((n) => n + 1), []);
 
-  const ads = useMemo(() => auditAdsProduction(), [nonce]);
-  const adsRuntime = useMemo(() => auditAds(), [nonce]);
-  const androidCfg = useMemo(() => auditAndroidReleaseConfig(), [nonce]);
-  const androidRelease = useMemo(() => auditAndroidRelease(), [nonce]);
-  const checks = useMemo(() => getContactsRegressionChecklist(), [nonce]);
-  const contactsScore = useMemo(() => contactsRegressionScore(), [nonce]);
+  const ads = auditAdsProduction();
+  const adsRuntime = auditAds();
+  const androidCfg = auditAndroidReleaseConfig();
+  const androidRelease = auditAndroidRelease();
+  const checks = getContactsRegressionChecklist();
+  const contactsScore = contactsRegressionScore();
 
   const encodingOk = !checks.some((c) => c.status === "auto-fail");
 

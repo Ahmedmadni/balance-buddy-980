@@ -21,6 +21,8 @@ import {
 } from "@/lib/account-deletion/flow";
 import { recordDialogOpened, recordDialogSaved } from "@/lib/beta/session";
 import { captureApplicationError } from "@/lib/system/errors";
+import { lovable } from "@/integrations/lovable";
+import { supabase } from "@/integrations/supabase/client";
 import {
   ACCOUNT_DELETION_CONFIRMATION,
   clearLocalAccountData,
@@ -28,6 +30,9 @@ import {
 } from "@/lib/account-deletion/request";
 
 const CONFIRM_TEXT = ACCOUNT_DELETION_CONFIRMATION;
+const BACKUP_EXPORTED_AT_KEY = "rasd.accountDeletion.backupExportedAt";
+const RECENT_SIGN_IN_WINDOW_MS = 5 * 60 * 1000;
+type AuthProvider = "email" | "google" | "apple" | "microsoft" | "lovable";
 
 function bytesToHuman(b: number): string {
   if (b < 1024) return `${b} B`;
@@ -50,15 +55,37 @@ export function AccountDeletionDialog({
   const [hasExported, setHasExported] = useState(false);
   const [confirmInput, setConfirmInput] = useState("");
   const [password, setPassword] = useState("");
+  const [authProvider, setAuthProvider] = useState<AuthProvider | null>(null);
+  const [oauthRecent, setOauthRecent] = useState(false);
+  const [reauthenticating, setReauthenticating] = useState(false);
 
   useEffect(() => {
     if (!open) return;
     recordDialogOpened("account_deletion");
     setLoading(true);
-    Promise.all([generateDeletionExecutionPlan(), validateDeletionReadiness()])
-      .then(([p, r]) => {
+    Promise.all([
+      generateDeletionExecutionPlan(),
+      validateDeletionReadiness(),
+      supabase.auth.getUser(),
+    ])
+      .then(([p, r, userResult]) => {
         setPlan(p);
         setReadiness(r);
+        const provider = userResult.data.user?.app_metadata?.provider;
+        if (
+          typeof provider === "string" &&
+          ["email", "google", "apple", "microsoft", "lovable"].includes(provider)
+        ) {
+          setAuthProvider(provider as AuthProvider);
+        } else {
+          setAuthProvider(null);
+        }
+        const lastSignInAt = Date.parse(userResult.data.user?.last_sign_in_at ?? "");
+        setOauthRecent(
+          Number.isFinite(lastSignInAt) && Date.now() - lastSignInAt <= RECENT_SIGN_IN_WINDOW_MS,
+        );
+        const exportedAt = Number(sessionStorage.getItem(BACKUP_EXPORTED_AT_KEY));
+        setHasExported(Number.isFinite(exportedAt) && Date.now() - exportedAt <= 30 * 60 * 1000);
       })
       .catch((e) => captureApplicationError(e, "runtime", { scope: "account_deletion_dialog" }))
       .finally(() => setLoading(false));
@@ -69,6 +96,8 @@ export function AccountDeletionDialog({
       setConfirmInput("");
       setPassword("");
       setHasExported(false);
+      setAuthProvider(null);
+      setOauthRecent(false);
     }
   }, [open]);
 
@@ -78,6 +107,7 @@ export function AccountDeletionDialog({
       const pkg = await exportDeletionPackage();
       downloadDeletionPackage(pkg);
       setHasExported(true);
+      sessionStorage.setItem(BACKUP_EXPORTED_AT_KEY, String(Date.now()));
       toast.success("تم تصدير حزمة الحذف (نسخة احتياطية كاملة + خطة الحذف)");
     } catch (e) {
       captureApplicationError(e, "runtime", { scope: "account_deletion_export" });
@@ -87,10 +117,31 @@ export function AccountDeletionDialog({
     }
   }
 
+  async function handleOAuthReauthentication() {
+    if (!authProvider || authProvider === "email") return;
+    setReauthenticating(true);
+    try {
+      const result = await lovable.auth.signInWithOAuth(authProvider, {
+        redirect_uri: `${window.location.origin}/app/settings?accountDeletion=1`,
+        extraParams: { prompt: "login", max_age: "0" },
+      });
+      if (result.error) throw result.error;
+      if (!result.redirected) setOauthRecent(true);
+    } catch (e) {
+      captureApplicationError(e, "runtime", { scope: "account_deletion_reauthenticate" });
+      toast.error("تعذرت إعادة المصادقة");
+    } finally {
+      setReauthenticating(false);
+    }
+  }
+
   async function handleDeleteAccount() {
     setDeleting(true);
     try {
-      await requestAccountDeletion(password, confirmInput.trim());
+      await requestAccountDeletion(
+        authProvider === "email" ? password : undefined,
+        confirmInput.trim(),
+      );
       recordDialogSaved("account_deletion");
       await clearLocalAccountData();
       toast.success("تم حذف حسابك وبياناتك نهائيًا");
@@ -98,7 +149,7 @@ export function AccountDeletionDialog({
     } catch (e) {
       captureApplicationError(e, "runtime", { scope: "account_deletion_execute" });
       toast.error("تعذر حذف الحساب", {
-        description: "تحقق من كلمة المرور واتصالك ثم أعد المحاولة. لم تُحذف الجلسة المحلية.",
+        description: "تحقق من إعادة المصادقة واتصالك ثم أعد المحاولة. لم تُحذف الجلسة المحلية.",
       });
     } finally {
       setDeleting(false);
@@ -117,8 +168,9 @@ export function AccountDeletionDialog({
         <div className="rounded-2xl border border-destructive/30 bg-destructive/5 p-3 text-xs text-destructive flex gap-2">
           <AlertTriangle className="h-4 w-4 shrink-0 mt-0.5" />
           <span>
-            الحذف <b>نهائي ولا يمكن التراجع عنه</b>. صدّر نسخة احتياطية أولًا، ثم أكّد هويتك بكلمة
-            المرور. تُنفَّذ العملية على الخادم ولا تُرسل صلاحية الإدارة إلى المتصفح.
+            الحذف <b>نهائي ولا يمكن التراجع عنه</b>. صدّر نسخة احتياطية أولًا، ثم أعد إثبات هويتك
+            بالطريقة المرتبطة بحسابك. تُنفَّذ العملية على الخادم ولا تُرسل صلاحية الإدارة إلى
+            المتصفح.
           </span>
         </div>
 
@@ -229,17 +281,42 @@ export function AccountDeletionDialog({
               </div>
             )}
 
-            <div>
-              <Label className="text-xs">كلمة المرور لإعادة المصادقة</Label>
-              <Input
-                type="password"
-                autoComplete="current-password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                className="mt-1"
-                dir="ltr"
-              />
-            </div>
+            {authProvider === "email" ? (
+              <div>
+                <Label className="text-xs">كلمة المرور لإعادة المصادقة</Label>
+                <Input
+                  type="password"
+                  autoComplete="current-password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  className="mt-1"
+                  dir="ltr"
+                />
+              </div>
+            ) : authProvider ? (
+              <div className="space-y-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="w-full"
+                  disabled={oauthRecent || reauthenticating}
+                  onClick={handleOAuthReauthentication}
+                >
+                  {oauthRecent
+                    ? "تم التحقق من الهوية مؤخرًا"
+                    : reauthenticating
+                      ? "جارٍ فتح تسجيل الدخول..."
+                      : "إعادة التحقق عبر مزوّد تسجيل الدخول"}
+                </Button>
+                <p className="text-xs text-muted-foreground">
+                  سيُطلب تسجيل الدخول مجددًا ثم ستعود إلى هذه الشاشة.
+                </p>
+              </div>
+            ) : (
+              <div className="text-xs text-destructive">
+                تعذر تحديد مزوّد تسجيل الدخول لهذا الحساب؛ لا يمكن تنفيذ حذف آمن الآن.
+              </div>
+            )}
 
             <div>
               <Label className="text-xs">اكتب "{CONFIRM_TEXT}" لتأكيد الحذف النهائي</Label>
@@ -262,7 +339,8 @@ export function AccountDeletionDialog({
             variant="destructive"
             disabled={
               confirmInput.trim() !== CONFIRM_TEXT ||
-              password.length < 8 ||
+              (authProvider === "email" ? password.length < 8 : !oauthRecent) ||
+              !authProvider ||
               !hasExported ||
               loading ||
               deleting

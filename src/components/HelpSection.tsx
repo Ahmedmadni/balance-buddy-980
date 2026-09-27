@@ -60,6 +60,15 @@ export function HelpSection() {
   const [deletionOpen, setDeletionOpen] = useState(false);
   const feedbackCount = loadBetaFeedback().length;
 
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("accountDeletion") !== "1") return;
+    setDeletionOpen(true);
+    params.delete("accountDeletion");
+    const search = params.toString();
+    window.history.replaceState({}, "", `${window.location.pathname}${search ? `?${search}` : ""}`);
+  }, []);
+
   async function exportDiagnostics() {
     setExporting(true);
     try {
@@ -141,16 +150,28 @@ export function HelpSection() {
           <FileText className="h-3.5 w-3.5" /> المستندات القانونية
         </div>
         <div className="flex flex-wrap gap-2">
-          <Link to="/legal/privacy" className="rounded-full border border-border px-3 py-1.5 text-[11px] text-muted-foreground hover:text-foreground hover:border-primary/40 transition-colors">
+          <Link
+            to="/legal/privacy"
+            className="rounded-full border border-border px-3 py-1.5 text-[11px] text-muted-foreground hover:text-foreground hover:border-primary/40 transition-colors"
+          >
             سياسة الخصوصية
           </Link>
-          <Link to="/legal/terms" className="rounded-full border border-border px-3 py-1.5 text-[11px] text-muted-foreground hover:text-foreground hover:border-primary/40 transition-colors">
+          <Link
+            to="/legal/terms"
+            className="rounded-full border border-border px-3 py-1.5 text-[11px] text-muted-foreground hover:text-foreground hover:border-primary/40 transition-colors"
+          >
             شروط الاستخدام
           </Link>
-          <Link to="/legal/cookies" className="rounded-full border border-border px-3 py-1.5 text-[11px] text-muted-foreground hover:text-foreground hover:border-primary/40 transition-colors">
+          <Link
+            to="/legal/cookies"
+            className="rounded-full border border-border px-3 py-1.5 text-[11px] text-muted-foreground hover:text-foreground hover:border-primary/40 transition-colors"
+          >
             ملفات تعريف الارتباط
           </Link>
-          <Link to="/legal/data-export" className="rounded-full border border-border px-3 py-1.5 text-[11px] text-muted-foreground hover:text-foreground hover:border-primary/40 transition-colors">
+          <Link
+            to="/legal/data-export"
+            className="rounded-full border border-border px-3 py-1.5 text-[11px] text-muted-foreground hover:text-foreground hover:border-primary/40 transition-colors"
+          >
             تصدير بياناتك
           </Link>
         </div>

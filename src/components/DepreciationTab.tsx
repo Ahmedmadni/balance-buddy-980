@@ -70,7 +70,7 @@ export function DepreciationTab({ asset }: { asset: any }) {
       if (asset.acquired_at) setStartDate(asset.acquired_at);
       else if (asset.start_date) setStartDate(asset.start_date);
     }
-  }, [profile?.id, isLoading, asset.type, asset.acquired_at, asset.start_date, cost]);
+  }, [profile, isLoading, asset.type, asset.acquired_at, asset.start_date, cost]);
 
 
   const save = useMutation({
@@ -119,17 +119,17 @@ export function DepreciationTab({ asset }: { asset: any }) {
 
 
   // Live preview using current form state
-  const previewProfile: DepreciationProfile = {
+  const previewProfile = useMemo<DepreciationProfile>(() => ({
     method,
     useful_life_months: Math.max(1, parseInt(life || "1", 10)),
     salvage_value: n(salvage),
     start_date: startDate,
     units_total: unitsTotal === "" ? null : n(unitsTotal),
     units_consumed: unitsConsumed === "" ? null : n(unitsConsumed),
-  };
+  }), [method, life, salvage, startDate, unitsTotal, unitsConsumed]);
 
-  const result = useMemo(() => computeDepreciation(previewProfile, cost), [method, life, salvage, startDate, unitsTotal, unitsConsumed, cost]);
-  const schedule = useMemo(() => buildDepreciationSchedule(previewProfile, cost, 120), [method, life, salvage, startDate, unitsTotal, unitsConsumed, cost]);
+  const result = useMemo(() => computeDepreciation(previewProfile, cost), [previewProfile, cost]);
+  const schedule = useMemo(() => buildDepreciationSchedule(previewProfile, cost, 120), [previewProfile, cost]);
 
   if (isLoading) return <div className="p-6 text-center text-sm text-muted-foreground">جارٍ التحميل…</div>;
 
