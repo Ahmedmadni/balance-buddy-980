@@ -13,13 +13,16 @@ describe("A13 account deletion hardening", () => {
     expect(dialog).not.toContain("SUPABASE_SERVICE_ROLE_KEY");
   });
 
-  test("requires JWT, explicit confirmation, and password reauthentication", () => {
+  test("requires JWT, explicit confirmation, and provider-aware reauthentication", () => {
     expect(edgeFunction).toContain("bearerToken(request)");
     expect(edgeFunction).toContain("auth.getUser(token)");
     expect(edgeFunction).toContain("signInWithPassword");
+    expect(edgeFunction).toContain("recent_oauth_sign_in_required");
+    expect(edgeFunction).toContain("user.last_sign_in_at");
     expect(edgeFunction).toContain("confirmation_mismatch");
     expect(edgeFunction).toContain("reauthentication_failed");
     expect(dialog).toContain('type="password"');
+    expect(dialog).toContain('prompt: "login"');
   });
 
   test("deletes storage, user rows, profile, and Auth in that order", () => {

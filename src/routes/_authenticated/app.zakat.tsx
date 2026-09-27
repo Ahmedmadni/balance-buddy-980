@@ -1,7 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import { useMemo, useState, useEffect } from "react";
+import { useCallback, useMemo, useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -88,14 +88,14 @@ function MoneyZakat() {
 
   // تحويل من عملة → العملة الأساسية: amount_base = amount_cur / rate_cur * rate_base
   // rates[cur] = كم من العملة `cur` يساوي 1 SAR. لذا 1 cur = 1/rates[cur] SAR، و1 SAR = rates[base] base
-  const toBase = (amount: number, fromCur: string) => {
+  const toBase = useCallback((amount: number, fromCur: string) => {
     const fr = rates[fromCur] ?? DEFAULT_RATES[fromCur] ?? 1;
     const br = rates[baseCurrency] ?? DEFAULT_RATES[baseCurrency] ?? 1;
     if (!fr) return 0;
     return (amount / fr) * br;
-  };
+  }, [rates, baseCurrency]);
 
-  const nisabBase = toBase(nisabSAR, "SAR");
+  const nisabBase = useMemo(() => toBase(nisabSAR, "SAR"), [nisabSAR, toBase]);
 
   const { data, isLoading } = useQuery({
     queryKey: ["zakat-data"],
@@ -135,7 +135,6 @@ function MoneyZakat() {
         return next;
       });
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [data]);
 
 
@@ -203,7 +202,7 @@ function MoneyZakat() {
       zakat,
       progress: nisabBase > 0 ? Math.min(100, (unifiedBase / nisabBase) * 100) : 0,
     };
-  }, [data, includeBank, includeCash, includeInvestments, includeReceivables, deductPayables, rate, nisabBase, baseCurrency, rates]);
+  }, [data, includeBank, includeCash, includeInvestments, includeReceivables, deductPayables, rate, nisabBase, toBase]);
 
   const saveMut = useMutation({
     mutationFn: async () => {
@@ -959,4 +958,3 @@ function InvestmentAssetsZakatSection({ rate }: { rate: number }) {
     </div>
   );
 }
-

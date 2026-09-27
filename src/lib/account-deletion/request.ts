@@ -16,11 +16,11 @@ function newRequestId(): string {
 }
 
 export async function requestAccountDeletion(
-  password: string,
+  password: string | undefined,
   confirmation = ACCOUNT_DELETION_CONFIRMATION,
 ): Promise<AccountDeletionResult> {
   const { data, error } = await supabase.functions.invoke<AccountDeletionResult>("delete-account", {
-    body: { password, confirmation, requestId: newRequestId() },
+    body: { ...(password ? { password } : {}), confirmation, requestId: newRequestId() },
   });
 
   if (error) throw error;

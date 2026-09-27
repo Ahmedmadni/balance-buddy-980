@@ -3,6 +3,7 @@ import { createClient } from "npm:@supabase/supabase-js@2.108.1";
 const CONFIRMATION_TEXT = "حذف حسابي";
 const STORAGE_BUCKET = "attachments";
 const DELETE_BATCH_SIZE = 100;
+const RECENT_SIGN_IN_WINDOW_MS = 5 * 60 * 1000;
 
 // Leaf tables first. Repeating any of these deletes is safe, which makes a
 // partially completed request retryable while the Auth user still exists.
@@ -178,9 +179,6 @@ Deno.serve(async (request) => {
   if (body.confirmation !== CONFIRMATION_TEXT) {
     return json(request, 400, { error: "confirmation_mismatch" });
   }
-  if (typeof body.password !== "string" || body.password.length < 8) {
-    return json(request, 400, { error: "password_required" });
-  }
   if (!validRequestId(body.requestId)) {
     return json(request, 400, { error: "invalid_request_id" });
   }
@@ -199,15 +197,31 @@ Deno.serve(async (request) => {
     const { data: userResult, error: userError } = await authClient.auth.getUser(token);
     const user = userResult.user;
     if (userError || !user) return json(request, 401, { error: "invalid_session" });
-    if (!user.email) return json(request, 409, { error: "password_reauthentication_unavailable" });
+    const provider =
+      typeof user.app_metadata?.provider === "string" ? user.app_metadata.provider : "";
+    if (provider === "email") {
+      if (!user.email || typeof body.password !== "string" || body.password.length < 8) {
+        return json(request, 400, { error: "password_required" });
+      }
 
-    // A destructive request must prove the user's password again; possessing a
-    // long-lived session token alone is intentionally insufficient.
-    const { error: reauthError } = await authClient.auth.signInWithPassword({
-      email: user.email,
-      password: body.password,
-    });
-    if (reauthError) return json(request, 403, { error: "reauthentication_failed" });
+      // Password accounts must prove the password again; possessing a
+      // long-lived session token alone is intentionally insufficient.
+      const { error: reauthError } = await authClient.auth.signInWithPassword({
+        email: user.email,
+        password: body.password,
+      });
+      if (reauthError) return json(request, 403, { error: "reauthentication_failed" });
+    } else {
+      // OAuth accounts must return from an explicit provider login immediately
+      // before deletion. Refreshing an access token does not update this
+      // server-maintained Auth timestamp.
+      const lastSignInAt = Date.parse(user.last_sign_in_at ?? "");
+      const isRecent =
+        Number.isFinite(lastSignInAt) &&
+        Date.now() - lastSignInAt >= 0 &&
+        Date.now() - lastSignInAt <= RECENT_SIGN_IN_WINDOW_MS;
+      if (!isRecent) return json(request, 403, { error: "recent_oauth_sign_in_required" });
+    }
 
     const subject = await auditSubject(user.id);
     console.info("account_deletion_started", { requestId: body.requestId, subject });
