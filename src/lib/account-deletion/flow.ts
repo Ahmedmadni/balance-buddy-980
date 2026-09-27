@@ -1,10 +1,10 @@
 // =============================================================
 // PART 1 — Account Deletion UI Engine: flow
 // -------------------------------------------------------------
-// STRICTLY NO ACTUAL DELETION: nothing here ever calls .delete()/
-// .remove() on Supabase, never uses a service_role key (none exists
-// client-side), never touches a migration or RLS policy. This is a
-// read-only planning + export layer on top of Prompt 23/24's
+// This module remains a read-only planning + export layer. Actual deletion is
+// performed only by the authenticated `delete-account` Edge Function; the
+// service_role key never enters the browser bundle. This layer sits on top of
+// Prompt 23/24's
 // generateDeletionPlan()/generateAccountDeletionReport() — it composes
 // them into a user-facing execution plan, a readiness check, and a
 // downloadable "deletion package" (a fresh full backup + the plan, so
@@ -56,21 +56,21 @@ export async function generateDeletionExecutionPlan(): Promise<DeletionExecution
       id: "cloud_tables",
       order: 3,
       label: "حذف صفوف الجداول السحابية",
-      detail: `${report.affectedTables.length} جدول في Supabase، بالترتيب العكسي لتبعيّات المفاتيح الأجنبية`,
+      detail: `${report.affectedTables.length} جدول في Supabase عبر Edge Function، بالترتيب العكسي لتبعيّات المفاتيح الأجنبية`,
     },
     {
       id: "storage_files",
       order: 4,
       label: "حذف ملفات المرفقات",
       detail:
-        "يحتاج استدعاء storage.remove() منفصلاً لكل مسار في حاوية attachments — حذف صف الجدول وحده لا يكفي",
+        "تحذف Edge Function كل المسارات المسجلة وأي ملفات يتيمة تحت مجلد المستخدم في حاوية attachments",
     },
     {
       id: "auth_account",
       order: 5,
       label: "حذف حساب المصادقة",
       detail:
-        "يحتاج Admin API بصلاحية service_role — غير متاحة من جهة العميل إطلاقاً، خارج نطاق هذا التدفق بالتصميم",
+        "تنفّذه Edge Function أخيراً عبر Admin API بعد التحقق من JWT وإعادة المصادقة بكلمة المرور",
     },
   ];
 
@@ -118,11 +118,11 @@ export async function validateDeletionReadiness(): Promise<DeletionReadinessRepo
         : "لا نسخة احتياطية محلية بعد — يُنصح بشدّة بإنشاء واحدة (أو تصدير حزمة الحذف أدناه) أولاً",
     },
     {
-      id: "preview_only",
-      label: "هذا التدفق معاينة فقط",
+      id: "server_execution",
+      label: "التنفيذ الخادمي متاح",
       ready: true,
       detail:
-        "لا يوجد مسار تنفيذ فعلي في هذا الإصدار — يوثّق هذا الفحص قيداً تصميمياً ثابتاً، لا حالة بيانات متغيّرة",
+        "Edge Function باسم delete-account تنفّذ الحذف بصلاحية خادمية بعد التحقق من الجلسة وإعادة المصادقة",
     },
   ];
 

@@ -49,6 +49,15 @@ export default tseslint.config(
       "@typescript-eslint/no-unused-vars": "off",
     },
   },
+  {
+    files: ["supabase/functions/**/*.ts"],
+    languageOptions: {
+      globals: {
+        ...globals.browser,
+        Deno: "readonly",
+      },
+    },
+  },
   eslintPluginPrettier,
   {
     // Formatting remains available through `bun run format`; ESLint is the

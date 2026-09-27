@@ -41,9 +41,9 @@ export async function auditAccountDeletion(): Promise<AccountDeletionAuditReport
     {
       id: "execution_capability",
       label: "قدرة التنفيذ الفعلي",
-      status: "error",
+      status: "ok",
       detail:
-        "لا يوجد تنفيذ فعلي للحذف في التطبيق — الواجهة تعرض المعاينة والتصدير فقط، بالتصميم في هذه المرحلة",
+        "التنفيذ الفعلي متاح عبر delete-account Edge Function مع JWT وإعادة مصادقة وحذف Storage والبيانات وAuth",
     },
     {
       id: "non_deletable",
