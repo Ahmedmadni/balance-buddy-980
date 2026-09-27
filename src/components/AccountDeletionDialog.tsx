@@ -21,8 +21,13 @@ import {
 } from "@/lib/account-deletion/flow";
 import { recordDialogOpened, recordDialogSaved } from "@/lib/beta/session";
 import { captureApplicationError } from "@/lib/system/errors";
+import {
+  ACCOUNT_DELETION_CONFIRMATION,
+  clearLocalAccountData,
+  requestAccountDeletion,
+} from "@/lib/account-deletion/request";
 
-const CONFIRM_TEXT = "حذف حسابي";
+const CONFIRM_TEXT = ACCOUNT_DELETION_CONFIRMATION;
 
 function bytesToHuman(b: number): string {
   if (b < 1024) return `${b} B`;
@@ -41,7 +46,10 @@ export function AccountDeletionDialog({
   const [readiness, setReadiness] = useState<DeletionReadinessReport | null>(null);
   const [loading, setLoading] = useState(false);
   const [exporting, setExporting] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  const [hasExported, setHasExported] = useState(false);
   const [confirmInput, setConfirmInput] = useState("");
+  const [password, setPassword] = useState("");
 
   useEffect(() => {
     if (!open) return;
@@ -57,7 +65,11 @@ export function AccountDeletionDialog({
   }, [open]);
 
   useEffect(() => {
-    if (!open) setConfirmInput("");
+    if (!open) {
+      setConfirmInput("");
+      setPassword("");
+      setHasExported(false);
+    }
   }, [open]);
 
   async function handleExportPackage() {
@@ -65,6 +77,7 @@ export function AccountDeletionDialog({
     try {
       const pkg = await exportDeletionPackage();
       downloadDeletionPackage(pkg);
+      setHasExported(true);
       toast.success("تم تصدير حزمة الحذف (نسخة احتياطية كاملة + خطة الحذف)");
     } catch (e) {
       captureApplicationError(e, "runtime", { scope: "account_deletion_export" });
@@ -74,10 +87,22 @@ export function AccountDeletionDialog({
     }
   }
 
-  function handleAcknowledge() {
-    recordDialogSaved("account_deletion");
-    toast.info("لم يُنفَّذ أي حذف — هذه معاينة فقط. تواصل مع الدعم لطلب حذف حسابك فعلياً.");
-    onOpenChange(false);
+  async function handleDeleteAccount() {
+    setDeleting(true);
+    try {
+      await requestAccountDeletion(password, confirmInput.trim());
+      recordDialogSaved("account_deletion");
+      await clearLocalAccountData();
+      toast.success("تم حذف حسابك وبياناتك نهائيًا");
+      window.location.assign("/auth");
+    } catch (e) {
+      captureApplicationError(e, "runtime", { scope: "account_deletion_execute" });
+      toast.error("تعذر حذف الحساب", {
+        description: "تحقق من كلمة المرور واتصالك ثم أعد المحاولة. لم تُحذف الجلسة المحلية.",
+      });
+    } finally {
+      setDeleting(false);
+    }
   }
 
   return (
@@ -92,8 +117,8 @@ export function AccountDeletionDialog({
         <div className="rounded-2xl border border-destructive/30 bg-destructive/5 p-3 text-xs text-destructive flex gap-2">
           <AlertTriangle className="h-4 w-4 shrink-0 mt-0.5" />
           <span>
-            هذه معاينة فقط — <b>لا يوجد حذف فعلي</b> في هذا الإصدار من التطبيق. الحذف الحقيقي يحتاج
-            صلاحية إدارية (service_role) على الخادم غير متاحة من هنا، ويجب طلبه عبر الدعم.
+            الحذف <b>نهائي ولا يمكن التراجع عنه</b>. صدّر نسخة احتياطية أولًا، ثم أكّد هويتك بكلمة
+            المرور. تُنفَّذ العملية على الخادم ولا تُرسل صلاحية الإدارة إلى المتصفح.
           </span>
         </div>
 
@@ -198,10 +223,26 @@ export function AccountDeletionDialog({
               {exporting ? "جارٍ التصدير..." : "تصدير حزمة الحذف (نسخة احتياطية + الخطة)"}
             </Button>
 
+            {!hasExported && (
+              <div className="text-xs text-warning">
+                يلزم تصدير حزمة الحذف في هذه الجلسة قبل تفعيل زر الحذف النهائي.
+              </div>
+            )}
+
             <div>
-              <Label className="text-xs">
-                اكتب "{CONFIRM_TEXT}" لتأكيد أنك اطّلعت على الخطة أعلاه (لا يُنفَّذ أي حذف فعلي)
-              </Label>
+              <Label className="text-xs">كلمة المرور لإعادة المصادقة</Label>
+              <Input
+                type="password"
+                autoComplete="current-password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                className="mt-1"
+                dir="ltr"
+              />
+            </div>
+
+            <div>
+              <Label className="text-xs">اكتب "{CONFIRM_TEXT}" لتأكيد الحذف النهائي</Label>
               <Input
                 value={confirmInput}
                 onChange={(e) => setConfirmInput(e.target.value)}
@@ -219,10 +260,16 @@ export function AccountDeletionDialog({
           </Button>
           <Button
             variant="destructive"
-            disabled={confirmInput.trim() !== CONFIRM_TEXT || loading}
-            onClick={handleAcknowledge}
+            disabled={
+              confirmInput.trim() !== CONFIRM_TEXT ||
+              password.length < 8 ||
+              !hasExported ||
+              loading ||
+              deleting
+            }
+            onClick={handleDeleteAccount}
           >
-            تأكيد الاطّلاع
+            {deleting ? "جارٍ حذف الحساب..." : "حذف الحساب نهائيًا"}
           </Button>
         </DialogFooter>
       </DialogContent>

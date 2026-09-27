@@ -1,21 +1,14 @@
 // =============================================================
 // PART 3 — Account Deletion Execution Architecture
 // -------------------------------------------------------------
-// STRICTLY DOCUMENTATION: executable is always false, no service_role
-// key exists client-side, nothing is deleted. Composes Prompt 27's
-// generateServerDeletionSpec()/generateSupabaseDeletionPlan() directly
-// into the 6 categories this prompt asks for, rather than redeclaring
-// their step lists a second time.
+// The service_role key remains server-only. The matching Edge Function now
+// implements the remote auth/storage/database steps described by this plan;
+// local notification and backup cleanup remains a browser responsibility.
 // =============================================================
 import { generateServerDeletionSpec, generateSupabaseDeletionPlan } from "./execution";
 
 export type DeletionExecutionCategoryId =
-  | "auth"
-  | "storage"
-  | "database"
-  | "notification"
-  | "backup"
-  | "audit";
+  "auth" | "storage" | "database" | "notification" | "backup" | "audit";
 
 export interface DeletionExecutionCategory {
   id: DeletionExecutionCategoryId;
@@ -25,7 +18,7 @@ export interface DeletionExecutionCategory {
 
 export interface AccountDeletionExecutionPlan {
   categories: DeletionExecutionCategory[];
-  executable: false;
+  executable: true;
   requires_service_role: true;
   generatedAt: string;
 }
@@ -77,7 +70,7 @@ export function buildDeletionExecutionPlan(): AccountDeletionExecutionPlan {
 
   return {
     categories,
-    executable: false,
+    executable: true,
     requires_service_role: true,
     generatedAt: new Date().toISOString(),
   };
