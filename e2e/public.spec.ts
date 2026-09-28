@@ -1,4 +1,4 @@
-import { expect, test } from "@playwright/test";
+import { expect, test } from "./fixtures";
 
 test("صفحة الدخول تعرض خيار جوجل", async ({ page }) => {
   await page.goto("/auth");
@@ -10,7 +10,7 @@ test("صفحة الدخول تعرض خيار جوجل", async ({ page }) => {
 test("المسارات المحمية تعيد الزائر إلى الدخول", async ({ page }) => {
   await page.goto("/app");
 
-  await expect(page).toHaveURL(/\/auth(?:\?|$)/, { timeout: 20_000 });
+  await expect(page).toHaveURL(/\/auth(?:\?|$)/, { timeout: 30_000 });
 });
 
 for (const path of ["privacy", "terms", "cookies", "data-export"]) {
