@@ -18,7 +18,15 @@ jobs:
         with:
           distribution: temurin
           java-version: '21'
-      - uses: android-actions/setup-android@v3
+      # GitHub-hosted Ubuntu images already include the Android SDK.
+      # setup-android@v3 currently tries to install removed SDK package 'tools'
+      # and fails before Capacitor can build (2026-10-15).
+      - name: Verify runner Android SDK
+        shell: bash
+        run: |
+          test -n "${ANDROID_HOME:-}" && test -d "$ANDROID_HOME"
+          echo "Android SDK: $ANDROID_HOME"
+          test -d "$ANDROID_HOME/cmdline-tools"
       - uses: oven-sh/setup-bun@v2
         with:
           bun-version: 1.4.2
