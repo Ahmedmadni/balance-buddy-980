@@ -124,6 +124,8 @@
   },
   "overrides": {
     "seroval": "^1.6.2",
-    "seroval-plugins": "^1.6.2"
+    "seroval-plugins": "^1.6.2",
+    "dompurify": "3.4.17",
+    "source-map-js": "1.2.2"
   }
 }
