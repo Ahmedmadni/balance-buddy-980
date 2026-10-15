@@ -345,13 +345,21 @@ export async function planImport(bundle: BackupBundle): Promise<ImportPlan> {
       entries.push({ table, incoming: rows.length, existing: 0, new_rows: 0, duplicates: 0, skipped_reason: "مُدار بواسطة القاعدة" });
       continue;
     }
-    const { data: existing, error } = await supabase.from(table as any).select("id");
-    if (error) {
-      warnings.push(`${table}: ${error.message}`);
+    let existing: { id: string }[];
+    try {
+      existing = await readAllBackupRows(
+        (start, end) => supabase.from(table as any)
+          .select("id", { count: "exact" })
+          .order("id", { ascending: true })
+          .range(start, end),
+        table,
+      );
+    } catch (error) {
+      warnings.push(`${table}: ${error instanceof Error ? error.message : "تعذر قراءة سجلات الحساب"}`);
       entries.push({ table, incoming: rows.length, existing: 0, new_rows: rows.length, duplicates: 0 });
       continue;
     }
-    const existingIds = new Set((existing ?? []).map((r: any) => r.id));
+    const existingIds = new Set(existing.map((r) => r.id));
     let dupes = 0;
     for (const r of rows) if (r?.id && existingIds.has(r.id)) dupes++;
     entries.push({
