@@ -74,7 +74,7 @@ export async function decryptRasdBackup(envelope: unknown, password: string): Pr
   const key = await deriveKey(password, salt);
   try {
     const plaintext = await getCrypto().subtle.decrypt(
-      { name: "AES-GCM", iv }, key, decode64(envelope.payload),
+      { name: "AES-GCM", iv: iv as BufferSource }, key, decode64(envelope.payload) as BufferSource,
     );
     return JSON.parse(new TextDecoder().decode(plaintext));
   } catch {

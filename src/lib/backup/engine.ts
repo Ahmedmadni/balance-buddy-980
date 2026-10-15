@@ -347,13 +347,20 @@ export async function planImport(bundle: BackupBundle): Promise<ImportPlan> {
     }
     let existing: { id: string }[];
     try {
-      existing = await readAllBackupRows(
+      const result = await readAllBackupRows(
         (start, end) => supabase.from(table as any)
           .select("id", { count: "exact" })
           .order("id", { ascending: true })
           .range(start, end),
         table,
       );
+      // Dynamic legacy table names are not inferable by Supabase's generated
+      // generic relation types. Validate ID shape before using row comparisons.
+      if (!result.every(row =>
+        row !== null && typeof row === "object" && "id" in row &&
+        typeof (row as { id: unknown }).id === "string"
+      )) throw new Error("استجابة معرّفات الجدول غير صالحة");
+      existing = result as unknown as { id: string }[];
     } catch (error) {
       warnings.push(`${table}: ${error instanceof Error ? error.message : "تعذر قراءة سجلات الحساب"}`);
       entries.push({ table, incoming: rows.length, existing: 0, new_rows: rows.length, duplicates: 0 });
