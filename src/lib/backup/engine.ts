@@ -11,6 +11,7 @@
 import { supabase } from "@/integrations/supabase/client";
 import * as XLSX from "xlsx";
 import { readAllBackupRows } from "./paged-export";
+import { validateLegacyBackup } from "./legacy-validate";
 
 export type BackupScope = "full" | "financial" | "assets" | "reports";
 
@@ -327,15 +328,16 @@ export interface ImportPlan {
   valid: boolean;
 }
 
-export function validateBundle(raw: any): { ok: true; bundle: BackupBundle } | { ok: false; error: string } {
-  if (!raw || typeof raw !== "object") return { ok: false, error: "الملف غير صالح" };
-  if (raw.meta?.app !== "rasd") return { ok: false, error: "الملف ليس نسخة رصد" };
-  if (raw.meta?.version !== 1) return { ok: false, error: "إصدار غير مدعوم" };
-  if (!raw.data || typeof raw.data !== "object") return { ok: false, error: "لا توجد بيانات" };
-  return { ok: true, bundle: raw as BackupBundle };
+export function validateBundle(raw: unknown): { ok: true; bundle: BackupBundle } | { ok: false; error: string } {
+  const result = validateLegacyBackup(raw, new Set(ALL_TABLES), new Set(LOCAL_KEYS));
+  return result.ok
+    ? { ok: true, bundle: raw as BackupBundle }
+    : { ok: false, error: result.error };
 }
 
 export async function planImport(bundle: BackupBundle): Promise<ImportPlan> {
+  const validation = validateBundle(bundle);
+  if (!validation.ok) throw new Error(validation.error);
   const entries: ImportPlanEntry[] = [];
   const warnings: string[] = [];
   for (const [table, rows] of Object.entries(bundle.data)) {
@@ -377,6 +379,23 @@ export async function importUserData(
   const res: ImportResult = { inserted: {}, updated: {}, skipped: {}, errors: [] };
   if (opts.mode === "preview") return res;
 
+  const validation = validateBundle(bundle);
+  if (!validation.ok) throw new Error(validation.error);
+  const { data: authData, error: authError } = await supabase.auth.getUser();
+  if (authError || !authData.user) throw new Error("يجب تسجيل الدخول لاستعادة بيانات رصد");
+  const uid = authData.user.id;
+  if (bundle.meta.user_id && bundle.meta.user_id !== uid) {
+    throw new Error("النسخة القديمة تخص حساباً آخر؛ لا يمكن دمجها في الحساب الحالي");
+  }
+  for (const [table, rows] of Object.entries(bundle.data)) {
+    if (rows.some(row => (
+      (row.user_id !== undefined && row.user_id !== uid)
+      || (table === "profiles" && row.id !== uid)
+    ))) {
+      throw new Error(`ملف النسخة يتضمن سجلات لا تخص حسابك: ${table}`);
+    }
+  }
+
   // v1 performs many independent client-side mutations without a database
   // transaction. A failed INSERT after the DELETE phase can destroy balances
   // permanently. The v2 restore_user_backup RPC is transactional instead.
@@ -403,6 +422,7 @@ export async function importUserData(
   // Restore local prefs
   if (bundle.local) {
     for (const [k, v] of Object.entries(bundle.local)) {
+      if (!LOCAL_KEYS.includes(k)) continue; // Defense in depth: never overwrite arbitrary keys.
       try { localStorage.setItem(k, JSON.stringify(v)); } catch { /* ignore */ }
     }
   }

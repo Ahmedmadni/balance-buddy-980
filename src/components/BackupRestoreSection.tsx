@@ -73,6 +73,10 @@ export function BackupRestoreSection() {
 
   async function onFile(f: File) {
     try {
+      if (f.size > 100 * 1024 * 1024) {
+        toast.error("النسخة أكبر من حد الاستيراد الآمن (100 MB)");
+        return;
+      }
       const text = await f.text();
       const raw = JSON.parse(text);
       const v = validateBundle(raw);
@@ -310,7 +314,7 @@ export function BackupRestoreSection() {
 
           <DialogFooter className="gap-2">
             <Button variant="outline" onClick={() => setConfirming(false)}>إلغاء</Button>
-            <Button onClick={doImport} disabled={running}>
+            <Button onClick={doImport} disabled={running || (mode !== "preview" && !plan?.valid)}>
               {running ? <RefreshCw className="h-4 w-4 animate-spin" /> : <CheckCircle2 className="h-4 w-4" />}
               {mode === "preview" ? "إغلاق" : mode === "replace" ? "تأكيد الاستبدال" : "تنفيذ الدمج"}
             </Button>
