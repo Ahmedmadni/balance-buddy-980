@@ -19,7 +19,7 @@ describe("v1 backup fail-closed import validation", () => {
   });
   test("rejects localStorage keys not owned by Rasd", () => {
     const x = structuredClone(valid);
-    x.local["supabase.auth.token"] = { access_token: "forged" };
+    (x.local as Record<string, unknown>)["supabase.auth.token"] = { access_token: "forged" };
     expect(check(x).ok).toBe(false);
   });
   test("rejects inconsistent counts, null rows and unknown scope", () => {
