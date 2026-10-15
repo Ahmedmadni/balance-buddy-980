@@ -1,13 +1,19 @@
 // TanStack Start emits an SSR client bundle, not a static index.html. Capacitor
 // requires a local entrypoint even when production uses a hosted server.url.
 // This local page is only a network-failure fallback, NOT an offline Rasd UI.
-import { existsSync, mkdirSync, writeFileSync } from "node:fs";
+import { cpSync, existsSync, mkdirSync, writeFileSync } from "node:fs";
 import { resolve } from "node:path";
 
+// Current TanStack Start/Nitro emits client assets to .output/public rather
+// than Vite's older dist/client path. Copy *public browser assets only*;
+// never package the server bundle or .env files inside the Android APK.
+const publishedDir = resolve(".output/public");
 const webDir = resolve("dist/client");
-if (!existsSync(webDir)) {
-  throw new Error("dist/client not found. Run the production web build first.");
+if (!existsSync(publishedDir)) {
+  throw new Error(".output/public not found. Run the TanStack Start production build first.");
 }
+mkdirSync(webDir, { recursive: true });
+cpSync(publishedDir, webDir, { recursive: true, force: true });
 const entry = resolve(webDir, "index.html");
 if (!existsSync(entry)) {
   mkdirSync(webDir, { recursive: true });
