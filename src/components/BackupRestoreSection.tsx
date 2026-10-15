@@ -33,6 +33,7 @@ export function BackupRestoreSection() {
   const [busy, setBusy] = useState<null | "json" | "csv" | "xlsx">(null);
   const [lastBundle, setLastBundle] = useState<BackupBundle | null>(null);
   const [legacyCacheFound, setLegacyCacheFound] = useState(false);
+  const [sessionExportAt, setSessionExportAt] = useState<string | null>(null);
   const [confirmClearLegacy, setConfirmClearLegacy] = useState(false);
   const [clearingLegacy, setClearingLegacy] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
@@ -59,7 +60,7 @@ export function BackupRestoreSection() {
       else if (fmt === "csv") downloadCSVZip(b);
       else downloadXLSX(b);
       setLastBundle(b);
-      setLegacyCacheFound(false);
+      setSessionExportAt(b.meta.exported_at);
       createAuditEntry("backup", `تصدير نسخة احتياطية (${SCOPE_LABEL[scope]}, ${fmt.toUpperCase()})`, {
         meta: { scope, format: fmt, rows: sumRows(b) },
       });
@@ -152,7 +153,7 @@ export function BackupRestoreSection() {
         {lastBundle && (
           <div className="mt-4 flex items-center gap-2 text-xs text-muted-foreground border-t pt-3">
             <HardDrive className="h-3.5 w-3.5" />
-            {legacyCacheFound ? "نسخة غير مشفرة مخزنة سابقاً في المتصفح" : "آخر تصدير في الجلسة"}: {new Date(lastBundle.meta.exported_at).toLocaleString("ar")}
+            {sessionExportAt ? "آخر تصدير في هذه الجلسة" : "نسخة غير مشفرة مخزنة سابقاً في المتصفح"}: {new Date(lastBundle.meta.exported_at).toLocaleString("ar")}
             <Badge variant="secondary" className="ms-auto">{sumRows(lastBundle)} سجل</Badge>
           </div>
         )}
@@ -234,7 +235,7 @@ export function BackupRestoreSection() {
                 try {
                   await clearLegacyPlaintextBackup();
                   setLegacyCacheFound(false);
-                  setLastBundle(null);
+                  if (!sessionExportAt) setLastBundle(null);
                   setConfirmClearLegacy(false);
                   toast.success("تم مسح النسخة القديمة المخزنة في المتصفح");
                 } catch (error) {
