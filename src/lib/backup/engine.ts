@@ -377,15 +377,12 @@ export async function importUserData(
   const res: ImportResult = { inserted: {}, updated: {}, skipped: {}, errors: [] };
   if (opts.mode === "preview") return res;
 
-  // In replace mode, wipe user rows table-by-table in reverse dependency order.
+  // v1 performs many independent client-side mutations without a database
+  // transaction. A failed INSERT after the DELETE phase can destroy balances
+  // permanently. The v2 restore_user_backup RPC is transactional instead.
+  // Disallow this unsafe path even if a caller bypasses the settings UI.
   if (opts.mode === "replace") {
-    const reversed = [...ALL_TABLES].reverse();
-    for (const t of reversed) {
-      if (IMPORT_BLOCKLIST.includes(t)) continue;
-      if (!bundle.data[t]) continue;
-      const { error } = await supabase.from(t as any).delete().not("id", "is", null);
-      if (error) res.errors.push({ table: t, message: `حذف: ${error.message}` });
-    }
+    throw new Error("الاستبدال الكامل من النسخ القديمة v1 غير آمن؛ استخدم استعادة النسخ v2 المعتمدة على قاعدة البيانات");
   }
 
   for (const table of ALL_TABLES) {

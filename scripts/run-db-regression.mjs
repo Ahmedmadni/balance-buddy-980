@@ -11,6 +11,7 @@ const defaultTests = [
   "supabase/tests/ownership_delete_uniqueness.sql",
   "supabase/tests/backup_restore_v2.sql",
   "supabase/tests/security_hardening.sql",
+  "supabase/tests/private_encrypted_backups.sql",
 ];
 
 function fail(message) {

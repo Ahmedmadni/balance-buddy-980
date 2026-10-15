@@ -293,17 +293,17 @@ export function BackupRestoreSection() {
                   <SelectContent>
                     <SelectItem value="preview">معاينة فقط — بدون تنفيذ</SelectItem>
                     <SelectItem value="merge">دمج — تحديث المتطابق وإضافة الجديد</SelectItem>
-                    <SelectItem value="replace">استبدال كامل — يحذف بياناتك الحالية</SelectItem>
+                    {/* Client-side v1 replace disabled: non-atomic multi-table DELETE. */}
                   </SelectContent>
                 </Select>
-                {mode === "replace" && (
-                  <Alert variant="destructive" className="mt-2">
-                    <ShieldAlert className="h-4 w-4" />
-                    <AlertDescription className="text-xs">
-                      سيتم حذف جميع بياناتك في الجداول المشمولة قبل الاستعادة. هذه العملية لا يمكن التراجع عنها.
-                    </AlertDescription>
-                  </Alert>
-                )}
+                <Alert className="mt-2">
+                  <ShieldAlert className="h-4 w-4" />
+                  <AlertDescription className="text-xs">
+                    تم إيقاف الاستبدال الكامل من ملفات v1 لأنه يستخدم عمليات غير ذرية وقد يسبب فقدان بيانات.
+                    استخدم استعادة النسخ v2 بدلاً منه. وضع الدمج القديم قد يكتمل جزئياً،
+                    لذا يُوصى بحفظ نسخة مشفرة قبل استخدامه.
+                  </AlertDescription>
+                </Alert>
               </div>
             </>
           )}
