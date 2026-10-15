@@ -13,7 +13,12 @@ describe("encrypted Rasd v2 local backups", () => {
   it("fails closed on bad password or modified ciphertext", async () => {
     const backup = await encryptRasdBackup(payload, secret);
     expect(decryptRasdBackup(backup, "not-the-same-passphrase")).rejects.toThrow();
-    const corrupted = { ...backup, payload: backup.payload.replace(/.$/, c => c === "A" ? "B" : "A") };
+    const at = Math.floor(backup.payload.length / 2);
+    const flipped = backup.payload[at] === "A" ? "B" : "A";
+    const corrupted = {
+      ...backup,
+      payload: backup.payload.slice(0, at) + flipped + backup.payload.slice(at + 1),
+    };
     expect(decryptRasdBackup(corrupted, secret)).rejects.toThrow();
   });
   it("rejects weak passwords and malformed headers", async () => {
