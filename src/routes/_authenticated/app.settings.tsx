@@ -17,6 +17,7 @@ import {
 } from "lucide-react";
 import { BackupRestoreSection } from "@/components/BackupRestoreSection";
 import { BackupV2Section } from "@/components/BackupV2Section";
+import { EncryptedBackupSection } from "@/components/EncryptedBackupSection";
 import { toast } from "sonner";
 import { typeMeta, WALLET_TYPES } from "./app.wallets";
 import { computeWalletBalance } from "@/lib/wallet-balance";
@@ -96,6 +97,7 @@ function SettingsPage() {
         <TabsContent value="backup">
           <div className="space-y-6">
             <BackupV2Section />
+            <EncryptedBackupSection />
             <BackupRestoreSection />
           </div>
         </TabsContent>

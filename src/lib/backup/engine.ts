@@ -106,9 +106,9 @@ export async function exportUserData(scope: BackupScope = "full"): Promise<Backu
   for (const t of tables) {
     const { data: rows, error } = await supabase.from(t as any).select("*");
     if (error) {
-      console.warn(`[backup] skip ${t}: ${error.message}`);
-      data[t] = []; counts[t] = 0;
-      continue;
+      // A partial export mislabeled as complete can permanently lose data on restore.
+      // Abort instead of silently writing a zero-row table to the backup.
+      throw new Error(`تعذر نسخ جدول ${t}: ${error.message}`);
     }
     data[t] = rows ?? [];
     counts[t] = (rows ?? []).length;
