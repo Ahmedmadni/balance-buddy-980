@@ -2,6 +2,7 @@ import { createClient } from "npm:@supabase/supabase-js@2.108.1";
 
 const CONFIRMATION_TEXT = "حذف حسابي";
 const STORAGE_BUCKET = "attachments";
+const CLOUD_BACKUP_BUCKET = "rasd-private-backups";
 const DELETE_BATCH_SIZE = 100;
 const RECENT_SIGN_IN_WINDOW_MS = 5 * 60 * 1000;
 
@@ -104,22 +105,29 @@ async function auditSubject(userId: string): Promise<string> {
 async function listStorageFiles(
   admin: ReturnType<typeof createClient>,
   prefix: string,
+  bucket = STORAGE_BUCKET,
 ): Promise<string[]> {
   const files: string[] = [];
   let offset = 0;
 
   while (true) {
-    const { data, error } = await admin.storage.from(STORAGE_BUCKET).list(prefix, {
+    const { data, error } = await admin.storage.from(bucket).list(prefix, {
       limit: 1000,
       offset,
       sortBy: { column: "name", order: "asc" },
     });
-    if (error) throw error;
+    if (error) {
+      // The optional cloud-backup bucket does not exist on earlier deployments.
+      if (bucket === CLOUD_BACKUP_BUCKET && (
+        String(error.statusCode) === "404" || /bucket not found/i.test(error.message)
+      )) return [];
+      throw error;
+    }
 
     for (const entry of data ?? []) {
       const path = prefix ? `${prefix}/${entry.name}` : entry.name;
       if (entry.id) files.push(path);
-      else files.push(...(await listStorageFiles(admin, path)));
+      else files.push(...(await listStorageFiles(admin, path, bucket)));
     }
 
     if (!data || data.length < 1000) break;
@@ -152,6 +160,22 @@ async function deleteStorageFiles(
     if (error) throw error;
   }
 
+  return paths.length;
+}
+
+async function deleteCloudBackupFiles(
+  admin: ReturnType<typeof createClient>,
+  userId: string,
+): Promise<number> {
+  // Remove every file beneath the user's prefix, including orphan backups.
+  // This runs before Auth deletion so a partial failure remains retryable.
+  const paths = await listStorageFiles(admin, userId, CLOUD_BACKUP_BUCKET);
+  for (let index = 0; index < paths.length; index += DELETE_BATCH_SIZE) {
+    const { error } = await admin.storage
+      .from(CLOUD_BACKUP_BUCKET)
+      .remove(paths.slice(index, index + DELETE_BATCH_SIZE));
+    if (error) throw error;
+  }
   return paths.length;
 }
 
@@ -226,7 +250,9 @@ Deno.serve(async (request) => {
     const subject = await auditSubject(user.id);
     console.info("account_deletion_started", { requestId: body.requestId, subject });
 
-    const storageFilesDeleted = await deleteStorageFiles(admin, user.id);
+    const attachmentFilesDeleted = await deleteStorageFiles(admin, user.id);
+    const cloudBackupFilesDeleted = await deleteCloudBackupFiles(admin, user.id);
+    const storageFilesDeleted = attachmentFilesDeleted + cloudBackupFilesDeleted;
     const deletedTables: string[] = [];
     for (const table of USER_TABLES) {
       const { error } = await admin.from(table).delete().eq("user_id", user.id);
@@ -244,6 +270,7 @@ Deno.serve(async (request) => {
       requestId: body.requestId,
       subject,
       storageFilesDeleted,
+      cloudBackupFilesDeleted,
       tablesProcessed: deletedTables.length + 1,
     });
 
@@ -251,6 +278,7 @@ Deno.serve(async (request) => {
       deleted: true,
       requestId: body.requestId,
       storageFilesDeleted,
+      cloudBackupFilesDeleted,
       tablesProcessed: deletedTables.length + 1,
     });
   } catch (error) {
