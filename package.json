@@ -27,10 +27,11 @@
     "android:sync": "bun run build && npx cap sync android",
     "android:open": "npx cap open android",
     "android:run": "bun run android:sync && npx cap run android",
-    "android:sync:prod": "CAP_ENV=production bun run build && CAP_ENV=production npx cap sync android",
-    "android:debug": "bun run android:sync && cd android && ./gradlew assembleDebug",
+    "android:sync:prod": "CAP_ENV=production bun run android:prepare && CAP_ENV=production npx cap sync android",
+    "android:debug": "bun run android:sync:prod && cd android && ./gradlew assembleDebug",
     "android:apk": "bun run android:sync:prod && cd android && ./gradlew assembleRelease",
-    "android:aab": "bun run android:sync:prod && cd android && ./gradlew bundleRelease"
+    "android:aab": "bun run android:sync:prod && cd android && ./gradlew bundleRelease",
+    "android:prepare": "bun run build && node scripts/prepare-android-web.mjs"
   },
   "dependencies": {
     "@capacitor/android": "^8.4.0",

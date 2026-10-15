@@ -10,7 +10,7 @@
 //   - Any mutation — only GET requests are ever intercepted.
 // =============================================================
 
-const CACHE_VERSION = "v1";
+const CACHE_VERSION = "v2";
 const STATIC_CACHE = `rasd-static-${CACHE_VERSION}`;
 
 const PRECACHE_URLS = [
@@ -19,6 +19,12 @@ const PRECACHE_URLS = [
   "/icon-512.png",
   "/apple-touch-icon.png",
   "/favicon.ico",
+  "/fonts/IBM-Plex-Sans-Arabic-Light.ttf",
+  "/fonts/IBM-Plex-Sans-Arabic-Regular.ttf",
+  "/fonts/IBM-Plex-Sans-Arabic-Medium.ttf",
+  "/fonts/IBM-Plex-Sans-Arabic-SemiBold.ttf",
+  "/fonts/IBM-Plex-Sans-Arabic-Bold.ttf",
+  "/fonts/Cairo-Variable.ttf",
 ];
 
 self.addEventListener("install", (event) => {
