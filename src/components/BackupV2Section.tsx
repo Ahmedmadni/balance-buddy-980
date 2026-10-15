@@ -15,13 +15,13 @@ import {
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { createAuditEntry } from "@/lib/system/audit";
-import { isRasdBackupV2 } from "@/lib/backup/v2-validate";
+import { isRasdBackupV2, type RasdBackupV2 } from "@/lib/backup/v2-validate";
 
 export function BackupV2Section() {
   const qc = useQueryClient();
   const [exporting, setExporting] = useState(false);
   const [restoring, setRestoring] = useState(false);
-  const [pendingBackup, setPendingBackup] = useState<BackupV2 | null>(null);
+  const [pendingBackup, setPendingBackup] = useState<RasdBackupV2 | null>(null);
   const [confirmOpen, setConfirmOpen] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
 
@@ -32,15 +32,14 @@ export function BackupV2Section() {
     try {
       const { data, error } = await supabase.rpc("export_user_backup");
       if (error) throw error;
-      const backup = isRasdBackupV2(data);
-      if (!backup) {
+      if (!isRasdBackupV2(data)) {
         toast.error("تعذر إنشاء النسخة", { description: "الاستجابة الواردة ليست نسخة احتياطية صالحة (v2)." });
         return;
       }
       const now = new Date();
       const pad = (n: number) => String(n).padStart(2, "0");
       const stamp = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}-${pad(now.getHours())}${pad(now.getMinutes())}`;
-      const blob = new Blob([JSON.stringify(backup, null, 2)], { type: "application/json" });
+      const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
@@ -66,12 +65,11 @@ export function BackupV2Section() {
         toast.error("ملف غير صالح", { description: "تعذر قراءة الملف — يجب أن يكون ملف JSON صالحاً." });
         return;
       }
-      const backup = isRasdBackupV2(raw);
-      if (!backup) {
+      if (!isRasdBackupV2(raw)) {
         toast.error("نسخة غير مدعومة", { description: "الملف ليس نسخة احتياطية صالحة من رصد (الإصدار 2)." });
         return;
       }
-      setPendingBackup(backup);
+      setPendingBackup(raw);
       setConfirmOpen(true);
     } catch {
       toast.error("خطأ في القراءة", { description: "تعذر فتح الملف المحدد." });
