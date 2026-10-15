@@ -15,3 +15,14 @@ The fallback `dist/client/index.html` is necessary for the Capacitor CLI because
 6. Validate backup restore and cloud providers before calling the app finished.
 
 Fonts IBM Plex Sans Arabic and Cairo are vendored under `public/fonts` under their respective OFL licenses. Static fonts can be served from the application's own origin without contacting Google Fonts. This alone does not make the entire SSR application usable offline.
+
+## APK structural checks
+As of October 2026, the automated debug workflow also runs
+`scripts/check-android-debug.sh` **before** uploading the APK. It verifies
+the generated Android application ID, SDK version metadata, APK debug
+signature and absence of obvious signing/secret files. These checks do not
+validate Google OAuth session handoff, native phone UX, or publication quality.
+
+A separate **manual-only** signed AAB workflow is documented in
+`docs/ANDROID_SIGNED_RELEASE.md`. It does not run without protected
+signing secrets and is not a substitute for physical Android testing.

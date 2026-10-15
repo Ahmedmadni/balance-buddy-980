@@ -57,7 +57,10 @@ jobs:
           printf '%s' "$ANDROID_KEYSTORE_BASE64" | base64 --decode > "$ANDROID_KEYSTORE_FILE"
           test -s "$ANDROID_KEYSTORE_FILE"
       - name: Configure Gradle release signing
-        run: node scripts/configure-android-release.mjs "${{ inputs.version_code }}" "${{ inputs.version_name }}"
+        env:
+          VERSION_CODE: ${{ inputs.version_code }}
+          VERSION_NAME: ${{ inputs.version_name }}
+        run: node scripts/configure-android-release.mjs "$VERSION_CODE" "$VERSION_NAME"
       - name: Build signed AAB
         working-directory: android
         run: |
