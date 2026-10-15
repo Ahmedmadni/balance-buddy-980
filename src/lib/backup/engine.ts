@@ -423,9 +423,17 @@ export async function importUserData(
     const { error, count } = await supabase
       .from(table as any)
       .upsert(rows, { onConflict: "id", ignoreDuplicates: false, count: "exact" });
-    if (error) { res.errors.push({ table, message: error.message }); continue; }
+    if (error) {
+      // v1 merge is non-transactional. Stop on the FIRST failure to avoid
+      // cascading partial modifications into dependent financial tables.
+      res.errors.push({ table, message: error.message });
+      break;
+    }
     res.inserted[table] = count ?? rows.length;
   }
+
+  // A partial database import must not also overwrite local preferences.
+  if (res.errors.length > 0) return res;
 
   // Restore local prefs
   if (bundle.local) {
