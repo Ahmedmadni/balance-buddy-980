@@ -1,7 +1,10 @@
 # Android Release — رصد (Rasd)
 
-> حالة اليوم: **لا يوجد مجلد `android/` في المستودع** — لم تُضف منصّة Capacitor بعد،
-> وبالتالي **لم يُبنَ أي APK أو AAB**. هذا الملف هو مسار التنفيذ الفعلي.
+> حالة التطوير (15 أكتوبر 2026): لا يُتتبّع مجلد `android/` في Git،
+> ولكن يجرى إنشاؤه مؤقتاً في CI بواسطة `bunx cap add android`.
+> نجح بناء **Android Debug APK** في GitHub Actions، ويخضع فحص الحزمة
+> للتحقق الآلي. **لم يتم اختبار تسجيل Google على جهاز فعلي، ولا يوجد AAB موقّع
+> للإنتاج بعد.**
 
 ## 1. الهوية والإصدار (Source of truth)
 
@@ -19,7 +22,7 @@
 `capacitor.config.ts` يقرأ `CAP_ENV`:
 
 - **development** (افتراضي): Live Reload من رابط Lovable، `allowMixedContent: true`، تصحيح WebView مفعّل.
-- **production** (`CAP_ENV=production`): يحمّل الدومين المنشور (`https://balance-buddy-980.lovable.app` أو `CAP_SERVER_URL`)، بدون cleartext، بدون mixed content، بدون debugging.
+- **production** (`CAP_ENV=production`): يحمّل الدومين المنشور (`https://balance-buddy-980.lovable.app` أو `CAP_SERVER_URL`)، بدون cleartext، بدون mixed content، بدون debugging. لا يعني هذا عمل التطبيق دون إنترنت.
 
 > ملاحظة مهمة: التطبيق مبني على TanStack Start (SSR) ولا يُنتج ملف `index.html` ثابتاً،
 > لذا لا يمكن حزم الواجهة داخل الـ APK بالكامل — يجب أن يشير `server.url` في الإنتاج
@@ -38,7 +41,7 @@ bun run android:apk          # Release APK → android/app/build/outputs/apk/rel
 bun run android:aab          # Release AAB → android/app/build/outputs/bundle/release/
 ```
 
-يتطلب Android SDK + JDK 17 محليًا (غير متوفر في بيئة Lovable).
+يتطلب Android SDK + JDK 21 محلياً؛ كما يعمل البناء الآلي على GitHub-hosted Ubuntu runner.
 
 ## 4. التوقيع (Signing)
 
@@ -88,3 +91,9 @@ android {
 - في التطوير استخدم معرّفات Google الاختبارية فقط (`TEST_IDS` في `src/lib/ads/ad-config.ts`).
 - المعرّفات الحقيقية تُدخل في `src/lib/ads/ad-config.ts` بدل الـ placeholders.
 - التدقيق: `src/lib/ads/production-audit.ts` ويظهر في `/app/system`.
+
+## أحدث مسار CI المعتمد
+- [اختبارات رصد](https://github.com/Ahmedmadni/balance-buddy-980/actions/workflows/a11-regression.yml)
+- [بناء Android Debug](https://github.com/Ahmedmadni/balance-buddy-980/actions/workflows/android-debug.yml)
+- [إعداد AAB موقّع يدويًا](docs/ANDROID_SIGNED_RELEASE.md): مشروط بإعداد GitHub Environment وأسرار التوقيع.
+- **ملاحظة:** لا تستخدم ملفات Debug على Google Play، ولا تعتبر رابط `server.url` بديلاً عن اختبار OAuth عبر متصفح النظام.
