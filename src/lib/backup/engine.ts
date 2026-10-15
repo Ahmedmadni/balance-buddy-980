@@ -10,6 +10,7 @@
 
 import { supabase } from "@/integrations/supabase/client";
 import * as XLSX from "xlsx";
+import { readAllBackupRows } from "./paged-export";
 
 export type BackupScope = "full" | "financial" | "assets" | "reports";
 
@@ -104,14 +105,17 @@ export async function exportUserData(scope: BackupScope = "full"): Promise<Backu
   const counts: Record<string, number> = {};
 
   for (const t of tables) {
-    const { data: rows, error } = await supabase.from(t as any).select("*");
-    if (error) {
-      // A partial export mislabeled as complete can permanently lose data on restore.
-      // Abort instead of silently writing a zero-row table to the backup.
-      throw new Error(`تعذر نسخ جدول ${t}: ${error.message}`);
-    }
-    data[t] = rows ?? [];
-    counts[t] = (rows ?? []).length;
+    // Supabase Data API normally limits SELECT results to 1,000 records per
+    // request. Never silently truncate a user's financial backup.
+    const rows = await readAllBackupRows(
+      (start, end) => supabase.from(t as any)
+        .select("*", { count: "exact" })
+        .order("id", { ascending: true })
+        .range(start, end),
+      t,
+    );
+    data[t] = rows;
+    counts[t] = rows.length;
   }
 
   const { data: session } = await supabase.auth.getUser();
