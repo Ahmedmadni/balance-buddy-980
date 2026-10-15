@@ -5,7 +5,8 @@ DECLARE
 BEGIN
   IF NOT EXISTS (SELECT 1 FROM storage.buckets
     WHERE id = 'rasd-private-backups' AND public IS FALSE
-      AND file_size_limit = 26214400) THEN
+      AND file_size_limit = 26214400
+      AND allowed_mime_types = ARRAY['application/json']::text[]) THEN
     RAISE EXCEPTION 'Cloud backup bucket must be private and size-restricted';
   END IF;
   IF (SELECT count(*) FROM pg_policies

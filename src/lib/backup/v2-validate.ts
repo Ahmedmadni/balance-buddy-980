@@ -22,5 +22,11 @@ export function isRasdBackupV2(value: unknown): value is RasdBackupV2 {
   if (!v.data || typeof v.data !== "object" || Array.isArray(v.data)) return false;
   const data = v.data as Record<string, unknown>;
   if ("transactions" in data || "attachments" in data || "system_events" in data) return false;
-  return RASD_V2_COLLECTIONS.every(k => Array.isArray(data[k]));
+  return RASD_V2_COLLECTIONS.every(k => {
+    const rows = data[k];
+    return Array.isArray(rows) && rows.every(row =>
+      row !== null && typeof row === "object" && !Array.isArray(row) &&
+      !Object.prototype.hasOwnProperty.call(row, "user_id")
+    );
+  });
 }

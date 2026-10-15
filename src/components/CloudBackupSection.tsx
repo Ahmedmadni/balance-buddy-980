@@ -96,12 +96,22 @@ export function CloudBackupSection() {
       const encrypted = await downloadEncryptedCloudBackup(selected.name);
       const payload = await decryptRasdBackup(encrypted, restorePassword);
       if (!isRasdBackupV2(payload)) throw new Error("النسخة بعد فك التشفير غير مكتملة");
+
+      // Mandatory recovery point BEFORE a destructive restore. If export,
+      // encryption, or upload fails, the current dataset stays untouched.
+      const { data: before, error: exportError } = await supabase.rpc("export_user_backup");
+      if (exportError) throw exportError;
+      if (!isRasdBackupV2(before)) throw new Error("تعذر تأمين نقطة استعادة للبيانات الحالية");
+      const recoveryPoint = await encryptRasdBackup(before, restorePassword);
+      await uploadEncryptedCloudBackup(recoveryPoint);
+
       const { error: restoreError } = await supabase.rpc("restore_user_backup", { p_backup: payload as never });
       if (restoreError) throw restoreError;
       await queryClient.invalidateQueries();
-      toast.success("تم استرجاع البيانات من النسخة السحابية");
+      toast.success("تمت الاستعادة، مع الاحتفاظ بنسخة مشفرة من بياناتك السابقة");
       setWorking(false);
       closeDialog();
+      await refresh();
     } catch (e) {
       toast.error("تعذر استعادة النسخة", { description: cloudError(e) });
       setWorking(false);
@@ -214,7 +224,7 @@ export function CloudBackupSection() {
             <DialogTitle>{mode === "restore" ? "استعادة النسخة السحابية" : "حذف النسخة السحابية"}</DialogTitle>
             <DialogDescription>
               {mode === "restore"
-                ? "ستُستبدل بياناتك المالية الحالية. احتفظ بنسخة منفصلة قبل المتابعة."
+                ? "ستُنشأ نقطة استعادة مشفرة من بياناتك الحالية أولاً، ثم تُستبدل بالنسخة المختارة. لن تبدأ الاستعادة إذا تعذر حفظ نقطة الاسترجاع."
                 : "سيتم حذف الملف المحدد فقط من التخزين السحابي، وليس سجلاتك المالية."}
             </DialogDescription>
           </DialogHeader>

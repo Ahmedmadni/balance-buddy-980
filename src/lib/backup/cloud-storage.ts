@@ -33,18 +33,27 @@ async function getCurrentUserId(): Promise<string> {
 
 export async function listCloudBackups(): Promise<CloudBackupInfo[]> {
   const uid = await getCurrentUserId();
-  const { data, error } = await supabase.storage.from(RASD_CLOUD_BUCKET).list(uid, {
-    limit: 100,
-    sortBy: { column: "created_at", order: "desc" },
-  });
-  if (error) throw error;
-  return (data ?? [])
-    .filter(item => isValidBackupObjectName(item.name))
-    .map(item => ({
-      name: item.name,
-      createdAt: item.created_at ?? "",
-      bytes: typeof item.metadata?.size === "number" ? item.metadata.size : null,
-    }));
+  const results: CloudBackupInfo[] = [];
+  const limit = 100;
+  for (let offset = 0; offset < 10_000; offset += limit) {
+    const { data, error } = await supabase.storage.from(RASD_CLOUD_BUCKET).list(uid, {
+      limit,
+      offset,
+      sortBy: { column: "created_at", order: "desc" },
+    });
+    if (error) throw error;
+    const page = data ?? [];
+    results.push(...page
+      .filter(item => isValidBackupObjectName(item.name))
+      .map(item => ({
+        name: item.name,
+        createdAt: item.created_at ?? "",
+        bytes: typeof item.metadata?.size === "number" ? item.metadata.size : null,
+      })));
+    if (page.length < limit) return results;
+  }
+  // Never silently show a subset and claim it is the complete backup list.
+  throw new Error("عدد النسخ كبير جداً لعرضه كاملاً. يرجى إدارة نسخك من لوحة التخزين.");
 }
 
 export async function uploadEncryptedCloudBackup(envelope: EncryptedRasdBackup): Promise<string> {

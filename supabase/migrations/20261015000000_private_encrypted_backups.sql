@@ -10,7 +10,8 @@ BEGIN
   IF EXISTS (SELECT 1 FROM storage.buckets
              WHERE id = 'rasd-private-backups'
                AND (public IS DISTINCT FROM FALSE OR file_size_limit IS NULL
-                    OR file_size_limit > 26214400)) THEN
+                    OR file_size_limit > 26214400
+                    OR allowed_mime_types IS DISTINCT FROM ARRAY['application/json']::text[])) THEN
     RAISE EXCEPTION 'rasd-private-backups must be private with a maximum size of 25 MiB';
   END IF;
 END
