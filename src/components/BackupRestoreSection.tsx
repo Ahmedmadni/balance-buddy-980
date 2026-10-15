@@ -14,7 +14,7 @@ import {
 import { toast } from "sonner";
 import {
   exportUserData, downloadJSON, downloadCSVZip, downloadXLSX,
-  validateBundle, planImport, importUserData, loadLastBackup,
+  validateBundle, planImport, importUserData, loadLastBackup, clearLegacyPlaintextBackup,
   CLOUD_PROVIDERS,
   type BackupScope, type BackupBundle, type ImportMode, type ImportPlan,
 } from "@/lib/backup/engine";
@@ -32,6 +32,9 @@ export function BackupRestoreSection() {
   const [scope, setScope] = useState<BackupScope>("full");
   const [busy, setBusy] = useState<null | "json" | "csv" | "xlsx">(null);
   const [lastBundle, setLastBundle] = useState<BackupBundle | null>(null);
+  const [legacyCacheFound, setLegacyCacheFound] = useState(false);
+  const [confirmClearLegacy, setConfirmClearLegacy] = useState(false);
+  const [clearingLegacy, setClearingLegacy] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
 
   const [importBundle, setImportBundle] = useState<BackupBundle | null>(null);
@@ -40,7 +43,13 @@ export function BackupRestoreSection() {
   const [confirming, setConfirming] = useState(false);
   const [running, setRunning] = useState(false);
 
-  useEffect(() => { loadLastBackup().then(setLastBundle); }, []);
+  useEffect(() => {
+    let active = true;
+    void loadLastBackup().then(b => {
+      if (active && b) { setLastBundle(b); setLegacyCacheFound(true); }
+    }).catch(() => {});
+    return () => { active = false; };
+  }, []);
 
   async function doExport(fmt: "json" | "csv" | "xlsx") {
     setBusy(fmt);
@@ -50,6 +59,7 @@ export function BackupRestoreSection() {
       else if (fmt === "csv") downloadCSVZip(b);
       else downloadXLSX(b);
       setLastBundle(b);
+      setLegacyCacheFound(false);
       createAuditEntry("backup", `تصدير نسخة احتياطية (${SCOPE_LABEL[scope]}, ${fmt.toUpperCase()})`, {
         meta: { scope, format: fmt, rows: sumRows(b) },
       });
@@ -142,9 +152,15 @@ export function BackupRestoreSection() {
         {lastBundle && (
           <div className="mt-4 flex items-center gap-2 text-xs text-muted-foreground border-t pt-3">
             <HardDrive className="h-3.5 w-3.5" />
-            آخر تصدير محفوظ محلياً: {new Date(lastBundle.meta.exported_at).toLocaleString("ar")}
+            {legacyCacheFound ? "نسخة غير مشفرة مخزنة سابقاً في المتصفح" : "آخر تصدير في الجلسة"}: {new Date(lastBundle.meta.exported_at).toLocaleString("ar")}
             <Badge variant="secondary" className="ms-auto">{sumRows(lastBundle)} سجل</Badge>
           </div>
+        )}
+        {legacyCacheFound && (
+          <Button variant="outline" size="sm" className="mt-3 text-destructive"
+            onClick={() => setConfirmClearLegacy(true)}>
+            <ShieldAlert className="h-4 w-4" /> حذف النسخة المالية القديمة المخزنة في المتصفح
+          </Button>
         )}
       </div>
 
@@ -197,6 +213,37 @@ export function BackupRestoreSection() {
           ))}
         </div>
       </div>
+
+      <Dialog open={confirmClearLegacy} onOpenChange={open => { if (!clearingLegacy) setConfirmClearLegacy(open); }}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>حذف النسخة المحلية غير المشفرة</DialogTitle>
+            <DialogDescription>
+              سيتم إزالة النسخة المالية القديمة المخزنة داخل المتصفح فقط.
+              لا يؤثر ذلك على سجلات حسابك أو الملفات التي نزّلتها سابقاً.
+              احتفظ بملف مشفر منفصل إذا كنت تحتاج النسخة.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter className="gap-2">
+            <Button variant="outline" disabled={clearingLegacy}
+              onClick={() => setConfirmClearLegacy(false)}>إلغاء</Button>
+            <Button variant="destructive" disabled={clearingLegacy}
+              onClick={async () => {
+                if (clearingLegacy) return;
+                setClearingLegacy(true);
+                try {
+                  await clearLegacyPlaintextBackup();
+                  setLegacyCacheFound(false);
+                  setLastBundle(null);
+                  setConfirmClearLegacy(false);
+                  toast.success("تم مسح النسخة القديمة المخزنة في المتصفح");
+                } catch (error) {
+                  toast.error("تعذر إتمام المسح", { description: error instanceof Error ? error.message : "خطأ غير معروف" });
+                } finally { setClearingLegacy(false); }
+              }}>حذف النسخة القديمة</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Import preview dialog */}
       <Dialog open={confirming} onOpenChange={(v) => { if (!v) { setConfirming(false); setImportBundle(null); setPlan(null); } }}>

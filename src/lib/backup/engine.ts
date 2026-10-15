@@ -132,8 +132,9 @@ export async function exportUserData(scope: BackupScope = "full"): Promise<Backu
     local: readLocalPrefs(),
   };
 
-  // Remember last export locally (best-effort; ignore quota errors).
-  saveLastBackup(bundle);
+  // Do NOT silently persist unencrypted financial data in IndexedDB or
+  // localStorage. Older persisted backups remain recoverable until the user
+  // explicitly removes them; new exports are downloaded to their chosen file.
   return bundle;
 }
 
@@ -238,14 +239,35 @@ export async function saveLastBackup(bundle: BackupBundle) {
 }
 
 export async function loadLastBackup(): Promise<BackupBundle | null> {
+  // Historical plaintext snapshots may still exist. Do not expose one
+  // user's cached financial data when another account uses the same browser.
+  const { data: authData, error } = await supabase.auth.getUser();
+  if (error || !authData.user) return null;
+  let cached: BackupBundle | null = null;
   try {
-    const v = await idbGet<BackupBundle>("last");
-    if (v) return v;
-  } catch { /* fall through */ }
-  try {
-    const raw = localStorage.getItem(LS_KEY);
-    return raw ? JSON.parse(raw) : null;
-  } catch { return null; }
+    cached = await idbGet<BackupBundle>("last");
+  } catch { /* fall through to old localStorage key */ }
+  if (!cached) {
+    try {
+      const raw = localStorage.getItem(LS_KEY);
+      cached = raw ? JSON.parse(raw) : null;
+    } catch { return null; }
+  }
+  return cached?.meta?.user_id === authData.user.id ? cached : null;
+}
+
+export async function clearLegacyPlaintextBackup(): Promise<void> {
+  let dbError: unknown;
+  try { await idbDelete("last"); } catch (error) { dbError = error; }
+  // Always attempt both cleanup paths even if IndexedDB fails.
+  try { localStorage.removeItem(LS_KEY); }
+  catch (error) {
+    throw new Error("تعذر حذف النسخة القديمة من التخزين المحلي: " +
+      (error instanceof Error ? error.message : "unknown error"));
+  }
+  if (dbError) {
+    throw new Error("تعذر مسح النسخة من IndexedDB. يرجى مسح بيانات موقع رصد من إعدادات المتصفح.");
+  }
 }
 
 function idbOpen(): Promise<IDBDatabase> {
@@ -272,6 +294,17 @@ async function idbGet<T>(key: string): Promise<T | null> {
     const r = tx.objectStore(IDB_STORE).get(key);
     r.onsuccess = () => res((r.result as T) ?? null);
     r.onerror = () => rej(r.error);
+  });
+}
+
+async function idbDelete(key: string): Promise<void> {
+  const db = await idbOpen();
+  return new Promise<void>((resolve, reject) => {
+    const tx = db.transaction(IDB_STORE, "readwrite");
+    tx.objectStore(IDB_STORE).delete(key);
+    tx.oncomplete = () => { db.close(); resolve(); };
+    tx.onerror = () => { db.close(); reject(tx.error); };
+    tx.onabort = () => { db.close(); reject(tx.error); };
   });
 }
 
