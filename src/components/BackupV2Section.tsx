@@ -15,22 +15,7 @@ import {
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { createAuditEntry } from "@/lib/system/audit";
-
-type BackupV2 = {
-  format: "rasd-backup";
-  version: 2;
-  exported_at?: string;
-  data: Record<string, unknown>;
-};
-
-function validateBackup(raw: unknown): BackupV2 | null {
-  if (typeof raw !== "object" || raw === null || Array.isArray(raw)) return null;
-  const o = raw as Record<string, unknown>;
-  if (o.format !== "rasd-backup") return null;
-  if (o.version !== 2) return null;
-  if (typeof o.data !== "object" || o.data === null || Array.isArray(o.data)) return null;
-  return raw as BackupV2;
-}
+import { isRasdBackupV2 } from "@/lib/backup/v2-validate";
 
 export function BackupV2Section() {
   const qc = useQueryClient();
@@ -47,7 +32,7 @@ export function BackupV2Section() {
     try {
       const { data, error } = await supabase.rpc("export_user_backup");
       if (error) throw error;
-      const backup = validateBackup(data);
+      const backup = isRasdBackupV2(data);
       if (!backup) {
         toast.error("تعذر إنشاء النسخة", { description: "الاستجابة الواردة ليست نسخة احتياطية صالحة (v2)." });
         return;
@@ -81,7 +66,7 @@ export function BackupV2Section() {
         toast.error("ملف غير صالح", { description: "تعذر قراءة الملف — يجب أن يكون ملف JSON صالحاً." });
         return;
       }
-      const backup = validateBackup(raw);
+      const backup = isRasdBackupV2(raw);
       if (!backup) {
         toast.error("نسخة غير مدعومة", { description: "الملف ليس نسخة احتياطية صالحة من رصد (الإصدار 2)." });
         return;

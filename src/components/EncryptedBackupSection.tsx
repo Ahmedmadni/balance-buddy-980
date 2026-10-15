@@ -9,14 +9,9 @@ import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { supabase } from "@/integrations/supabase/client";
 import { encryptRasdBackup, decryptRasdBackup, isEncryptedRasdBackup } from "@/lib/backup/encrypted-v2";
+import { isRasdBackupV2 } from "@/lib/backup/v2-validate";
 
 type Action = "export" | "restore" | null;
-function isV2(value: unknown): value is { format: "rasd-backup"; version: 2; data: Record<string, unknown> } {
-  if (typeof value !== "object" || value === null || Array.isArray(value)) return false;
-  const v = value as Record<string, unknown>;
-  return v.format === "rasd-backup" && v.version === 2
-    && typeof v.data === "object" && v.data !== null && !Array.isArray(v.data);
-}
 export function EncryptedBackupSection() {
   const qc = useQueryClient();
   const fileInput = useRef<HTMLInputElement>(null);
@@ -60,7 +55,7 @@ export function EncryptedBackupSection() {
       if (action === "export") {
         const { data, error } = await supabase.rpc("export_user_backup");
         if (error) throw error;
-        if (!isV2(data)) throw new Error("نتيجة النسخ من الخادم غير صالحة");
+        if (!isRasdBackupV2(data)) throw new Error("نتيجة النسخ من الخادم غير صالحة");
         const envelope = await encryptRasdBackup(data, password);
         const file = new Blob([JSON.stringify(envelope)], { type: "application/json" });
         const url = URL.createObjectURL(file);
@@ -74,7 +69,7 @@ export function EncryptedBackupSection() {
         toast.success("تم تجهيز النسخة المشفرة وحفظها عبر تنزيل المتصفح");
       } else {
         const payload = await decryptRasdBackup(encryptedFile, password);
-        if (!isV2(payload)) throw new Error("النسخة بعد فك التشفير ليست نسخة v2 صالحة");
+        if (!isRasdBackupV2(payload)) throw new Error("النسخة بعد فك التشفير ليست نسخة v2 صالحة");
         const { error } = await supabase.rpc("restore_user_backup", { p_backup: payload as never });
         if (error) throw error;
         await qc.invalidateQueries();
