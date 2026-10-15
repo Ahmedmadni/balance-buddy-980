@@ -103,10 +103,10 @@ export function BackupV2Section() {
         </div>
         <div className="flex-1">
           <h3 className="font-semibold flex items-center gap-2">
-            النسخ الاحتياطي v2 <Badge variant="secondary" className="text-[10px]">موصى به</Badge>
+            النسخ الاحتياطي v2 (غير مشفر) <Badge variant="secondary" className="text-[10px]">نسخة يدوية</Badge>
           </h3>
           <p className="text-xs text-muted-foreground mt-0.5">
-            نسخة خادمية كاملة من بياناتك المالية عبر الخادم — تصدير واستعادة آمنة
+            تصدير ملف JSON غير مشفر؛ احفظه في مكان آمن. تُفضَّل النسخة المشفرة أعلاه
           </p>
         </div>
       </div>

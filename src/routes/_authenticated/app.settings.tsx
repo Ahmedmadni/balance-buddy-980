@@ -97,9 +97,9 @@ function SettingsPage() {
         <TabsContent value="notifications"><NotificationSettingsSection /></TabsContent>
         <TabsContent value="backup">
           <div className="space-y-6">
-            <BackupV2Section />
             <EncryptedBackupSection />
             <CloudBackupSection />
+            <BackupV2Section />
             <BackupRestoreSection />
           </div>
         </TabsContent>

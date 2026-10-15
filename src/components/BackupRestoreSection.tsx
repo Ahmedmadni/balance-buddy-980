@@ -108,7 +108,7 @@ export function BackupRestoreSection() {
           </div>
           <div className="flex-1">
             <h3 className="font-semibold">تصدير نسخة احتياطية</h3>
-            <p className="text-xs text-muted-foreground mt-0.5">حمّل بياناتك محلياً بأي صيغة</p>
+            <p className="text-xs text-muted-foreground mt-0.5">تنزيل يدوي غير مشفر — لا تشارك الملف لأنه قد يحتوي على بيانات مالية حساسة</p>
           </div>
         </div>
 
