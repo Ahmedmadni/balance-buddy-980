@@ -15,28 +15,13 @@ import {
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { createAuditEntry } from "@/lib/system/audit";
-
-type BackupV2 = {
-  format: "rasd-backup";
-  version: 2;
-  exported_at?: string;
-  data: Record<string, unknown>;
-};
-
-function validateBackup(raw: unknown): BackupV2 | null {
-  if (typeof raw !== "object" || raw === null || Array.isArray(raw)) return null;
-  const o = raw as Record<string, unknown>;
-  if (o.format !== "rasd-backup") return null;
-  if (o.version !== 2) return null;
-  if (typeof o.data !== "object" || o.data === null || Array.isArray(o.data)) return null;
-  return raw as BackupV2;
-}
+import { isRasdBackupV2, type RasdBackupV2 } from "@/lib/backup/v2-validate";
 
 export function BackupV2Section() {
   const qc = useQueryClient();
   const [exporting, setExporting] = useState(false);
   const [restoring, setRestoring] = useState(false);
-  const [pendingBackup, setPendingBackup] = useState<BackupV2 | null>(null);
+  const [pendingBackup, setPendingBackup] = useState<RasdBackupV2 | null>(null);
   const [confirmOpen, setConfirmOpen] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
 
@@ -47,15 +32,14 @@ export function BackupV2Section() {
     try {
       const { data, error } = await supabase.rpc("export_user_backup");
       if (error) throw error;
-      const backup = validateBackup(data);
-      if (!backup) {
+      if (!isRasdBackupV2(data)) {
         toast.error("تعذر إنشاء النسخة", { description: "الاستجابة الواردة ليست نسخة احتياطية صالحة (v2)." });
         return;
       }
       const now = new Date();
       const pad = (n: number) => String(n).padStart(2, "0");
       const stamp = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}-${pad(now.getHours())}${pad(now.getMinutes())}`;
-      const blob = new Blob([JSON.stringify(backup, null, 2)], { type: "application/json" });
+      const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
@@ -81,12 +65,11 @@ export function BackupV2Section() {
         toast.error("ملف غير صالح", { description: "تعذر قراءة الملف — يجب أن يكون ملف JSON صالحاً." });
         return;
       }
-      const backup = validateBackup(raw);
-      if (!backup) {
+      if (!isRasdBackupV2(raw)) {
         toast.error("نسخة غير مدعومة", { description: "الملف ليس نسخة احتياطية صالحة من رصد (الإصدار 2)." });
         return;
       }
-      setPendingBackup(backup);
+      setPendingBackup(raw);
       setConfirmOpen(true);
     } catch {
       toast.error("خطأ في القراءة", { description: "تعذر فتح الملف المحدد." });
@@ -120,10 +103,10 @@ export function BackupV2Section() {
         </div>
         <div className="flex-1">
           <h3 className="font-semibold flex items-center gap-2">
-            النسخ الاحتياطي v2 <Badge variant="secondary" className="text-[10px]">موصى به</Badge>
+            النسخ الاحتياطي v2 (غير مشفر) <Badge variant="secondary" className="text-[10px]">نسخة يدوية</Badge>
           </h3>
           <p className="text-xs text-muted-foreground mt-0.5">
-            نسخة خادمية كاملة من بياناتك المالية عبر الخادم — تصدير واستعادة آمنة
+            تصدير ملف JSON غير مشفر؛ احفظه في مكان آمن. تُفضَّل النسخة المشفرة أعلاه
           </p>
         </div>
       </div>

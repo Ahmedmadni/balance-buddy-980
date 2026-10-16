@@ -14,7 +14,7 @@ import {
 import { toast } from "sonner";
 import {
   exportUserData, downloadJSON, downloadCSVZip, downloadXLSX,
-  validateBundle, planImport, importUserData, loadLastBackup,
+  validateBundle, planImport, importUserData, loadLastBackup, clearLegacyPlaintextBackup,
   CLOUD_PROVIDERS,
   type BackupScope, type BackupBundle, type ImportMode, type ImportPlan,
 } from "@/lib/backup/engine";
@@ -32,6 +32,10 @@ export function BackupRestoreSection() {
   const [scope, setScope] = useState<BackupScope>("full");
   const [busy, setBusy] = useState<null | "json" | "csv" | "xlsx">(null);
   const [lastBundle, setLastBundle] = useState<BackupBundle | null>(null);
+  const [legacyCacheFound, setLegacyCacheFound] = useState(false);
+  const [sessionExportAt, setSessionExportAt] = useState<string | null>(null);
+  const [confirmClearLegacy, setConfirmClearLegacy] = useState(false);
+  const [clearingLegacy, setClearingLegacy] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
 
   const [importBundle, setImportBundle] = useState<BackupBundle | null>(null);
@@ -40,7 +44,13 @@ export function BackupRestoreSection() {
   const [confirming, setConfirming] = useState(false);
   const [running, setRunning] = useState(false);
 
-  useEffect(() => { loadLastBackup().then(setLastBundle); }, []);
+  useEffect(() => {
+    let active = true;
+    void loadLastBackup().then(b => {
+      if (active && b) { setLastBundle(b); setLegacyCacheFound(true); }
+    }).catch(() => {});
+    return () => { active = false; };
+  }, []);
 
   async function doExport(fmt: "json" | "csv" | "xlsx") {
     setBusy(fmt);
@@ -50,6 +60,7 @@ export function BackupRestoreSection() {
       else if (fmt === "csv") downloadCSVZip(b);
       else downloadXLSX(b);
       setLastBundle(b);
+      setSessionExportAt(b.meta.exported_at);
       createAuditEntry("backup", `تصدير نسخة احتياطية (${SCOPE_LABEL[scope]}, ${fmt.toUpperCase()})`, {
         meta: { scope, format: fmt, rows: sumRows(b) },
       });
@@ -62,6 +73,10 @@ export function BackupRestoreSection() {
 
   async function onFile(f: File) {
     try {
+      if (f.size > 100 * 1024 * 1024) {
+        toast.error("النسخة أكبر من حد الاستيراد الآمن (100 MB)");
+        return;
+      }
       const text = await f.text();
       const raw = JSON.parse(text);
       const v = validateBundle(raw);
@@ -108,7 +123,7 @@ export function BackupRestoreSection() {
           </div>
           <div className="flex-1">
             <h3 className="font-semibold">تصدير نسخة احتياطية</h3>
-            <p className="text-xs text-muted-foreground mt-0.5">حمّل بياناتك محلياً بأي صيغة</p>
+            <p className="text-xs text-muted-foreground mt-0.5">تنزيل يدوي غير مشفر — لا تشارك الملف لأنه قد يحتوي على بيانات مالية حساسة</p>
           </div>
         </div>
 
@@ -142,9 +157,15 @@ export function BackupRestoreSection() {
         {lastBundle && (
           <div className="mt-4 flex items-center gap-2 text-xs text-muted-foreground border-t pt-3">
             <HardDrive className="h-3.5 w-3.5" />
-            آخر تصدير محفوظ محلياً: {new Date(lastBundle.meta.exported_at).toLocaleString("ar")}
+            {sessionExportAt ? "آخر تصدير في هذه الجلسة" : "نسخة غير مشفرة مخزنة سابقاً في المتصفح"}: {new Date(lastBundle.meta.exported_at).toLocaleString("ar")}
             <Badge variant="secondary" className="ms-auto">{sumRows(lastBundle)} سجل</Badge>
           </div>
+        )}
+        {legacyCacheFound && (
+          <Button variant="outline" size="sm" className="mt-3 text-destructive"
+            onClick={() => setConfirmClearLegacy(true)}>
+            <ShieldAlert className="h-4 w-4" /> حذف النسخة المالية القديمة المخزنة في المتصفح
+          </Button>
         )}
       </div>
 
@@ -198,6 +219,37 @@ export function BackupRestoreSection() {
         </div>
       </div>
 
+      <Dialog open={confirmClearLegacy} onOpenChange={open => { if (!clearingLegacy) setConfirmClearLegacy(open); }}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>حذف النسخة المحلية غير المشفرة</DialogTitle>
+            <DialogDescription>
+              سيتم إزالة النسخة المالية القديمة المخزنة داخل المتصفح فقط.
+              لا يؤثر ذلك على سجلات حسابك أو الملفات التي نزّلتها سابقاً.
+              احتفظ بملف مشفر منفصل إذا كنت تحتاج النسخة.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter className="gap-2">
+            <Button variant="outline" disabled={clearingLegacy}
+              onClick={() => setConfirmClearLegacy(false)}>إلغاء</Button>
+            <Button variant="destructive" disabled={clearingLegacy}
+              onClick={async () => {
+                if (clearingLegacy) return;
+                setClearingLegacy(true);
+                try {
+                  await clearLegacyPlaintextBackup();
+                  setLegacyCacheFound(false);
+                  if (!sessionExportAt) setLastBundle(null);
+                  setConfirmClearLegacy(false);
+                  toast.success("تم مسح النسخة القديمة المخزنة في المتصفح");
+                } catch (error) {
+                  toast.error("تعذر إتمام المسح", { description: error instanceof Error ? error.message : "خطأ غير معروف" });
+                } finally { setClearingLegacy(false); }
+              }}>حذف النسخة القديمة</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       {/* Import preview dialog */}
       <Dialog open={confirming} onOpenChange={(v) => { if (!v) { setConfirming(false); setImportBundle(null); setPlan(null); } }}>
         <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto">
@@ -245,24 +297,24 @@ export function BackupRestoreSection() {
                   <SelectContent>
                     <SelectItem value="preview">معاينة فقط — بدون تنفيذ</SelectItem>
                     <SelectItem value="merge">دمج — تحديث المتطابق وإضافة الجديد</SelectItem>
-                    <SelectItem value="replace">استبدال كامل — يحذف بياناتك الحالية</SelectItem>
+                    {/* Client-side v1 replace disabled: non-atomic multi-table DELETE. */}
                   </SelectContent>
                 </Select>
-                {mode === "replace" && (
-                  <Alert variant="destructive" className="mt-2">
-                    <ShieldAlert className="h-4 w-4" />
-                    <AlertDescription className="text-xs">
-                      سيتم حذف جميع بياناتك في الجداول المشمولة قبل الاستعادة. هذه العملية لا يمكن التراجع عنها.
-                    </AlertDescription>
-                  </Alert>
-                )}
+                <Alert className="mt-2">
+                  <ShieldAlert className="h-4 w-4" />
+                  <AlertDescription className="text-xs">
+                    تم إيقاف الاستبدال الكامل من ملفات v1 لأنه يستخدم عمليات غير ذرية وقد يسبب فقدان بيانات.
+                    استخدم استعادة النسخ v2 بدلاً منه. وضع الدمج القديم قد يكتمل جزئياً،
+                    لذا يُوصى بحفظ نسخة مشفرة قبل استخدامه.
+                  </AlertDescription>
+                </Alert>
               </div>
             </>
           )}
 
           <DialogFooter className="gap-2">
             <Button variant="outline" onClick={() => setConfirming(false)}>إلغاء</Button>
-            <Button onClick={doImport} disabled={running}>
+            <Button onClick={doImport} disabled={running || (mode !== "preview" && !plan?.valid)}>
               {running ? <RefreshCw className="h-4 w-4 animate-spin" /> : <CheckCircle2 className="h-4 w-4" />}
               {mode === "preview" ? "إغلاق" : mode === "replace" ? "تأكيد الاستبدال" : "تنفيذ الدمج"}
             </Button>

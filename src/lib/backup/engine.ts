@@ -10,6 +10,8 @@
 
 import { supabase } from "@/integrations/supabase/client";
 import * as XLSX from "xlsx";
+import { readAllBackupRows } from "./paged-export";
+import { validateLegacyBackup } from "./legacy-validate";
 
 export type BackupScope = "full" | "financial" | "assets" | "reports";
 
@@ -104,14 +106,17 @@ export async function exportUserData(scope: BackupScope = "full"): Promise<Backu
   const counts: Record<string, number> = {};
 
   for (const t of tables) {
-    const { data: rows, error } = await supabase.from(t as any).select("*");
-    if (error) {
-      console.warn(`[backup] skip ${t}: ${error.message}`);
-      data[t] = []; counts[t] = 0;
-      continue;
-    }
-    data[t] = rows ?? [];
-    counts[t] = (rows ?? []).length;
+    // Supabase Data API normally limits SELECT results to 1,000 records per
+    // request. Never silently truncate a user's financial backup.
+    const rows = await readAllBackupRows(
+      (start, end) => supabase.from(t as any)
+        .select("*", { count: "exact" })
+        .order("id", { ascending: true })
+        .range(start, end),
+      t,
+    );
+    data[t] = rows;
+    counts[t] = rows.length;
   }
 
   const { data: session } = await supabase.auth.getUser();
@@ -128,8 +133,9 @@ export async function exportUserData(scope: BackupScope = "full"): Promise<Backu
     local: readLocalPrefs(),
   };
 
-  // Remember last export locally (best-effort; ignore quota errors).
-  saveLastBackup(bundle);
+  // Do NOT silently persist unencrypted financial data in IndexedDB or
+  // localStorage. Older persisted backups remain recoverable until the user
+  // explicitly removes them; new exports are downloaded to their chosen file.
   return bundle;
 }
 
@@ -234,14 +240,35 @@ export async function saveLastBackup(bundle: BackupBundle) {
 }
 
 export async function loadLastBackup(): Promise<BackupBundle | null> {
+  // Historical plaintext snapshots may still exist. Do not expose one
+  // user's cached financial data when another account uses the same browser.
+  const { data: authData, error } = await supabase.auth.getUser();
+  if (error || !authData.user) return null;
+  let cached: BackupBundle | null = null;
   try {
-    const v = await idbGet<BackupBundle>("last");
-    if (v) return v;
-  } catch { /* fall through */ }
-  try {
-    const raw = localStorage.getItem(LS_KEY);
-    return raw ? JSON.parse(raw) : null;
-  } catch { return null; }
+    cached = await idbGet<BackupBundle>("last");
+  } catch { /* fall through to old localStorage key */ }
+  if (!cached) {
+    try {
+      const raw = localStorage.getItem(LS_KEY);
+      cached = raw ? JSON.parse(raw) : null;
+    } catch { return null; }
+  }
+  return cached?.meta?.user_id === authData.user.id ? cached : null;
+}
+
+export async function clearLegacyPlaintextBackup(): Promise<void> {
+  let dbError: unknown;
+  try { await idbDelete("last"); } catch (error) { dbError = error; }
+  // Always attempt both cleanup paths even if IndexedDB fails.
+  try { localStorage.removeItem(LS_KEY); }
+  catch (error) {
+    throw new Error("تعذر حذف النسخة القديمة من التخزين المحلي: " +
+      (error instanceof Error ? error.message : "unknown error"));
+  }
+  if (dbError) {
+    throw new Error("تعذر مسح النسخة من IndexedDB. يرجى مسح بيانات موقع رصد من إعدادات المتصفح.");
+  }
 }
 
 function idbOpen(): Promise<IDBDatabase> {
@@ -271,6 +298,17 @@ async function idbGet<T>(key: string): Promise<T | null> {
   });
 }
 
+async function idbDelete(key: string): Promise<void> {
+  const db = await idbOpen();
+  return new Promise<void>((resolve, reject) => {
+    const tx = db.transaction(IDB_STORE, "readwrite");
+    tx.objectStore(IDB_STORE).delete(key);
+    tx.oncomplete = () => { db.close(); resolve(); };
+    tx.onerror = () => { db.close(); reject(tx.error); };
+    tx.onabort = () => { db.close(); reject(tx.error); };
+  });
+}
+
 // -------------------- Import / Restore --------------------
 
 export type ImportMode = "preview" | "merge" | "replace";
@@ -290,15 +328,16 @@ export interface ImportPlan {
   valid: boolean;
 }
 
-export function validateBundle(raw: any): { ok: true; bundle: BackupBundle } | { ok: false; error: string } {
-  if (!raw || typeof raw !== "object") return { ok: false, error: "الملف غير صالح" };
-  if (raw.meta?.app !== "rasd") return { ok: false, error: "الملف ليس نسخة رصد" };
-  if (raw.meta?.version !== 1) return { ok: false, error: "إصدار غير مدعوم" };
-  if (!raw.data || typeof raw.data !== "object") return { ok: false, error: "لا توجد بيانات" };
-  return { ok: true, bundle: raw as BackupBundle };
+export function validateBundle(raw: unknown): { ok: true; bundle: BackupBundle } | { ok: false; error: string } {
+  const result = validateLegacyBackup(raw, new Set(ALL_TABLES), new Set(LOCAL_KEYS));
+  return result.ok
+    ? { ok: true, bundle: raw as BackupBundle }
+    : { ok: false, error: result.error };
 }
 
 export async function planImport(bundle: BackupBundle): Promise<ImportPlan> {
+  const validation = validateBundle(bundle);
+  if (!validation.ok) throw new Error(validation.error);
   const entries: ImportPlanEntry[] = [];
   const warnings: string[] = [];
   for (const [table, rows] of Object.entries(bundle.data)) {
@@ -306,13 +345,28 @@ export async function planImport(bundle: BackupBundle): Promise<ImportPlan> {
       entries.push({ table, incoming: rows.length, existing: 0, new_rows: 0, duplicates: 0, skipped_reason: "مُدار بواسطة القاعدة" });
       continue;
     }
-    const { data: existing, error } = await supabase.from(table as any).select("id");
-    if (error) {
-      warnings.push(`${table}: ${error.message}`);
+    let existing: { id: string }[];
+    try {
+      const result = await readAllBackupRows(
+        (start, end) => supabase.from(table as any)
+          .select("id", { count: "exact" })
+          .order("id", { ascending: true })
+          .range(start, end),
+        table,
+      );
+      // Dynamic legacy table names are not inferable by Supabase's generated
+      // generic relation types. Validate ID shape before using row comparisons.
+      if (!result.every(row =>
+        row !== null && typeof row === "object" && "id" in row &&
+        typeof (row as { id: unknown }).id === "string"
+      )) throw new Error("استجابة معرّفات الجدول غير صالحة");
+      existing = result as unknown as { id: string }[];
+    } catch (error) {
+      warnings.push(`${table}: ${error instanceof Error ? error.message : "تعذر قراءة سجلات الحساب"}`);
       entries.push({ table, incoming: rows.length, existing: 0, new_rows: rows.length, duplicates: 0 });
       continue;
     }
-    const existingIds = new Set((existing ?? []).map((r: any) => r.id));
+    const existingIds = new Set(existing.map((r) => r.id));
     let dupes = 0;
     for (const r of rows) if (r?.id && existingIds.has(r.id)) dupes++;
     entries.push({
@@ -340,15 +394,29 @@ export async function importUserData(
   const res: ImportResult = { inserted: {}, updated: {}, skipped: {}, errors: [] };
   if (opts.mode === "preview") return res;
 
-  // In replace mode, wipe user rows table-by-table in reverse dependency order.
-  if (opts.mode === "replace") {
-    const reversed = [...ALL_TABLES].reverse();
-    for (const t of reversed) {
-      if (IMPORT_BLOCKLIST.includes(t)) continue;
-      if (!bundle.data[t]) continue;
-      const { error } = await supabase.from(t as any).delete().not("id", "is", null);
-      if (error) res.errors.push({ table: t, message: `حذف: ${error.message}` });
+  const validation = validateBundle(bundle);
+  if (!validation.ok) throw new Error(validation.error);
+  const { data: authData, error: authError } = await supabase.auth.getUser();
+  if (authError || !authData.user) throw new Error("يجب تسجيل الدخول لاستعادة بيانات رصد");
+  const uid = authData.user.id;
+  if (bundle.meta.user_id && bundle.meta.user_id !== uid) {
+    throw new Error("النسخة القديمة تخص حساباً آخر؛ لا يمكن دمجها في الحساب الحالي");
+  }
+  for (const [table, rows] of Object.entries(bundle.data)) {
+    if (rows.some(row => (
+      (row.user_id !== undefined && row.user_id !== uid)
+      || (table === "profiles" && row.id !== uid)
+    ))) {
+      throw new Error(`ملف النسخة يتضمن سجلات لا تخص حسابك: ${table}`);
     }
+  }
+
+  // v1 performs many independent client-side mutations without a database
+  // transaction. A failed INSERT after the DELETE phase can destroy balances
+  // permanently. The v2 restore_user_backup RPC is transactional instead.
+  // Disallow this unsafe path even if a caller bypasses the settings UI.
+  if (opts.mode === "replace") {
+    throw new Error("الاستبدال الكامل من النسخ القديمة v1 غير آمن؛ استخدم استعادة النسخ v2 المعتمدة على قاعدة البيانات");
   }
 
   for (const table of ALL_TABLES) {
@@ -362,13 +430,22 @@ export async function importUserData(
     const { error, count } = await supabase
       .from(table as any)
       .upsert(rows, { onConflict: "id", ignoreDuplicates: false, count: "exact" });
-    if (error) { res.errors.push({ table, message: error.message }); continue; }
+    if (error) {
+      // v1 merge is non-transactional. Stop on the FIRST failure to avoid
+      // cascading partial modifications into dependent financial tables.
+      res.errors.push({ table, message: error.message });
+      break;
+    }
     res.inserted[table] = count ?? rows.length;
   }
+
+  // A partial database import must not also overwrite local preferences.
+  if (res.errors.length > 0) return res;
 
   // Restore local prefs
   if (bundle.local) {
     for (const [k, v] of Object.entries(bundle.local)) {
+      if (!LOCAL_KEYS.includes(k)) continue; // Defense in depth: never overwrite arbitrary keys.
       try { localStorage.setItem(k, JSON.stringify(v)); } catch { /* ignore */ }
     }
   }

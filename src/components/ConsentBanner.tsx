@@ -42,13 +42,17 @@ export function ConsentBanner() {
 
   return (
     <>
-      <div className="fixed inset-x-0 bottom-0 z-50 border-t border-border bg-card/95 backdrop-blur supports-[backdrop-filter]:bg-card/80 p-4 shadow-[var(--shadow-elegant)]">
-        <div className="container mx-auto flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <div className="flex items-start gap-2.5 text-xs text-muted-foreground max-w-xl">
+      <section
+        data-testid="consent-banner"
+        aria-label="تفضيلات الخصوصية"
+        className="fixed inset-x-3 bottom-[calc(env(safe-area-inset-bottom)+0.75rem)] z-50 mx-auto max-h-[min(55dvh,360px)] max-w-3xl overflow-y-auto overscroll-contain rounded-2xl border border-border bg-card p-3 shadow-xl sm:inset-x-6 sm:p-4"
+      >
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex min-w-0 items-start gap-2 text-[11px] leading-5 text-muted-foreground sm:max-w-xl sm:text-xs">
             <ShieldCheck className="h-4 w-4 shrink-0 mt-0.5 text-primary" />
             <span>
-              نستخدم بيانات محلية على جهازك (تفضيلات، تشخيص، إشعارات) لتحسين تجربتك — لا شيء يُرسَل
-              لطرف ثالث بلا موافقتك. راجع{" "}
+              يعتمد تسجيل الدخول وحفظ البيانات المالية على خدمات سحابية أساسية.
+              يمكنك قبول التفضيلات غير الضرورية أو رفضها أو تخصيصها. راجع{" "}
               <Link to="/legal/privacy" className="underline hover:text-foreground">
                 سياسة الخصوصية
               </Link>{" "}
@@ -59,19 +63,19 @@ export function ConsentBanner() {
               .
             </span>
           </div>
-          <div className="flex items-center gap-2 shrink-0">
-            <Button size="sm" variant="ghost" onClick={() => setPrefsOpen(true)}>
+          <div className="grid grid-cols-3 gap-1.5 sm:flex sm:shrink-0 sm:items-center sm:gap-2">
+            <Button size="sm" variant="ghost" className="min-w-0 px-1 text-[11px] sm:px-3 sm:text-xs" onClick={() => setPrefsOpen(true)}>
               تخصيص
             </Button>
-            <Button size="sm" variant="outline" onClick={rejectNonEssential}>
+            <Button size="sm" variant="outline" className="min-w-0 px-1 text-[11px] sm:px-3 sm:text-xs" onClick={rejectNonEssential}>
               رفض غير الأساسي
             </Button>
-            <Button size="sm" onClick={acceptAll}>
+            <Button size="sm" className="min-w-0 px-1 text-[11px] sm:px-3 sm:text-xs" onClick={acceptAll}>
               قبول الكل
             </Button>
           </div>
         </div>
-      </div>
+      </section>
       <ConsentPreferencesDialog open={prefsOpen} onOpenChange={setPrefsOpen} onSaved={dismiss} />
     </>
   );

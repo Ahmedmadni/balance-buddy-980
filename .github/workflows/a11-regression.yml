@@ -20,6 +20,8 @@ jobs:
       - run: bun install --frozen-lockfile
       - run: bun run test:unit
       - run: bun run typecheck
+      - name: Validate Android release signing Gradle transformation
+        run: node scripts/configure-android-release.mjs --self-test
       - name: Lint full repository
         run: bun run lint
       - name: Audit production dependencies

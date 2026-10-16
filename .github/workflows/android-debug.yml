@@ -1,0 +1,55 @@
+name: Rasd Android debug APK
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  debug-apk:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+      # GitHub-hosted Ubuntu images already include the Android SDK.
+      # setup-android@v3 currently tries to install removed SDK package 'tools'
+      # and fails before Capacitor can build (2026-10-15).
+      - name: Verify runner Android SDK
+        shell: bash
+        run: |
+          test -n "${ANDROID_HOME:-}" && test -d "$ANDROID_HOME"
+          echo "Android SDK: $ANDROID_HOME"
+          test -d "$ANDROID_HOME/cmdline-tools"
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.4.2
+      - run: bun install --frozen-lockfile
+      - name: Build web client and create mandatory Capacitor entrypoint
+        run: bun run android:prepare
+      - name: Generate Android platform and sync hosted production configuration
+        env:
+          CAP_ENV: production
+        run: |
+          bunx cap add android
+          bunx cap sync android
+      - name: Build installable debug APK
+        working-directory: android
+        run: |
+          chmod +x ./gradlew
+          ./gradlew --no-daemon assembleDebug
+      - name: Verify APK package and signature
+        run: bash scripts/check-android-debug.sh android/app/build/outputs/apk/debug/app-debug.apk
+      - uses: actions/upload-artifact@v4
+        if: success()
+        with:
+          name: rasd-android-debug-apk
+          path: android/app/build/outputs/apk/debug/app-debug.apk
+          if-no-files-found: error
+          retention-days: 14

@@ -57,15 +57,17 @@ bun run android:open
 
 ## 🚀 إنشاء APK/AAB للنشر على Play Store
 
-### 1) عطّل Live Reload
-في `capacitor.config.ts` **علّق كائن `server` بالكامل**:
-```ts
-// server: {
-//   url: '...',
-//   cleartext: true,
-//   androidScheme: 'https',
-// },
+### 1) استخدم إعداد الإنتاج، ولا تحذف `server.url`
+تطبيق رصد الحالي يعتمد على **TanStack Start SSR**؛ حذف `server.url`
+سيعرض صفحة fallback محلية فقط وليس التطبيق الحقيقي.
+
+```bash
+CAP_ENV=production bun run android:prepare
+CAP_ENV=production bunx cap sync android
 ```
+
+راجع أن `CAP_SERVER_URL` يشير إلى موقع الإنتاج المصرح به قبل أي نشر.
+ولا ترسل Google OAuth إلى WebView مضمّن داخل التطبيق.
 
 ### 2) أعد المزامنة
 ```bash
@@ -125,3 +127,13 @@ bun run android:sync
 - التطبيق يستخدم **Lovable Cloud** كخلفية — يعمل تلقائياً في النسخة المحمولة.
 - اللغة العربية و RTL مدعومة بالكامل.
 - لمزيد من التفاصيل: https://capacitorjs.com/docs/android
+
+---
+
+## المسارات الفعلية في 15 أكتوبر 2026
+- Debug APK أصبح يُبنى عبر GitHub Actions، ويُنشر كـ workflow artifact؛ لا يتطلب تشغيل Android Studio محليًا.
+- مسار Google Play الرسمي يجب أن يستخدم **AAB موقّعًا** بالمفتاح الخاص
+  بالمطور (GitHub secrets محمية) بعد اكتمال فحص Google OAuth والتجربة على هاتف.
+- يوجد مسار AAB يدوي، ولكن لن يُنتج ملفًا حتى يزوّد صاحب المشروع أسرار توقيع صحيحة.
+- لم يكتمل بعد دعم العمل بدون اتصال؛ يظل موقع رصد المنشور مطلوبًا لعمل التطبيق.
+- الخطوات التفصيلية: [دليل توقيع Android](docs/ANDROID_SIGNED_RELEASE.md).

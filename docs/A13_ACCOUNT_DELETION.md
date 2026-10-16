@@ -57,3 +57,16 @@ the deletion dialog. The Edge Function checks Supabase Auth's server-maintained
 fresh sign-in.
 
 No database migration is required by this implementation.
+
+
+## Encrypted cloud backup cleanup (PR #16, October 2026)
+
+When the private `rasd-private-backups` bucket has been enabled, the Edge Function also enumerates
+and removes every object beneath the authenticated user's prefix in that bucket **before deleting
+Auth**, including orphan backup objects. An earlier deployment without the bucket is supported
+by ignoring only its expected bucket-not-found response.
+
+Add this to the staging deletion test: create several encrypted cloud backups for disposable user A,
+keep a separate backup for user B, delete A via the UI, then confirm A's entire Storage prefix
+is empty and B's remains untouched. Also test a retry after an interrupted deletion and the
+pre-bucket deployment path. This function change has not been deployed or run against live data.
