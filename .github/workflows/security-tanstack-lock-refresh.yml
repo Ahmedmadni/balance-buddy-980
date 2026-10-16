@@ -1,0 +1,50 @@
+name: Security lockfile refresh (one-time TanStack XSS)
+
+on:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  refresh:
+    if: github.event.pull_request.head.repo.full_name == github.repository && github.event.pull_request.head.ref == 'rasd/android-offline-fonts-20261015'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: rasd/android-offline-fonts-20261015
+          fetch-depth: 0
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.4.2
+      - name: Resolve patched TanStack and regenerate both lockfiles
+        run: |
+          npm install --package-lock-only --ignore-scripts --no-audit --no-fund
+          bun install --ignore-scripts
+          npm audit --omit=dev --audit-level=moderate
+      - name: Check patched core versions
+        run: |
+          node --input-type=module <<'NODE'
+          import lock from './package-lock.json' with {type:'json'};
+          const versions = {
+            '@tanstack/react-start': '1.168.60',
+            '@tanstack/start-server-core': '1.169.39',
+            '@tanstack/start-plugin-core': '1.171.49'
+          };
+          for (const [name, minimum] of Object.entries(versions)) {
+            const actual=lock.packages['node_modules/'+name]?.version;
+            if (!actual) throw new Error('Missing package '+name);
+            const cmp=(a,b)=>a.split('.').map(Number).reduce((v,part,i)=>v||Math.sign(part-Number(b.split('.')[i])),0);
+            if (cmp(actual, minimum)<0) throw new Error(name+' still vulnerable: '+actual);
+            console.log(name+' patched: '+actual);
+          }
+          NODE
+      - name: Commit updated locks onto PR branch
+        run: |
+          if git diff --quiet -- bun.lock package-lock.json; then exit 0; fi
+          git add -- bun.lock package-lock.json
+          git -c user.name='github-actions[bot]' -c user.email='41898282+github-actions[bot]@users.noreply.github.com' commit -m 'chore(security): refresh TanStack patched dependency locks'
+          git push origin HEAD:refs/heads/rasd/android-offline-fonts-20261015
