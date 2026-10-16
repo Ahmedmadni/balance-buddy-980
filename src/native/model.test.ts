@@ -1,7 +1,7 @@
 import {describe,expect,test} from "bun:test";
 import {emptyLocalLedger,parseHalalas,isLocalLedger,appendWallet,appendEntry,balanceHalalas} from "./model";
 describe("Android local-only finance ledger model",()=>{
-  test("no cloud account or external data is required",()=>expect(emptyLocalLedger()).toEqual({app:"rasd-android",schema:1,wallets:[],entries:[]}));
+  test("no cloud account or external data is required",()=>expect(emptyLocalLedger()).toEqual({app:"rasd-android",schema:2,wallets:[],entries:[],debts:[],debtPayments:[]}));
   test("money must be exact halalas, never floating point",()=>{
     expect(parseHalalas("0.01")).toBe(1);
     expect(parseHalalas("1000.25")).toBe(100025);

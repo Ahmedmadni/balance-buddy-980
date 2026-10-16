@@ -1,5 +1,5 @@
 import {encryptRasdBackup,decryptRasdBackup,isEncryptedRasdBackup,type EncryptedRasdBackup} from "../lib/backup/encrypted-v2";
-import {isLocalLedger,type LocalLedger} from "./model";
+import {isLocalLedger,migrateLocalLedger,type LocalLedger} from "./model";
 const FOLDER="rasd-backups";
 const NAME=/^rasd-android-[A-Za-z0-9-]{10,100}\.json$/;
 const MAX_BYTES=25*1024*1024;
@@ -53,8 +53,9 @@ export async function shareBackup(name:string,backup:EncryptedRasdBackup):Promis
 export async function decryptBackup(backup:unknown,password:string):Promise<LocalLedger>{
   if(!isEncryptedRasdBackup(backup))throw new Error("النسخة غير صالحة");
   const result=await decryptRasdBackup(backup,password);
-  if(!isLocalLedger(result))throw new Error("هذا الملف ليس نسخة رصد Android المحلية");
-  return result;
+  // Older Android local encrypted backups used schema v1. Reject invalid data,
+  // but migrate valid v1 wallets/entries to the new schema without data loss.
+  return migrateLocalLedger(result);
 }
 export async function readBackupFile(file:File,password:string):Promise<LocalLedger>{
   if(file.size>MAX_BYTES)throw new Error("النسخة تتجاوز 25MB");

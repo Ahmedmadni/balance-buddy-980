@@ -1,7 +1,7 @@
 // Password-encrypted IndexedDB vault; no plaintext stored on device.
 // A future platform keystore-backed PIN flow must replace the strong password
 // requirement before PIN-only unlock is offered.
-import { emptyLocalLedger, isLocalLedger, type LocalLedger } from "./model";
+import { emptyLocalLedger, isLocalLedger, migrateLocalLedger, type LocalLedger } from "./model";
 const DB_NAME="rasd-android-finance-v1";
 const STORE="vault";
 const ITEM="local-ledger";
@@ -95,8 +95,9 @@ export class LocalVaultSession {
       );
       parsed=JSON.parse(new TextDecoder().decode(bytes));
     }catch{throw new Error("كلمة السر غير صحيحة أو ملف الخزنة تالف");}
-    if(!isLocalLedger(parsed))throw new Error("بنية سجلات الخزنة غير صالحة");
-    return new LocalVaultSession(key,row.salt,row.sequence,parsed);
+    // v1 vault contents migrate in memory; the next successful commit saves v2.
+    const migrated=migrateLocalLedger(parsed);
+    return new LocalVaultSession(key,row.salt,row.sequence,migrated);
   }
   snapshot():LocalLedger{return structuredClone(this.model);}
   async replace(restored:LocalLedger):Promise<LocalLedger>{
