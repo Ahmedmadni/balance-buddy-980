@@ -64,7 +64,7 @@ function validHalalas(n:unknown, allowZero=false):n is number {
   return typeof n==="number" && Number.isSafeInteger(n) && n<=MAX_HALALAS &&
     (allowZero?n>=-MAX_HALALAS:n>0);
 }
-function validateCore(v:Partial<LegacyLocalLedgerV1>, ids:Set<string>):boolean {
+function validateCore(v:{wallets?:LocalWallet[];entries?:LocalEntry[]}, ids:Set<string>):boolean {
   if(!Array.isArray(v.wallets)||!Array.isArray(v.entries)||
     v.wallets.length>MAX_RECORDS||v.entries.length>MAX_RECORDS) return false;
   for(const w of v.wallets){
