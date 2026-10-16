@@ -24,7 +24,7 @@ test("Android vault stores wallets and money without cloud login or network",asy
   await expect(page.getByRole("alert")).toContainText("كلمة السر غير صحيحة");
   await page.getByLabel("كلمة سر الخزنة (12 حرفًا على الأقل)").fill(PASSWORD);
   await page.getByRole("button",{name:"فتح الخزنة"}).click();
-  await expect(page.getByText("محفظة الاختبار")).toBeVisible();
+  await expect(page.getByText("محفظة الاختبار").first()).toBeVisible();
   await expect(page.getByText("الطعام")).toBeVisible();
   expect(thirdParty).toEqual([]);
 });
