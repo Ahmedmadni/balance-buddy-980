@@ -4,7 +4,7 @@ import type {CapacitorConfig} from "@capacitor/cli";
 const devUrl="https://a152564d-27eb-4c34-88c3-bd4d16c0e912.lovableproject.com?forceHideBadge=true";
 const production=process.env.CAP_ENV==="production";
 const config:CapacitorConfig={
-  appId:"app.lovable.rasd",appName:"رصد",webDir:"dist/client",
+  appId:"app.lovable.rasd.localdev",appName:"رصد محلي تجريبي",webDir:"dist/client",
   // No server.url in production: Android launches its embedded local app.
   ...(production?{}:{server:{url:devUrl,cleartext:true,androidScheme:"https"}}),
   android:{

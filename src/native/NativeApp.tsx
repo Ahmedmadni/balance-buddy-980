@@ -118,24 +118,24 @@ export function NativeApp(){
           wallets.map(w=><div className="entry row" key={w.id}>
             <span>{w.name}</span><strong dir="ltr">{currency(balanceHalalas(ledger!,w.id))}</strong>
           </div>)}
-          <form onSubmit={addWallet}><label>اسم المحفظة</label>
-          <input placeholder="نقدي، حساب بنكي..." value={walletName} maxLength={120}
+          <form onSubmit={addWallet}><label htmlFor="wallet-name">اسم المحفظة</label>
+          <input id="wallet-name" placeholder="نقدي، حساب بنكي..." value={walletName} maxLength={120}
             required onChange={e=>setWalletName(e.target.value)}/>
-          <label>الرصيد الافتتاحي (ريال)</label>
-          <input inputMode="decimal" value={opening} required onChange={e=>setOpening(e.target.value)}/>
+          <label htmlFor="opening-balance">الرصيد الافتتاحي (ريال)</label>
+          <input id="opening-balance" inputMode="decimal" value={opening} required onChange={e=>setOpening(e.target.value)}/>
           <button disabled={loading} type="submit">إضافة محفظة</button></form>
         </section>
         {wallets.length>0&&<section className="card"><h2>دخل ومصروف</h2>
           <form onSubmit={addTransaction}>
-            <label>المحفظة</label><select value={selected?.id??""} onChange={e=>setWalletId(e.target.value)}>
+            <label htmlFor="entry-wallet">المحفظة</label><select id="entry-wallet" value={selected?.id??""} onChange={e=>setWalletId(e.target.value)}>
               {wallets.map(w=><option key={w.id} value={w.id}>{w.name}</option>)}
             </select>
-            <label>نوع العملية</label><select value={kind} onChange={e=>setKind(e.target.value as LedgerKind)}>
+            <label htmlFor="entry-kind">نوع العملية</label><select id="entry-kind" value={kind} onChange={e=>setKind(e.target.value as LedgerKind)}>
               <option value="expense">مصروف</option><option value="income">دخل</option>
             </select>
-            <label>المبلغ بالريال</label><input value={amount} inputMode="decimal" required onChange={e=>setAmount(e.target.value)}/>
-            <label>التصنيف</label><input value={category} maxLength={100} onChange={e=>setCategory(e.target.value)}/>
-            <label>البيان</label><input value={note} maxLength={300} onChange={e=>setNote(e.target.value)}/>
+            <label htmlFor="entry-amount">المبلغ بالريال</label><input id="entry-amount" value={amount} inputMode="decimal" required onChange={e=>setAmount(e.target.value)}/>
+            <label htmlFor="entry-category">التصنيف</label><input id="entry-category" value={category} maxLength={100} onChange={e=>setCategory(e.target.value)}/>
+            <label htmlFor="entry-note">البيان</label><input id="entry-note" value={note} maxLength={300} onChange={e=>setNote(e.target.value)}/>
             <button type="submit" disabled={loading}>حفظ العملية</button>
           </form>
           <h2>آخر العمليات</h2>
@@ -146,8 +146,8 @@ export function NativeApp(){
         </section>}
         <section className="card"><h2>النسخ الاحتياطي المشفر</h2>
           <p className="muted">كل ملف يُشفَّر AES-256 قبل الحفظ أو المشاركة. لا يُرسل الملف تلقائيًا لأي جهة.</p>
-          <label>كلمة مرور مستقلة للنسخة (12 حرفًا على الأقل)</label>
-          <input type="password" minLength={12} value={backupPassword}
+          <label htmlFor="backup-password">كلمة مرور مستقلة للنسخة (12 حرفًا على الأقل)</label>
+          <input id="backup-password" type="password" minLength={12} value={backupPassword}
             onChange={e=>setBackupPassword(e.target.value)} placeholder="ضرورية للحفظ أو الاستعادة"/>
           <div className="row">
             <button type="button" disabled={loading||backupPassword.length<12} onClick={()=>void exportBackup(false)}>
@@ -159,14 +159,14 @@ export function NativeApp(){
           </div>
           <p className="muted">مهم: النسخة داخل التطبيق تُحذف عند إزالة التطبيق. للحفظ الآمن اختر Google Drive أو ملفات الجهاز من قائمة Android. رفع Drive ليس تلقائياً.</p>
           <h2>استعادة نسخة سابقة</h2>
-          {saved.length>0&&<><label>نسخة موجودة داخل التطبيق</label><select value={restoreName}
+          {saved.length>0&&<><label htmlFor="saved-backup">نسخة موجودة داخل التطبيق</label><select id="saved-backup" value={restoreName}
             onChange={e=>{setRestoreName(e.target.value);setRestoreFile(null);}}>
             <option value="">اختر النسخة</option>{saved.map(name=><option key={name} value={name}>{name}</option>)}
           </select></>}
-          <label>أو اختر ملف JSON مشفرًا من الجهاز أو Drive</label>
-          <input type="file" accept=".json,application/json" onChange={e=>{setRestoreFile(e.target.files?.[0]??null);setRestoreName("");}}/>
-          <label>تأكيد الاستعادة (اكتب: استعادة)</label>
-          <input value={confirmRestore} onChange={e=>setConfirmRestore(e.target.value)}/>
+          <label htmlFor="import-backup">أو اختر ملف JSON مشفرًا من الجهاز أو Drive</label>
+          <input id="import-backup" type="file" accept=".json,application/json" onChange={e=>{setRestoreFile(e.target.files?.[0]??null);setRestoreName("");}}/>
+          <label htmlFor="restore-confirmation">تأكيد الاستعادة (اكتب: استعادة)</label>
+          <input id="restore-confirmation" value={confirmRestore} onChange={e=>setConfirmRestore(e.target.value)}/>
           <button type="button" disabled={loading||confirmRestore!=="استعادة"||!backupPassword}
             onClick={()=>void restore()}>استعادة بعد إنشاء نقطة رجوع</button>
         </section>

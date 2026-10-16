@@ -12,7 +12,7 @@ test("Android vault stores wallets and money without cloud login or network",asy
   await page.getByPlaceholder("نقدي، حساب بنكي...").fill("محفظة الاختبار");
   await page.getByLabel("الرصيد الافتتاحي (ريال)").fill("150.50");
   await page.getByRole("button",{name:"إضافة محفظة"}).click();
-  await expect(page.getByText("محفظة الاختبار")).toBeVisible();
+  await expect(page.getByText("محفظة الاختبار").first()).toBeVisible();
   await page.getByLabel("المبلغ بالريال").fill("20.25");
   await page.getByLabel("التصنيف").fill("الطعام");
   await page.getByRole("button",{name:"حفظ العملية"}).click();
