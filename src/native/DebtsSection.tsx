@@ -44,8 +44,8 @@ export function DebtsSection({ledger,loading,onChange}:{
     <h2>الديون والتحصيل والسداد</h2>
     <p className="muted">ديونك محفوظة على الجهاز فقط. السلف والتحصيلات لا تُحتسب دخلاً أو مصروفًا، وإنما تؤثر في رصيد المحفظة عند ربط حركة نقدية بها.</p>
     <div className="row">
-      <div>لي عند الآخرين <strong data-testid="total-receivable" dir="ltr">{money(totals.receivable)}</strong></div>
-      <div>عليّ للآخرين <strong data-testid="total-payable" dir="ltr">{money(totals.payable)}</strong></div>
+      <div>لي عند الآخرين <strong data-testid="total-receivable" data-halalas={totals.receivable} dir="ltr">{money(totals.receivable)}</strong></div>
+      <div>عليّ للآخرين <strong data-testid="total-payable" data-halalas={totals.payable} dir="ltr">{money(totals.payable)}</strong></div>
     </div>
     <h3>إضافة دين</h3>
     <form onSubmit={e=>void addDebt(e)}>

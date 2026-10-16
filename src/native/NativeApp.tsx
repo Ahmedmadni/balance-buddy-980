@@ -117,7 +117,7 @@ export function NativeApp(){
         <section className="card"><h2>المحافظ والأرصدة</h2>
           {wallets.length===0?<p className="muted">ابدأ بإنشاء أول محفظة مالية.</p>:
           wallets.map(w=><div className="entry row" key={w.id}>
-            <span>{w.name}</span><strong dir="ltr">{currency(balanceHalalas(ledger!,w.id))}</strong>
+            <span>{w.name}</span><strong data-testid="wallet-balance" data-halalas={balanceHalalas(ledger!,w.id)} dir="ltr">{currency(balanceHalalas(ledger!,w.id))}</strong>
           </div>)}
           <form onSubmit={addWallet}><label htmlFor="wallet-name">اسم المحفظة</label>
           <input id="wallet-name" placeholder="نقدي، حساب بنكي..." value={walletName} maxLength={120}
