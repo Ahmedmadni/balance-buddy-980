@@ -1,0 +1,29 @@
+name: Android native one-time lockfile refresh
+on:
+  pull_request:
+permissions:
+  contents: read
+jobs:
+  lockfiles:
+    if: github.event.pull_request.head.repo.full_name == github.repository && github.event.pull_request.head.ref == 'rasd/local-first-pin-20261016'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: rasd/local-first-pin-20261016
+          fetch-depth: 0
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.4.2
+      - name: Resolve Capacitor Share and Filesystem dependencies
+        run: |
+          npm install --package-lock-only --ignore-scripts --no-audit --no-fund
+          bun install --ignore-scripts
+      - name: Push lockfiles
+        run: |
+          if git diff --quiet -- package-lock.json bun.lock; then exit 0; fi
+          git add -- package-lock.json bun.lock
+          git -c user.name='github-actions[bot]' -c user.email='41898282+github-actions[bot]@users.noreply.github.com' commit -m 'chore(android): lock Capacitor native filesystem/share plugins'
+          git push origin HEAD:refs/heads/rasd/local-first-pin-20261016
