@@ -95,7 +95,7 @@ export class LocalVaultSession {
       );
       parsed=JSON.parse(new TextDecoder().decode(bytes));
     }catch{throw new Error("كلمة السر غير صحيحة أو ملف الخزنة تالف");}
-    // v1 vault contents migrate in memory; the next successful commit saves v2.
+    // Existing v1/v2 vault contents migrate in memory; the next write saves v3.
     const migrated=migrateLocalLedger(parsed);
     return new LocalVaultSession(key,row.salt,row.sequence,migrated);
   }
