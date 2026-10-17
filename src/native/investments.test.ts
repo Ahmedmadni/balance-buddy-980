@@ -5,7 +5,7 @@ const start=()=>appendWallet(emptyLocalLedger(),"بنك","1000");
 function gold(){const w=start();return createLocalInvestment(w,{name:"ذهب استثماري",type:"gold",intent:"trade",marketPrice:"350"});}
 describe("native offline investments: no double-counting of capital as income",()=>{
   test("buying gold reduces cash but does not create an expense",()=>{
-    let l=gold(),wid=l.wallets[0].id,iid=l.investments[0].id;
+    let l=gold();const wid=l.wallets[0].id,iid=l.investments[0].id;
     l=appendInvestmentTrade(l,{investmentId:iid,side:"buy",quantity:"2.500",unitPrice:"300",walletId:wid});
     expect(balanceHalalas(l,wid)).toBe(25000);
     expect(investmentPosition(l,iid)).toMatchObject({
@@ -13,7 +13,7 @@ describe("native offline investments: no double-counting of capital as income",(
     expect(l.entries).toHaveLength(0);
   });
   test("partial sale uses average cost, realized gain only, no false income entry",()=>{
-    let l=gold(),wid=l.wallets[0].id,iid=l.investments[0].id;
+    let l=gold();const wid=l.wallets[0].id,iid=l.investments[0].id;
     l=appendInvestmentTrade(l,{investmentId:iid,side:"buy",quantity:"2.000",unitPrice:"300",walletId:wid});
     l=appendInvestmentTrade(l,{investmentId:iid,side:"sell",quantity:"0.500",unitPrice:"400",walletId:wid});
     expect(investmentPosition(l,iid)).toMatchObject({
