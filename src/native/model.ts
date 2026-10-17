@@ -159,7 +159,7 @@ export function migrateLocalLedger(value:unknown):LocalLedger {
   if(isLocalLedger(value))return structuredClone(value);
   if(!value||typeof value!=="object"||Array.isArray(value))
     throw new Error("ملف الخزنة غير صالح");
-  const v=value as Partial<LocalLedger> & {schema?:number};
+  const v=value as Partial<Omit<LocalLedger,"schema">> & {schema?:number};
   if(v.app==="rasd-android" && v.schema===2){
     const candidate={...structuredClone(v),schema:3,investments:[],investmentTrades:[]};
     if(isLocalLedger(candidate))return candidate;
