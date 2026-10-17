@@ -50,7 +50,7 @@ describe("Android local debts never misclassify lending as income",()=>{
     l=appendEntry(l,{walletId:l.wallets[0].id,kind:"expense",amount:"10",category:"طعام",note:""});
     const legacy={app:"rasd-android",schema:1,wallets:l.wallets,entries:l.entries};
     const newer=migrateLocalLedger(legacy);
-    expect(newer.schema).toBe(2);
+    expect(newer.schema).toBe(3);
     expect(newer.debts).toEqual([]);
     expect(newer.debtPayments).toEqual([]);
     expect(balanceHalalas(newer,newer.wallets[0].id)).toBe(99000);

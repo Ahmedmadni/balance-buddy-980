@@ -26,6 +26,8 @@ describe("Android encrypted local backup contract",()=>{
     expect(result.entries).toEqual(old.entries);
     expect(result.debts).toEqual([]);
     expect(result.debtPayments).toEqual([]);
-    expect(result.schema).toBe(2);
+    expect(result.investments).toEqual([]);
+    expect(result.investmentTrades).toEqual([]);
+    expect(result.schema).toBe(3);
   });
 });
