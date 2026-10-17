@@ -1,6 +1,6 @@
 // Device-only finance model. Schema v2 migrates v1 vaults/backups without loss.
 // All monetary values use integer halalas; no Supabase data is accessed here.
-export const LOCAL_SCHEMA_VERSION = 2 as const;
+export const LOCAL_SCHEMA_VERSION = 3 as const;
 export type LedgerKind = "income" | "expense";
 export type DebtSide = "receivable" | "payable";
 export interface LocalWallet {
@@ -28,10 +28,25 @@ export interface LocalDebtPayment {
   walletId: string | null;
   note: string; occurredAt: string; createdAt: string;
 }
+export type LocalInvestmentType = "gold" | "stocks" | "fund" | "other";
+export type InvestmentIntent = "trade" | "hold";
+export type InvestmentTradeSide = "buy" | "sell";
+export interface LocalInvestment {
+  id:string; name:string; type:LocalInvestmentType; intent:InvestmentIntent;
+  // Price per gram for gold; per share/unit for all other types (in halalas).
+  marketPriceHalalas:number|null; createdAt:string;
+}
+export interface LocalInvestmentTrade {
+  id:string; investmentId:string; side:InvestmentTradeSide;
+  // Three decimal places: milligrams of gold, or 0.001 of a share/unit.
+  quantityMilli:number; unitPriceHalalas:number; grossHalalas:number;
+  walletId:string|null; occurredAt:string; createdAt:string;
+}
 export interface LocalLedger {
   app: "rasd-android"; schema: typeof LOCAL_SCHEMA_VERSION;
   wallets: LocalWallet[]; entries: LocalEntry[];
   debts: LocalDebt[]; debtPayments: LocalDebtPayment[];
+  investments:LocalInvestment[]; investmentTrades:LocalInvestmentTrade[];
 }
 export interface LegacyLocalLedgerV1 {
   app: "rasd-android"; schema: 1;
@@ -40,7 +55,7 @@ export interface LegacyLocalLedgerV1 {
 const MAX_RECORDS=50_000;
 const MAX_HALALAS=1_000_000_000_000;
 export function emptyLocalLedger(): LocalLedger {
-  return {app:"rasd-android",schema:2,wallets:[],entries:[],debts:[],debtPayments:[]};
+  return {app:"rasd-android",schema:3,wallets:[],entries:[],debts:[],debtPayments:[],investments:[],investmentTrades:[]};
 }
 export function parseHalalas(text: string): number {
   if (!/^(?:0|[1-9]\d{0,11})(?:\.\d{1,2})?$/.test(text.trim())) {
@@ -85,7 +100,7 @@ function validateCore(v:{wallets?:LocalWallet[];entries?:LocalEntry[]}, ids:Set<
 export function isLocalLedger(value: unknown): value is LocalLedger {
   if (!value || typeof value!=="object" || Array.isArray(value)) return false;
   const v=value as Partial<LocalLedger>;
-  if(v.app!=="rasd-android"||v.schema!==2) return false;
+  if(v.app!=="rasd-android"||v.schema!==3) return false;
   const ids=new Set<string>();
   if(!validateCore(v,ids)||!Array.isArray(v.debts)||!Array.isArray(v.debtPayments)
     ||v.debts.length>MAX_RECORDS||v.debtPayments.length>MAX_RECORDS)return false;
@@ -110,18 +125,50 @@ export function isLocalLedger(value: unknown): value is LocalLedger {
     if(total>debts.get(p.debtId)!.principalHalalas)return false;
     sums.set(p.debtId,total);
   }
+  if(!Array.isArray(v.investments)||!Array.isArray(v.investmentTrades)
+    ||v.investments.length>MAX_RECORDS||v.investmentTrades.length>MAX_RECORDS) return false;
+  const investmentIds=new Set<string>();
+  for(const inv of v.investments){
+    if(!inv||!validId(inv.id)||ids.has(inv.id)
+      ||!safeText(inv.name,120)||!inv.name.trim()
+      ||!["gold","stocks","fund","other"].includes(inv.type)
+      ||!["trade","hold"].includes(inv.intent)
+      ||!(inv.marketPriceHalalas===null||validHalalas(inv.marketPriceHalalas))
+      ||!validDate(inv.createdAt))return false;
+    ids.add(inv.id); investmentIds.add(inv.id);
+  }
+  const positions=new Map<string,number>();
+  for(const tx of v.investmentTrades){
+    if(!tx||!validId(tx.id)||ids.has(tx.id)||!investmentIds.has(tx.investmentId)
+      ||!["buy","sell"].includes(tx.side)||!Number.isSafeInteger(tx.quantityMilli)
+      ||tx.quantityMilli<=0||tx.quantityMilli>MAX_HALALAS
+      ||!validHalalas(tx.unitPriceHalalas)||!validHalalas(tx.grossHalalas)
+      ||Math.round(tx.quantityMilli*tx.unitPriceHalalas/1000)!==tx.grossHalalas
+      ||!(tx.walletId===null||(typeof tx.walletId==="string"&&wallets.has(tx.walletId)))
+      ||!validDate(tx.occurredAt)||!validDate(tx.createdAt))return false;
+    ids.add(tx.id);
+    const quantity=(positions.get(tx.investmentId)??0)+(tx.side==="buy"?tx.quantityMilli:-tx.quantityMilli);
+    if(!Number.isSafeInteger(quantity)||quantity<0)return false;
+    positions.set(tx.investmentId,quantity);
+  }
   return true;
 }
-// Existing local users can still unlock and restore a v1 encrypted backup.
-// No implicit mutation of the archived v1 file; next encrypted vault commit
-// persists v2 automatically.
+// Schema v1/v2 records are migrated only after validating every field.
+// Persist new encrypted schema on the next successful vault write.
 export function migrateLocalLedger(value:unknown):LocalLedger {
   if(isLocalLedger(value))return structuredClone(value);
   if(!value||typeof value!=="object"||Array.isArray(value))
     throw new Error("ملف الخزنة غير صالح");
-  const v=value as Partial<LegacyLocalLedgerV1>;
-  if(v.app==="rasd-android"&&v.schema===1&&validateCore(v,new Set<string>())){
-    return {...(structuredClone(v) as LegacyLocalLedgerV1),schema:2,debts:[],debtPayments:[]};
+  const v=value as Partial<LocalLedger> & {schema?:number};
+  if(v.app==="rasd-android" && v.schema===2){
+    const candidate={...structuredClone(v),schema:3,investments:[],investmentTrades:[]};
+    if(isLocalLedger(candidate))return candidate;
+    throw new Error("بيانات الخزنة القديمة تالفة");
+  }
+  if(v.app==="rasd-android"&&v.schema===1 && validateCore(v,new Set<string>())){
+    const candidate={...structuredClone(v),schema:3,debts:[],debtPayments:[],
+      investments:[],investmentTrades:[]};
+    if(isLocalLedger(candidate))return candidate;
   }
   throw new Error("إصدار ملف الخزنة غير صالح أو البيانات تالفة");
 }
@@ -139,7 +186,10 @@ export function balanceHalalas(ledger: LocalLedger, walletId: string): number {
   const settlements=ledger.debtPayments.filter(p=>p.walletId===walletId).reduce(
     (sum,p)=>sum+(debtSide.get(p.debtId)==="receivable"?p.amountHalalas:-p.amountHalalas),0,
   );
-  const total=wallet.openingHalalas+entries+origins+settlements;
+  const investmentCash=ledger.investmentTrades.filter(t=>t.walletId===walletId).reduce(
+    (sum,t)=>sum+(t.side==="sell"?t.grossHalalas:-t.grossHalalas),0,
+  );
+  const total=wallet.openingHalalas+entries+origins+settlements+investmentCash;
   if (!Number.isSafeInteger(total)) throw new Error("الرصيد تجاوز الحدود الآمنة للحساب");
   return total;
 }
