@@ -2,6 +2,7 @@ import {useEffect,useMemo,useState,type FormEvent} from "react";
 import {LocalVaultSession,isLocalVaultCreated} from "./vault";
 import {DebtsSection} from "./DebtsSection";
 import {InvestmentsSection} from "./InvestmentsSection";
+import {ZakatPreviewSection} from "./ZakatPreviewSection";
 import {appendEntry,appendWallet,balanceHalalas,type LedgerKind,type LocalLedger} from "./model";
 import {createBackup,saveBackupInsideApp,shareBackup,listDeviceBackups,loadDeviceBackup,readBackupFile,decryptBackup} from "./backup";
 function currency(n:number){return (n/100).toLocaleString("ar-SA",{minimumFractionDigits:2,maximumFractionDigits:2})+" ر.س";}
@@ -160,6 +161,7 @@ export function NativeApp(){
             setLedger(next);setNotice("تم حفظ حركة الاستثمار داخل الخزنة المشفرة");
           });
         }}/>
+        <ZakatPreviewSection ledger={ledger!}/>
         <section className="card"><h2>النسخ الاحتياطي المشفر</h2>
           <p className="muted">كل ملف يُشفَّر AES-256 قبل الحفظ أو المشاركة. لا يُرسل الملف تلقائيًا لأي جهة.</p>
           <label htmlFor="backup-password">كلمة مرور مستقلة للنسخة (12 حرفًا على الأقل)</label>
@@ -187,7 +189,7 @@ export function NativeApp(){
             onClick={()=>void restore()}>استعادة بعد إنشاء نقطة رجوع</button>
         </section>
         <div className="card muted">هذه نسخة Android المحلية التجريبية: تدعم المحافظ والدخل والمصاريف والديون والتحصيل والسداد والاستثمارات والذهب والنسخ المشفرة.
-          وظائف حساب الزكاة الكامل والعملات المتعددة والمزامنة ليست جاهزة في هذه الواجهة بعد.
+          تتوفر معاينة زكاة توضيحية فقط؛ وظائف الزكاة الكاملة والعملات المتعددة والمزامنة ليست جاهزة بعد.
           نسخة الويب الحالية تستمر على Supabase دون تغيير.</div>
       </>}
   </main>;
