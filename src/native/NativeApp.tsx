@@ -1,4 +1,4 @@
-import {useEffect,useMemo,useState,type FormEvent} from "react";
+import {useCallback,useEffect,useMemo,useRef,useState,type FormEvent} from "react";
 import {LocalVaultSession,isLocalVaultCreated} from "./vault";
 import {DebtsSection} from "./DebtsSection";
 import {InvestmentsSection} from "./InvestmentsSection";
@@ -27,24 +27,87 @@ export function NativeApp(){
   const [restoreName,setRestoreName]=useState("");
   const [restoreFile,setRestoreFile]=useState<File|null>(null);
   const [confirmRestore,setConfirmRestore]=useState("");
+  const sessionRef=useRef<LocalVaultSession|null>(null);
+  const securityEpoch=useRef(0);
+  const lastInteractionAt=useRef(Date.now());
+  const lockVault=useCallback(()=>{
+    securityEpoch.current+=1;
+    sessionRef.current?.lock();
+    sessionRef.current=null;
+    setSession(null);setLedger(null);
+    setSecret("");setConfirm("");setBackupPassword("");
+    setRestoreFile(null);setRestoreName("");setConfirmRestore("");
+    setError("");setNotice("");setLoading(false);
+  },[]);
+  useEffect(()=>{
+    // Lock immediately when the WebView leaves the screen. Hidden pages
+    // must never remain unlocked waiting for JavaScript timers to resume.
+    const onHidden=()=>{if(document.visibilityState==="hidden")lockVault();};
+    const onPageHide=()=>lockVault();
+    const onActivity=()=>{lastInteractionAt.current=Date.now();};
+    document.addEventListener("visibilitychange",onHidden);
+    window.addEventListener("pagehide",onPageHide);
+    window.addEventListener("pointerdown",onActivity,{passive:true});
+    window.addEventListener("keydown",onActivity);
+    window.addEventListener("touchstart",onActivity,{passive:true});
+    const timer=window.setInterval(()=>{
+      if(sessionRef.current&&Date.now()-lastInteractionAt.current>=120_000)lockVault();
+    },5_000);
+    let disposed=false;
+    let nativeListener:{remove:()=>Promise<void>}|null=null;
+    // Capacitor native event covers OEM WebViews where visibilitychange
+    // does not fire reliably on backgrounding.
+    void import("@capacitor/core").then(async({Capacitor})=>{
+      if(!Capacitor.isNativePlatform())return;
+      const {App}=await import("@capacitor/app");
+      const listener=await App.addListener("appStateChange",({isActive})=>{
+        if(!isActive)lockVault();
+      });
+      if(disposed)await listener.remove();
+      else nativeListener=listener;
+    }).catch(()=>lockVault());
+    return()=>{
+      disposed=true;
+      nativeListener?.remove().catch(()=>{});
+      window.clearInterval(timer);
+      document.removeEventListener("visibilitychange",onHidden);
+      window.removeEventListener("pagehide",onPageHide);
+      window.removeEventListener("pointerdown",onActivity);
+      window.removeEventListener("keydown",onActivity);
+      window.removeEventListener("touchstart",onActivity);
+      // React remounts (including StrictMode) must not leave a vault open.
+      lockVault();
+    };
+  },[lockVault]);
   useEffect(()=>{void isLocalVaultCreated().then(setExists).catch(e=>setError(String(e)));},[]);
   const wallets=ledger?.wallets??[];
   const selected=wallets.find(w=>w.id===walletId)??wallets[0];
   const entries=useMemo(()=>ledger?.entries.filter(e=>e.walletId===selected?.id).slice().reverse()??[],[ledger,selected?.id]);
   async function run(action:()=>Promise<void>){
     if(loading)return;
+    const startedAt=securityEpoch.current;
     setLoading(true);setError("");setNotice("");
-    try{await action();}catch(e){setError(e instanceof Error?e.message:String(e));}
-    finally{setLoading(false);}
+    try{await action();}catch(e){
+      if(startedAt===securityEpoch.current)
+        setError(e instanceof Error?e.message:String(e));
+    }finally{
+      if(startedAt===securityEpoch.current)setLoading(false);
+    }
   }
   async function openVault(event:FormEvent){
     event.preventDefault();await run(async()=>{
+      const openingEpoch=securityEpoch.current;
       const s=exists?await LocalVaultSession.unlock(secret):(async()=>{
         if(secret!==confirm)throw new Error("كلمتا السر غير متطابقتين");
         return LocalVaultSession.create(secret);
       })();
       const sessionNow=await s;
+      if(openingEpoch!==securityEpoch.current||document.visibilityState==="hidden"){
+        sessionNow.lock();return;
+      }
       const data=sessionNow.snapshot();
+      sessionRef.current=sessionNow;
+      lastInteractionAt.current=Date.now();
       setSession(sessionNow);setLedger(data);setWalletId(data.wallets[0]?.id??"");
       setSecret("");setConfirm("");setExists(true);
       await listDeviceBackups().then(setSaved);
@@ -67,12 +130,15 @@ export function NativeApp(){
       const snapshot=session.snapshot();
       const {name,encrypted}=await createBackup(snapshot,backupPassword);
       await saveBackupInsideApp(name,encrypted);
+      if(sessionRef.current!==session)return;
       setSaved(await listDeviceBackups());
+      if(sessionRef.current!==session)return;
       if(share){
         await shareBackup(name,encrypted);
+        if(sessionRef.current!==session)return;
         setNotice("تم فتح قائمة المشاركة؛ اختر Google Drive أو تطبيق الملفات وأكمل الحفظ هناك. فتح القائمة لا يعني اكتمال الرفع.");
       } else setNotice("حُفظت النسخة المشفرة داخل مساحة التطبيق. شاركها إلى Drive/ملفات الجهاز لحمايتها إذا حُذف التطبيق.");
-      setBackupPassword("");
+      if(sessionRef.current===session)setBackupPassword("");
     });
   }
   async function restore(){
@@ -111,11 +177,11 @@ export function NativeApp(){
           <button disabled={loading} type="submit">{exists?"فتح الخزنة":"إنشاء خزنة محلية"}</button>
         </form>
         <p className="muted">الرقم السري القصير والبصمة قيد التطوير لربطهما بـ Android Keystore. لا نخزّن PIN ضعيفًا لحماية أموالك.</p>
-        <p className="muted">عند فقدان الهاتف دون نسخة مشفرة خارج التطبيق لا يمكن استعادة بياناتك.</p>
+        <p className="muted">تُقفل الخزنة عند مغادرة التطبيق أو بعد دقيقتين دون نشاط. عند فقدان الهاتف دون نسخة مشفرة خارج التطبيق لا يمكن استعادة بياناتك.</p>
       </section>:
       <>
         <div className="row"><span className="muted">لا توجد مزامنة أو حساب سحابي في هذا الوضع</span>
-        <button type="button" onClick={()=>{setSession(null);setLedger(null);setBackupPassword("");}}>قفل الخزنة</button></div>
+        <button type="button" onClick={lockVault}>قفل الخزنة</button></div>
         <section className="card"><h2>المحافظ والأرصدة</h2>
           {wallets.length===0?<p className="muted">ابدأ بإنشاء أول محفظة مالية.</p>:
           wallets.map(w=><div className="entry row" key={w.id}>
