@@ -70,8 +70,8 @@ export async function isLocalVaultCreated():Promise<boolean>{
 export class LocalVaultSession {
   private queue:Promise<unknown>=Promise.resolve();
   private constructor(
-    private readonly key:CryptoKey,private readonly salt:number[],
-    private sequence:number,private model:LocalLedger,
+    private key:CryptoKey|null,private salt:number[],
+    private sequence:number,private model:LocalLedger|null,
   ){}
   static async create(password:string):Promise<LocalVaultSession>{
     if(password.length<12)throw new Error("استخدم كلمة سر قوية لا تقل عن 12 حرفاً؛ الرقم السري القصير غير آمن دون Keystore");
@@ -99,7 +99,21 @@ export class LocalVaultSession {
     const migrated=migrateLocalLedger(parsed);
     return new LocalVaultSession(key,row.salt,row.sequence,migrated);
   }
-  snapshot():LocalLedger{return structuredClone(this.model);}
+  /**
+   * Revoke this unlocked session immediately when Android backgrounds or times out.
+   * The WebCrypto key is non-extractable; dropping references is the best
+   * available JS cleanup. Actual OS memory scrubbing is not guaranteed.
+   */
+  lock():void{
+    this.key=null;
+    this.model=null;
+    this.salt=[];
+  }
+  isLocked():boolean{return this.key===null||this.model===null;}
+  snapshot():LocalLedger{
+    if(this.isLocked())throw new Error("الخزنة مغلقة؛ افتحها من جديد");
+    return structuredClone(this.model!);
+  }
   async replace(restored:LocalLedger):Promise<LocalLedger>{
     if(!isLocalLedger(restored))throw new Error("ملف الاستعادة غير صالح");
     return this.commit(()=>structuredClone(restored));
@@ -108,11 +122,19 @@ export class LocalVaultSession {
     const operation=this.queue.then(async()=>{
       const changed=change(this.snapshot());
       if(!isLocalLedger(changed))throw new Error("معلومات غير صالحة؛ لم يتغير أي شيء");
-      const encrypted=await protect(this.key,changed);
+      // Capture key only for the current operation. A session that is
+      // revoked while encryption runs must not start a new disk write.
+      const activeKey=this.key;
+      if(!activeKey)throw new Error("الخزنة مغلقة؛ لم تُحفظ العملية");
+      const encrypted=await protect(activeKey,changed);
+      if(this.isLocked())throw new Error("الخزنة مغلقة؛ لم تُحفظ العملية");
       const newSequence=this.sequence+1;
       await writeRow({
         id:ITEM,version:1,salt:this.salt,sequence:newSequence,...encrypted,
       },this.sequence);
+      // A write already in-flight when the app backgrounds can finish
+      // atomically, but it must never resurrect an unlocked JS session.
+      if(this.isLocked())throw new Error("الخزنة مغلقة؛ افتحها لمراجعة آخر عملية");
       this.sequence=newSequence;
       this.model=changed;
       return this.snapshot();
