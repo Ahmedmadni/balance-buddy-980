@@ -37,6 +37,8 @@ export function NativeApp(){
     setSession(null);setLedger(null);
     setSecret("");setConfirm("");setBackupPassword("");
     setRestoreFile(null);setRestoreName("");setConfirmRestore("");
+    setSaved([]);setWalletName("");setOpening("0");setWalletId("");
+    setAmount("");setCategory("");setNote("");setKind("expense");
     setError("");setNotice("");setLoading(false);
   },[]);
   useEffect(()=>{
