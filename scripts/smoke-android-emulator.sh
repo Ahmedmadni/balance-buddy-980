@@ -34,5 +34,13 @@ pid="$(adb shell pidof app.lovable.rasd.localdev | tr -d '\r' | awk '{print $1}'
 sleep 3
 focus="$(adb shell dumpsys window | grep 'mCurrentFocus=' | tail -n 1 | tr -d '\r')"
 [[ "$focus" == *"app.lovable.rasd.localdev"* ]] || { echo "Rasd lost focus to system UI: $focus" >&2; exit 1; }
+# Verify the native privacy flag on the ACTUAL emulator window, not
+# merely the patch script. This is critical for a financial app.
+secure_window="$(adb shell dumpsys window | sed -n '/Window #[0-9].*app\.lovable\.rasd\.localdev.*MainActivity/,/Requested w=/p')"
+if ! printf '%s\n' "$secure_window" | grep -Eq 'fl=.*[[:space:]]SECURE([[:space:]]|$)'; then
+  echo "Android MainActivity missing FLAG_SECURE; screenshots or recents could reveal financial data" >&2
+  exit 1
+fi
+echo "Native FLAG_SECURE verified on emulator window."
 echo "Rasd is installed, running (PID $pid), and visible in foreground."
 echo "Network/API, Google OAuth, finance features and actual phone UX remain unverified."
