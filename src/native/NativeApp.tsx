@@ -27,6 +27,8 @@ export function NativeApp(){
   const [restoreName,setRestoreName]=useState("");
   const [restoreFile,setRestoreFile]=useState<File|null>(null);
   const [confirmRestore,setConfirmRestore]=useState("");
+  const [restorePreview,setRestorePreview]=useState<LocalLedger|null>(null);
+  const [restorePreviewSource,setRestorePreviewSource]=useState("");
   const sessionRef=useRef<LocalVaultSession|null>(null);
   const securityEpoch=useRef(0);
   const lastInteractionAt=useRef(Date.now());
@@ -37,6 +39,7 @@ export function NativeApp(){
     setSession(null);setLedger(null);
     setSecret("");setConfirm("");setBackupPassword("");
     setRestoreFile(null);setRestoreName("");setConfirmRestore("");
+    setRestorePreview(null);setRestorePreviewSource("");
     setSaved([]);setWalletName("");setOpening("0");setWalletId("");
     setAmount("");setCategory("");setNote("");setKind("expense");
     setError("");setNotice("");setLoading(false);
@@ -112,19 +115,24 @@ export function NativeApp(){
       lastInteractionAt.current=Date.now();
       setSession(sessionNow);setLedger(data);setWalletId(data.wallets[0]?.id??"");
       setSecret("");setConfirm("");setExists(true);
-      await listDeviceBackups().then(setSaved);
+      const files=await listDeviceBackups();
+      if(isActive(sessionNow))setSaved(files);
     });
   }
+  const isActive=(vault:LocalVaultSession)=>sessionRef.current===vault&&!vault.isLocked();
   async function addWallet(event:FormEvent){
     event.preventDefault();if(!session)return;
     await run(async()=>{const next=await session.commit(old=>appendWallet(old,walletName,opening));
+      if(!isActive(session))return;
       setLedger(next);setWalletId(next.wallets.at(-1)?.id??"");setWalletName("");setOpening("0");setNotice("تم حفظ المحفظة محليًا");});
   }
   async function addTransaction(event:FormEvent){
     event.preventDefault();if(!session||!selected)return;
     await run(async()=>{const next=await session.commit(old=>appendEntry(old,{
       walletId:selected.id,kind,amount,category,note,
-    }));setLedger(next);setAmount("");setNote("");setNotice("تم تسجيل العملية محليًا");});
+    }));
+      if(!isActive(session))return;
+      setLedger(next);setAmount("");setNote("");setNotice("تم تسجيل العملية محليًا");});
   }
   async function exportBackup(share:boolean){
     if(!session)return;
@@ -143,22 +151,44 @@ export function NativeApp(){
       if(sessionRef.current===session)setBackupPassword("");
     });
   }
+  const restoreSourceKey=()=>restoreFile?
+    `file:${restoreFile.name}:${restoreFile.size}:${restoreFile.lastModified}`:
+    restoreName?`app:${restoreName}`:"";
+  async function inspectBackup(){
+    if(!session)return;
+    await run(async()=>{
+      const sourceKey=restoreSourceKey();
+      const password=backupPassword;
+      if(!sourceKey||password.length<12)throw new Error("اختر ملفًا وأدخل كلمة مرور النسخة");
+      const restored=restoreFile?await readBackupFile(restoreFile,password):
+        await decryptBackup(await loadDeviceBackup(restoreName),password);
+      if(!isActive(session)||sourceKey!==restoreSourceKey())return;
+      setRestorePreview(restored);
+      setRestorePreviewSource(sourceKey);
+      setNotice("تم فحص الملف؛ راجع المحتويات قبل استبدال بياناتك الحالية");
+    });
+  }
   async function restore(){
     if(!session)return;
     await run(async()=>{
       if(confirmRestore!=="استعادة")throw new Error("اكتب استعادة لتأكيد استبدال البيانات");
-      if(!backupPassword)throw new Error("أدخل كلمة مرور ملف النسخة");
-      const source=restoreFile?await readBackupFile(restoreFile,backupPassword):
-        restoreName?await decryptBackup(await loadDeviceBackup(restoreName),backupPassword):
-        null;
-      if(!source)throw new Error("اختر ملفاً محفوظاً أو ملفاً من الجهاز");
-      // Fail closed: keep a verified recovery copy BEFORE destructive overwrite.
+      if(!backupPassword||!restorePreview||restorePreviewSource!==restoreSourceKey())
+        throw new Error("عاين نسخة الاستعادة أولًا وأدخل كلمة مرورها");
+      const selected=structuredClone(restorePreview);
+      if(!isActive(session))return;
+      // Fail closed: take a verified encrypted rollback BEFORE any replacement.
       const checkpoint=await createBackup(session.snapshot(),backupPassword);
+      if(!isActive(session))return;
       await saveBackupInsideApp(checkpoint.name,checkpoint.encrypted);
-      const next=await session.replace(source);
+      if(!isActive(session))return;
+      const next=await session.replace(selected);
+      if(!isActive(session))return;
       setLedger(next);setWalletId(next.wallets[0]?.id??"");
       setRestoreFile(null);setRestoreName("");setBackupPassword("");setConfirmRestore("");
-      setSaved(await listDeviceBackups());setNotice("تمت الاستعادة. حُفظت نقطة رجوع مشفرة داخل التطبيق.");
+      setRestorePreview(null);setRestorePreviewSource("");
+      const backups=await listDeviceBackups();
+      if(!isActive(session))return;
+      setSaved(backups);setNotice("تمت الاستعادة بعد إنشاء نقطة رجوع مشفرة داخل التطبيق");
     });
   }
   return <main>
@@ -219,6 +249,7 @@ export function NativeApp(){
           if(!session)return;
           await run(async()=>{
             const next=await session.commit(change);
+            if(!isActive(session))return;
             setLedger(next);setNotice("تم حفظ حركة الدين محليًا");
           });
         }}/>
@@ -226,6 +257,7 @@ export function NativeApp(){
           if(!session)return;
           await run(async()=>{
             const next=await session.commit(change);
+            if(!isActive(session))return;
             setLedger(next);setNotice("تم حفظ حركة الاستثمار داخل الخزنة المشفرة");
           });
         }}/>
@@ -234,7 +266,7 @@ export function NativeApp(){
           <p className="muted">كل ملف يُشفَّر AES-256 قبل الحفظ أو المشاركة. لا يُرسل الملف تلقائيًا لأي جهة.</p>
           <label htmlFor="backup-password">كلمة مرور مستقلة للنسخة (12 حرفًا على الأقل)</label>
           <input id="backup-password" type="password" minLength={12} value={backupPassword}
-            onChange={e=>setBackupPassword(e.target.value)} placeholder="ضرورية للحفظ أو الاستعادة"/>
+            onChange={e=>{setBackupPassword(e.target.value);setRestorePreview(null);setRestorePreviewSource("");}} placeholder="ضرورية للحفظ أو الاستعادة"/>
           <div className="row">
             <button type="button" disabled={loading||backupPassword.length<12} onClick={()=>void exportBackup(false)}>
               حفظ نسخة مشفرة داخل التطبيق
@@ -246,14 +278,23 @@ export function NativeApp(){
           <p className="muted">مهم: النسخة داخل التطبيق تُحذف عند إزالة التطبيق. للحفظ الآمن اختر Google Drive أو ملفات الجهاز من قائمة Android. رفع Drive ليس تلقائياً.</p>
           <h2>استعادة نسخة سابقة</h2>
           {saved.length>0&&<><label htmlFor="saved-backup">نسخة موجودة داخل التطبيق</label><select id="saved-backup" value={restoreName}
-            onChange={e=>{setRestoreName(e.target.value);setRestoreFile(null);}}>
+            onChange={e=>{setRestoreName(e.target.value);setRestoreFile(null);setRestorePreview(null);setRestorePreviewSource("");}}>
             <option value="">اختر النسخة</option>{saved.map(name=><option key={name} value={name}>{name}</option>)}
           </select></>}
           <label htmlFor="import-backup">أو اختر ملف JSON مشفرًا من الجهاز أو Drive</label>
-          <input id="import-backup" type="file" accept=".json,application/json" onChange={e=>{setRestoreFile(e.target.files?.[0]??null);setRestoreName("");}}/>
+          <input id="import-backup" type="file" accept=".json,application/json" onChange={e=>{setRestoreFile(e.target.files?.[0]??null);setRestoreName("");setRestorePreview(null);setRestorePreviewSource("");}}/>
+          <button type="button" disabled={loading||backupPassword.length<12||(!restoreFile&&!restoreName)}
+            onClick={()=>void inspectBackup()}>معاينة محتويات النسخة المشفرة</button>
+          {restorePreview&&<div data-testid="restore-preview" className="card">
+            <h3>المحتويات التي ستحل محل بيانات الجهاز</h3>
+            <p>المحافظ: {restorePreview.wallets.length} · العمليات: {restorePreview.entries.length}</p>
+            <p>الديون: {restorePreview.debts.length} · التحصيل والسداد: {restorePreview.debtPayments.length}</p>
+            <p>الاستثمارات: {restorePreview.investments.length} · شراء/بيع: {restorePreview.investmentTrades.length}</p>
+            <p className="muted">تحذير: الاستعادة تستبدل البيانات الحالية. سيتم حفظ نقطة رجوع مشفرة داخل التطبيق أولًا، ويُفضَّل تصدير نسخة خارجية قبل المتابعة.</p>
+          </div>}
           <label htmlFor="restore-confirmation">تأكيد الاستعادة (اكتب: استعادة)</label>
           <input id="restore-confirmation" value={confirmRestore} onChange={e=>setConfirmRestore(e.target.value)}/>
-          <button type="button" disabled={loading||confirmRestore!=="استعادة"||!backupPassword}
+          <button type="button" disabled={loading||confirmRestore!=="استعادة"||!backupPassword||!restorePreview}
             onClick={()=>void restore()}>استعادة بعد إنشاء نقطة رجوع</button>
         </section>
         <div className="card muted">هذه نسخة Android المحلية التجريبية: تدعم المحافظ والدخل والمصاريف والديون والتحصيل والسداد والاستثمارات والذهب والنسخ المشفرة.
