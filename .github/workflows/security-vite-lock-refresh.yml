@@ -1,0 +1,38 @@
+name: Security one-time Vite lockfile refresh
+on:
+  pull_request:
+permissions:
+  contents: read
+jobs:
+  refresh:
+    if: github.event.pull_request.head.repo.full_name == github.repository && github.event.pull_request.head.ref == 'rasd/local-first-pin-20261016'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: rasd/local-first-pin-20261016
+          fetch-depth: 0
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.4.2
+      - name: Resolve Vite >=8.1.6 patched October advisories
+        run: |
+          npm install --package-lock-only --ignore-scripts --no-audit --no-fund
+          bun install --ignore-scripts
+          npm audit --omit=dev --audit-level=moderate
+      - name: Confirm patched version
+        run: |
+          node --input-type=module <<'NODE'
+          import lock from './package-lock.json' with {type:'json'};
+          const version=lock.packages['node_modules/vite']?.version;
+          if (version!=='8.1.6') throw new Error('Vite must be pinned to 8.1.6: '+version);
+          console.log('Vite patched version: '+version);
+          NODE
+      - name: Commit regenerated locks
+        run: |
+          if git diff --quiet -- bun.lock package-lock.json; then exit 0; fi
+          git add -- bun.lock package-lock.json
+          git -c user.name='github-actions[bot]' -c user.email='41898282+github-actions[bot]@users.noreply.github.com' commit -m 'chore(security): refresh pinned Vite 8.1.6 lockfiles'
+          git push origin HEAD:refs/heads/rasd/local-first-pin-20261016
