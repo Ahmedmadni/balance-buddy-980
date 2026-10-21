@@ -40,6 +40,7 @@ jobs:
           bunx cap add android
           bunx cap sync android
           node scripts/harden-native-manifest.mjs
+          node scripts/register-native-document-save.mjs
       - name: Build installable debug APK
         working-directory: android
         run: |

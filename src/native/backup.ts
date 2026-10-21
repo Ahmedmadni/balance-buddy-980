@@ -1,5 +1,6 @@
 import {encryptRasdBackup,decryptRasdBackup,isEncryptedRasdBackup,type EncryptedRasdBackup} from "../lib/backup/encrypted-v2";
 import {isLocalLedger,migrateLocalLedger,type LocalLedger} from "./model";
+import {RasdDocumentSave} from "./document-save";
 const FOLDER="rasd-backups";
 const NAME=/^rasd-android-[A-Za-z0-9-]{10,100}\.json$/;
 const MAX_BYTES=25*1024*1024;
@@ -60,4 +61,26 @@ export async function decryptBackup(backup:unknown,password:string):Promise<Loca
 export async function readBackupFile(file:File,password:string):Promise<LocalLedger>{
   if(file.size>MAX_BYTES)throw new Error("النسخة تتجاوز 25MB");
   return decryptBackup(JSON.parse(await file.text()),password);
+}
+
+/**
+ * Android Storage Access Framework "Save As": writes an ALREADY-encrypted
+ * backup into a user-selected provider (local Downloads or Google Drive).
+ * No Drive OAuth, cloud API, plaintext content, or all-files permission.
+ *
+ * The native plugin consumes a validated cache filename, not an arbitrary
+ * user-chosen path. A SHA-256 binds that file to this save request.
+ */
+export async function saveBackupAsDocument(name:string,backup:EncryptedRasdBackup):Promise<void>{
+  const data=validate(name,backup);
+  const {Capacitor}=await import("@capacitor/core");
+  if(!Capacitor.isNativePlatform())throw new Error("اختيار مكان الحفظ متاح في تطبيق Android فقط");
+  const {Filesystem,Directory,Encoding}=await import("@capacitor/filesystem");
+  await Filesystem.writeFile({directory:Directory.Cache,path:name,
+    data,encoding:Encoding.UTF8});
+  const bytes=new TextEncoder().encode(data);
+  const digest=await crypto.subtle.digest("SHA-256",bytes);
+  const sha256=[...new Uint8Array(digest)].map(x=>x.toString(16).padStart(2,"0")).join("");
+  const result=await RasdDocumentSave.saveEncryptedDocument({fileName:name,sha256});
+  if(!result.saved)throw new Error("لم تؤكد خدمة الملفات حفظ النسخة المشفرة");
 }

@@ -91,7 +91,9 @@ public class RasdDocumentSavePlugin extends Plugin {
                     output.flush();
                 }
                 getActivity().runOnUiThread(() -> {
-                    call.resolve(new JSObject().put("saved", true));
+                    JSObject response = new JSObject();
+                    response.put("saved", true);
+                    call.resolve(response);
                     Toast.makeText(getContext(), "حُفظت النسخة المشفرة في المكان المختار", Toast.LENGTH_LONG).show();
                 });
             } catch (Exception ex) {

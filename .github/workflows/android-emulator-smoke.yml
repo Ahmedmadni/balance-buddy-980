@@ -29,6 +29,7 @@ jobs:
           bunx cap add android
           bunx cap sync android
           node scripts/harden-native-manifest.mjs
+          node scripts/register-native-document-save.mjs
           cd android
           chmod +x gradlew
           ./gradlew --no-daemon assembleDebug

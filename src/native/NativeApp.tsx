@@ -4,7 +4,7 @@ import {DebtsSection} from "./DebtsSection";
 import {InvestmentsSection} from "./InvestmentsSection";
 import {ZakatPreviewSection} from "./ZakatPreviewSection";
 import {appendEntry,appendWallet,balanceHalalas,type LedgerKind,type LocalLedger} from "./model";
-import {createBackup,saveBackupInsideApp,shareBackup,listDeviceBackups,loadDeviceBackup,readBackupFile,decryptBackup} from "./backup";
+import {createBackup,saveBackupInsideApp,shareBackup,saveBackupAsDocument,listDeviceBackups,loadDeviceBackup,readBackupFile,decryptBackup} from "./backup";
 function currency(n:number){return (n/100).toLocaleString("ar-SA",{minimumFractionDigits:2,maximumFractionDigits:2})+" ر.س";}
 export function NativeApp(){
   const [exists,setExists]=useState<boolean|null>(null);
@@ -134,7 +134,7 @@ export function NativeApp(){
       if(!isActive(session))return;
       setLedger(next);setAmount("");setNote("");setNotice("تم تسجيل العملية محليًا");});
   }
-  async function exportBackup(share:boolean){
+  async function exportBackup(destination:"app"|"share"|"document"){
     if(!session)return;
     await run(async()=>{
       const snapshot=session.snapshot();
@@ -143,10 +143,16 @@ export function NativeApp(){
       if(sessionRef.current!==session)return;
       setSaved(await listDeviceBackups());
       if(sessionRef.current!==session)return;
-      if(share){
+      if(destination==="share"){
         await shareBackup(name,encrypted);
         if(sessionRef.current!==session)return;
         setNotice("تم فتح قائمة المشاركة؛ اختر Google Drive أو تطبيق الملفات وأكمل الحفظ هناك. فتح القائمة لا يعني اكتمال الرفع.");
+      } else if(destination==="document"){
+        // Android's file chooser backgrounds Rasd and intentionally locks
+        // the vault; native UI confirms the document-provider write via Toast.
+        await saveBackupAsDocument(name,encrypted);
+        if(sessionRef.current===session)
+          setNotice("قَبِلَت وجهة الحفظ كتابة النسخة المشفرة. راجع اكتمال رفعها إن اخترت Google Drive.");
       } else setNotice("حُفظت النسخة المشفرة داخل مساحة التطبيق. شاركها إلى Drive/ملفات الجهاز لحمايتها إذا حُذف التطبيق.");
       if(sessionRef.current===session)setBackupPassword("");
     });
@@ -268,14 +274,17 @@ export function NativeApp(){
           <input id="backup-password" type="password" minLength={12} value={backupPassword}
             onChange={e=>{setBackupPassword(e.target.value);setRestorePreview(null);setRestorePreviewSource("");}} placeholder="ضرورية للحفظ أو الاستعادة"/>
           <div className="row">
-            <button type="button" disabled={loading||backupPassword.length<12} onClick={()=>void exportBackup(false)}>
+            <button type="button" disabled={loading||backupPassword.length<12} onClick={()=>void exportBackup("app")}>
               حفظ نسخة مشفرة داخل التطبيق
             </button>
-            <button type="button" disabled={loading||backupPassword.length<12} onClick={()=>void exportBackup(true)}>
-              مشاركة / حفظ في Google Drive
+            <button type="button" disabled={loading||backupPassword.length<12} onClick={()=>void exportBackup("share")}>
+              مشاركة النسخة المشفرة
+            </button>
+            <button type="button" disabled={loading||backupPassword.length<12} onClick={()=>void exportBackup("document")}>
+              حفظ باسم — الهاتف أو Google Drive
             </button>
           </div>
-          <p className="muted">مهم: النسخة داخل التطبيق تُحذف عند إزالة التطبيق. للحفظ الآمن اختر Google Drive أو ملفات الجهاز من قائمة Android. رفع Drive ليس تلقائياً.</p>
+          <p className="muted">مهم: النسخة داخل التطبيق تُحذف عند إزالة التطبيق. للحفظ الآمن اختر «حفظ باسم» وحدد Downloads أو Google Drive من نافذة Android. حفظ الملف في Google Drive قد يحتاج انتظار اكتمال المزامنة من تطبيق Drive.</p>
           <h2>استعادة نسخة سابقة</h2>
           {saved.length>0&&<><label htmlFor="saved-backup">نسخة موجودة داخل التطبيق</label><select id="saved-backup" value={restoreName}
             onChange={e=>{setRestoreName(e.target.value);setRestoreFile(null);setRestorePreview(null);setRestorePreviewSource("");}}>
