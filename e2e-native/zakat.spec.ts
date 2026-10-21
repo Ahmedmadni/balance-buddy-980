@@ -1,0 +1,23 @@
+import {test,expect} from "@playwright/test";
+const PASS="Local-Zakat-Preview-Password-2026";
+test("local zakat preview requires manual nisab price and lunar haul",async({page})=>{
+ const external:string[]=[];
+ page.on("request",request=>{if(!request.url().startsWith("http://127.0.0.1:4179/"))external.push(request.url());});
+ await page.goto("/");
+ await page.getByLabel("كلمة سر الخزنة (12 حرفًا على الأقل)").fill(PASS);
+ await page.getByLabel("تأكيد كلمة السر").fill(PASS);
+ await page.getByRole("button",{name:"إنشاء خزنة محلية"}).click();
+ await page.getByLabel("اسم المحفظة").fill("ادخار");
+ await page.getByLabel("الرصيد الافتتاحي (ريال)").fill("50000");
+ await page.getByRole("button",{name:"إضافة محفظة"}).click();
+ const section=page.getByTestId("local-zakat-preview");
+ await section.getByLabel("سعر جرام الذهب بالريال (أدخله يدويًا)").fill("300");
+ await section.getByRole("button",{name:"احسب المعاينة"}).click();
+ await expect(section.getByTestId("zakat-base")).toHaveAttribute("data-halalas","5000000");
+ await expect(section.getByText("لم يُؤكد الحول")).toBeVisible();
+ await expect(section.getByTestId("zakat-estimate")).toHaveCount(0);
+ await section.getByLabel("أؤكد تحقق الحول الهجري وفق تاريخ ووضعي المالي").check();
+ await section.getByRole("button",{name:"احسب المعاينة"}).click();
+ await expect(section.getByTestId("zakat-estimate")).toHaveAttribute("data-halalas","125000");
+ expect(external).toEqual([]);
+});

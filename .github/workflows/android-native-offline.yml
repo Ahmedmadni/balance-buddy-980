@@ -1,0 +1,21 @@
+name: Rasd offline Android browser flow
+on:
+  pull_request:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  local-vault:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.4.2
+      - run: bun install --frozen-lockfile
+      - run: bunx playwright install --with-deps chromium
+      - name: Build packed Android offline UI
+        run: bun run android:prepare
+      - name: Test real local storage, reload and wrong password without Supabase
+        run: bunx playwright test --config playwright.native.config.ts
