@@ -15,22 +15,7 @@ import {
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { createAuditEntry } from "@/lib/system/audit";
-
-type BackupV2 = {
-  format: "rasd-backup";
-  version: 2;
-  exported_at?: string;
-  data: Record<string, unknown>;
-};
-
-function validateBackup(raw: unknown): BackupV2 | null {
-  if (typeof raw !== "object" || raw === null || Array.isArray(raw)) return null;
-  const o = raw as Record<string, unknown>;
-  if (o.format !== "rasd-backup") return null;
-  if (o.version !== 2) return null;
-  if (typeof o.data !== "object" || o.data === null || Array.isArray(o.data)) return null;
-  return raw as BackupV2;
-}
+import { isBackupJsonFile, validateBackupV2, type BackupV2 } from "@/lib/backup/v2-validation";
 
 export function BackupV2Section() {
   const qc = useQueryClient();
@@ -39,15 +24,18 @@ export function BackupV2Section() {
   const [pendingBackup, setPendingBackup] = useState<BackupV2 | null>(null);
   const [confirmOpen, setConfirmOpen] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
+  const operationLock = useRef(false);
 
   const busy = exporting || restoring;
 
   async function doExport() {
+    if (operationLock.current) return;
+    operationLock.current = true;
     setExporting(true);
     try {
       const { data, error } = await supabase.rpc("export_user_backup");
       if (error) throw error;
-      const backup = validateBackup(data);
+      const backup = validateBackupV2(data);
       if (!backup) {
         toast.error("تعذر إنشاء النسخة", { description: "الاستجابة الواردة ليست نسخة احتياطية صالحة (v2)." });
         return;
@@ -61,17 +49,24 @@ export function BackupV2Section() {
       a.href = url;
       a.download = `rasd-backup-${stamp}.json`;
       a.click();
-      URL.revokeObjectURL(url);
+      window.setTimeout(() => URL.revokeObjectURL(url), 1000);
       createAuditEntry("backup", "تنزيل نسخة احتياطية (v2)", { meta: { version: 2 } });
       toast.success("تم تنزيل النسخة الاحتياطية");
-    } catch (e: any) {
-      toast.error("فشل تنزيل النسخة الاحتياطية", { description: e?.message ?? "حدث خطأ غير متوقع" });
+    } catch {
+      toast.error("فشل تنزيل النسخة الاحتياطية", { description: "تحقق من اتصالك وتسجيل الدخول ثم حاول مرة أخرى." });
     } finally {
+      operationLock.current = false;
       setExporting(false);
     }
   }
 
   async function onFile(f: File) {
+    if (operationLock.current) return;
+    if (!isBackupJsonFile(f.name)) {
+      toast.error("ملف غير صالح", { description: "اختر ملفًا بامتداد JSON فقط." });
+      return;
+    }
+    operationLock.current = true;
     try {
       const text = await f.text();
       let raw: unknown;
@@ -81,7 +76,7 @@ export function BackupV2Section() {
         toast.error("ملف غير صالح", { description: "تعذر قراءة الملف — يجب أن يكون ملف JSON صالحاً." });
         return;
       }
-      const backup = validateBackup(raw);
+      const backup = validateBackupV2(raw);
       if (!backup) {
         toast.error("نسخة غير مدعومة", { description: "الملف ليس نسخة احتياطية صالحة من رصد (الإصدار 2)." });
         return;
@@ -90,24 +85,35 @@ export function BackupV2Section() {
       setConfirmOpen(true);
     } catch {
       toast.error("خطأ في القراءة", { description: "تعذر فتح الملف المحدد." });
+    } finally {
+      operationLock.current = false;
     }
   }
 
   async function doRestore() {
-    if (!pendingBackup || restoring) return;
+    if (!pendingBackup || operationLock.current) return;
+    operationLock.current = true;
     setRestoring(true);
     try {
       const { error } = await supabase.rpc("restore_user_backup", { p_backup: pendingBackup as never });
       if (error) throw error;
       createAuditEntry("restore", "استعادة نسخة احتياطية (v2)", { meta: { version: 2 } });
-      await qc.invalidateQueries();
-      await qc.refetchQueries();
-      toast.success("تمت الاستعادة بنجاح", { description: "تم تحديث جميع البيانات من النسخة الاحتياطية." });
       setConfirmOpen(false);
       setPendingBackup(null);
-    } catch (e: any) {
-      toast.error("فشلت الاستعادة", { description: "بقيت بياناتك الحالية كما هي دون تغيير. " + (e?.message ?? "") });
+    } catch {
+      toast.error("فشلت الاستعادة", { description: "لم تكتمل الاستعادة. تحقق من اتصالك وحالة بياناتك قبل المحاولة مجددًا." });
+      operationLock.current = false;
+      setRestoring(false);
+      return;
+    }
+    try {
+      await qc.invalidateQueries({ refetchType: "none" });
+      await qc.refetchQueries({ type: "active" }, { throwOnError: true });
+      toast.success("تمت الاستعادة بنجاح", { description: "تم تحديث جميع البيانات من النسخة الاحتياطية." });
+    } catch {
+      toast.warning("تمت الاستعادة، لكن تعذّر تحديث العرض", { description: "لا تكرر الاستعادة. افتح الصفحة مجددًا عند عودة الاتصال." });
     } finally {
+      operationLock.current = false;
       setRestoring(false);
     }
   }
