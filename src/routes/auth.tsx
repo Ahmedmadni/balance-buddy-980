@@ -1,5 +1,6 @@
 import { createFileRoute, useNavigate, Link } from "@tanstack/react-router";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import { authReturnUrl, canEnterApp } from "@/lib/auth/session-navigation";
 import { supabase } from "@/integrations/supabase/client";
 import { lovable } from "@/integrations/lovable/index";
 import { Button } from "@/components/ui/button";
@@ -11,6 +12,10 @@ export const Route = createFileRoute("/auth")({
     meta: [
       { title: "تسجيل الدخول — رصد" },
       { name: "description", content: "ادخل إلى حسابك في تطبيق رصد عبر جوجل." },
+      { property: "og:title", content: "تسجيل الدخول — رصد" },
+      { property: "og:description", content: "تسجيل آمن للوصول إلى محافظك وديونك في رصد." },
+      { property: "og:type", content: "website" },
+      { name: "twitter:card", content: "summary" },
     ],
   }),
   component: AuthPage,
@@ -19,28 +24,44 @@ export const Route = createFileRoute("/auth")({
 function AuthPage() {
   const navigate = useNavigate();
   const [loading, setLoading] = useState(false);
+  const signingIn = useRef(false);
 
   useEffect(() => {
-    supabase.auth.getSession().then(({ data }) => {
-      if (data.session) navigate({ to: "/app", replace: true });
+    let active = true;
+    const { data: listener } = supabase.auth.onAuthStateChange((_event, session) => {
+      if (active && canEnterApp(session)) void navigate({ to: "/app", replace: true });
     });
+    void supabase.auth.getSession().then(({ data }) => {
+      if (active && canEnterApp(data.session)) void navigate({ to: "/app", replace: true });
+    }).catch(() => {
+      if (active) toast.error("تعذّر التحقق من تسجيل الدخول، حاول مرة أخرى");
+    });
+    return () => { active = false; listener.subscription.unsubscribe(); };
   }, [navigate]);
 
   async function signIn() {
+    if (signingIn.current) return;
+    signingIn.current = true;
     setLoading(true);
     try {
       const result = await lovable.auth.signInWithOAuth("google", {
-        redirect_uri: window.location.origin + "/app",
+        redirect_uri: authReturnUrl(window.location.origin),
       });
       if (result.error) {
-        toast.error("تعذّر تسجيل الدخول", { description: String(result.error.message || result.error) });
-        setLoading(false);
+        toast.error("تعذّر تسجيل الدخول", { description: "حاول مرة أخرى وتأكد من اتصالك بالإنترنت." });
         return;
       }
       if (result.redirected) return;
-      navigate({ to: "/app", replace: true });
-    } catch (e) {
+      const { data, error } = await supabase.auth.getSession();
+      if (error || !canEnterApp(data.session)) {
+        toast.error("لم يكتمل تسجيل الدخول، حاول مرة أخرى");
+        return;
+      }
+      await navigate({ to: "/app", replace: true });
+    } catch {
       toast.error("خطأ غير متوقع");
+    } finally {
+      signingIn.current = false;
       setLoading(false);
     }
   }
@@ -49,7 +70,7 @@ function AuthPage() {
     <div className="min-h-screen grid place-items-center bg-background px-4">
       <div className="w-full max-w-md">
         <Link to="/" className="mb-6 flex items-center justify-center gap-2">
-          <div className="grid h-10 w-10 place-items-center rounded-xl bg-[image:var(--gradient-primary)] text-white shadow-[var(--shadow-elegant)]">
+          <div className="grid h-10 w-10 place-items-center rounded-xl bg-[image:var(--gradient-primary)] text-primary-foreground shadow-[var(--shadow-elegant)]">
             <Wallet className="h-5 w-5" />
           </div>
           <span className="text-xl font-bold">رصد</span>
