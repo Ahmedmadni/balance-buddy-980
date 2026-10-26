@@ -9,68 +9,48 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
-import { Route as AuthRouteImport } from './routes/auth'
-import { Route as AuthenticatedRouteRouteImport } from './routes/_authenticated/route'
 import { Route as IndexRouteImport } from './routes/index'
-import { Route as LegalTermsRouteImport } from './routes/legal/terms'
-import { Route as LegalPrivacyRouteImport } from './routes/legal/privacy'
-import { Route as LegalDataExportRouteImport } from './routes/legal/data-export'
-import { Route as LegalCookiesRouteImport } from './routes/legal/cookies'
+import { Route as AuthenticatedRouteRouteImport } from './routes/_authenticated/route'
+import { Route as AuthRouteImport } from './routes/auth'
 import { Route as AuthenticatedAppRouteImport } from './routes/_authenticated/app'
+import { Route as LegalCookiesRouteImport } from './routes/legal/cookies'
+import { Route as LegalDataExportRouteImport } from './routes/legal/data-export'
+import { Route as LegalPrivacyRouteImport } from './routes/legal/privacy'
+import { Route as LegalTermsRouteImport } from './routes/legal/terms'
 import { Route as AuthenticatedAppIndexRouteImport } from './routes/_authenticated/app.index'
-import { Route as AuthenticatedAppZakatRouteImport } from './routes/_authenticated/app.zakat'
-import { Route as AuthenticatedAppWalletsRouteImport } from './routes/_authenticated/app.wallets'
-import { Route as AuthenticatedAppTransactionsRouteImport } from './routes/_authenticated/app.transactions'
-import { Route as AuthenticatedAppSystemRouteImport } from './routes/_authenticated/app.system'
-import { Route as AuthenticatedAppSettingsRouteImport } from './routes/_authenticated/app.settings'
-import { Route as AuthenticatedAppReportsRouteImport } from './routes/_authenticated/app.reports'
-import { Route as AuthenticatedAppRecurringRouteImport } from './routes/_authenticated/app.recurring'
-import { Route as AuthenticatedAppProjectsRouteImport } from './routes/_authenticated/app.projects'
-import { Route as AuthenticatedAppPeopleRouteImport } from './routes/_authenticated/app.people'
-import { Route as AuthenticatedAppInvestmentsRouteImport } from './routes/_authenticated/app.investments'
-import { Route as AuthenticatedAppInsightsRouteImport } from './routes/_authenticated/app.insights'
-import { Route as AuthenticatedAppExpensesRouteImport } from './routes/_authenticated/app.expenses'
-import { Route as AuthenticatedAppEventsRouteImport } from './routes/_authenticated/app.events'
-import { Route as AuthenticatedAppDepreciationRouteImport } from './routes/_authenticated/app.depreciation'
-import { Route as AuthenticatedAppDebtsRouteImport } from './routes/_authenticated/app.debts'
 import { Route as AuthenticatedAppContactsRouteImport } from './routes/_authenticated/app.contacts'
-import { Route as AuthenticatedAppWalletsIdRouteImport } from './routes/_authenticated/app.wallets_.$id'
-import { Route as AuthenticatedAppProjectsIdRouteImport } from './routes/_authenticated/app.projects.$id'
-import { Route as AuthenticatedAppPeopleIdRouteImport } from './routes/_authenticated/app.people.$id'
+import { Route as AuthenticatedAppDebtsRouteImport } from './routes/_authenticated/app.debts'
+import { Route as AuthenticatedAppDepreciationRouteImport } from './routes/_authenticated/app.depreciation'
+import { Route as AuthenticatedAppEventsRouteImport } from './routes/_authenticated/app.events'
+import { Route as AuthenticatedAppExpensesRouteImport } from './routes/_authenticated/app.expenses'
+import { Route as AuthenticatedAppInsightsRouteImport } from './routes/_authenticated/app.insights'
+import { Route as AuthenticatedAppInvestmentsRouteImport } from './routes/_authenticated/app.investments'
+import { Route as AuthenticatedAppPeopleRouteImport } from './routes/_authenticated/app.people'
+import { Route as AuthenticatedAppProjectsRouteImport } from './routes/_authenticated/app.projects'
+import { Route as AuthenticatedAppRecurringRouteImport } from './routes/_authenticated/app.recurring'
+import { Route as AuthenticatedAppReportsRouteImport } from './routes/_authenticated/app.reports'
+import { Route as AuthenticatedAppSettingsRouteImport } from './routes/_authenticated/app.settings'
+import { Route as AuthenticatedAppSystemRouteImport } from './routes/_authenticated/app.system'
+import { Route as AuthenticatedAppTransactionsRouteImport } from './routes/_authenticated/app.transactions'
+import { Route as AuthenticatedAppWalletsRouteImport } from './routes/_authenticated/app.wallets'
+import { Route as AuthenticatedAppZakatRouteImport } from './routes/_authenticated/app.zakat'
 import { Route as AuthenticatedAppDebtsIdRouteImport } from './routes/_authenticated/app.debts.$id'
+import { Route as AuthenticatedAppPeopleIdRouteImport } from './routes/_authenticated/app.people.$id'
+import { Route as AuthenticatedAppProjectsIdRouteImport } from './routes/_authenticated/app.projects.$id'
+import { Route as AuthenticatedAppWalletsIdRouteImport } from './routes/_authenticated/app.wallets_.$id'
 
-const AuthRoute = AuthRouteImport.update({
-  id: '/auth',
-  path: '/auth',
+const IndexRoute = IndexRouteImport.update({
+  id: '/',
+  path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
 const AuthenticatedRouteRoute = AuthenticatedRouteRouteImport.update({
   id: '/_authenticated',
   getParentRoute: () => rootRouteImport,
 } as any)
-const IndexRoute = IndexRouteImport.update({
-  id: '/',
-  path: '/',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const LegalTermsRoute = LegalTermsRouteImport.update({
-  id: '/legal/terms',
-  path: '/legal/terms',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const LegalPrivacyRoute = LegalPrivacyRouteImport.update({
-  id: '/legal/privacy',
-  path: '/legal/privacy',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const LegalDataExportRoute = LegalDataExportRouteImport.update({
-  id: '/legal/data-export',
-  path: '/legal/data-export',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const LegalCookiesRoute = LegalCookiesRouteImport.update({
-  id: '/legal/cookies',
-  path: '/legal/cookies',
+const AuthRoute = AuthRouteImport.update({
+  id: '/auth',
+  path: '/auth',
   getParentRoute: () => rootRouteImport,
 } as any)
 const AuthenticatedAppRoute = AuthenticatedAppRouteImport.update({
@@ -78,92 +58,29 @@ const AuthenticatedAppRoute = AuthenticatedAppRouteImport.update({
   path: '/app',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
+const LegalCookiesRoute = LegalCookiesRouteImport.update({
+  id: '/legal/cookies',
+  path: '/legal/cookies',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const LegalDataExportRoute = LegalDataExportRouteImport.update({
+  id: '/legal/data-export',
+  path: '/legal/data-export',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const LegalPrivacyRoute = LegalPrivacyRouteImport.update({
+  id: '/legal/privacy',
+  path: '/legal/privacy',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const LegalTermsRoute = LegalTermsRouteImport.update({
+  id: '/legal/terms',
+  path: '/legal/terms',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const AuthenticatedAppIndexRoute = AuthenticatedAppIndexRouteImport.update({
   id: '/',
   path: '/',
-  getParentRoute: () => AuthenticatedAppRoute,
-} as any)
-const AuthenticatedAppZakatRoute = AuthenticatedAppZakatRouteImport.update({
-  id: '/zakat',
-  path: '/zakat',
-  getParentRoute: () => AuthenticatedAppRoute,
-} as any)
-const AuthenticatedAppWalletsRoute = AuthenticatedAppWalletsRouteImport.update({
-  id: '/wallets',
-  path: '/wallets',
-  getParentRoute: () => AuthenticatedAppRoute,
-} as any)
-const AuthenticatedAppTransactionsRoute =
-  AuthenticatedAppTransactionsRouteImport.update({
-    id: '/transactions',
-    path: '/transactions',
-    getParentRoute: () => AuthenticatedAppRoute,
-  } as any)
-const AuthenticatedAppSystemRoute = AuthenticatedAppSystemRouteImport.update({
-  id: '/system',
-  path: '/system',
-  getParentRoute: () => AuthenticatedAppRoute,
-} as any)
-const AuthenticatedAppSettingsRoute =
-  AuthenticatedAppSettingsRouteImport.update({
-    id: '/settings',
-    path: '/settings',
-    getParentRoute: () => AuthenticatedAppRoute,
-  } as any)
-const AuthenticatedAppReportsRoute = AuthenticatedAppReportsRouteImport.update({
-  id: '/reports',
-  path: '/reports',
-  getParentRoute: () => AuthenticatedAppRoute,
-} as any)
-const AuthenticatedAppRecurringRoute =
-  AuthenticatedAppRecurringRouteImport.update({
-    id: '/recurring',
-    path: '/recurring',
-    getParentRoute: () => AuthenticatedAppRoute,
-  } as any)
-const AuthenticatedAppProjectsRoute =
-  AuthenticatedAppProjectsRouteImport.update({
-    id: '/projects',
-    path: '/projects',
-    getParentRoute: () => AuthenticatedAppRoute,
-  } as any)
-const AuthenticatedAppPeopleRoute = AuthenticatedAppPeopleRouteImport.update({
-  id: '/people',
-  path: '/people',
-  getParentRoute: () => AuthenticatedAppRoute,
-} as any)
-const AuthenticatedAppInvestmentsRoute =
-  AuthenticatedAppInvestmentsRouteImport.update({
-    id: '/investments',
-    path: '/investments',
-    getParentRoute: () => AuthenticatedAppRoute,
-  } as any)
-const AuthenticatedAppInsightsRoute =
-  AuthenticatedAppInsightsRouteImport.update({
-    id: '/insights',
-    path: '/insights',
-    getParentRoute: () => AuthenticatedAppRoute,
-  } as any)
-const AuthenticatedAppExpensesRoute =
-  AuthenticatedAppExpensesRouteImport.update({
-    id: '/expenses',
-    path: '/expenses',
-    getParentRoute: () => AuthenticatedAppRoute,
-  } as any)
-const AuthenticatedAppEventsRoute = AuthenticatedAppEventsRouteImport.update({
-  id: '/events',
-  path: '/events',
-  getParentRoute: () => AuthenticatedAppRoute,
-} as any)
-const AuthenticatedAppDepreciationRoute =
-  AuthenticatedAppDepreciationRouteImport.update({
-    id: '/depreciation',
-    path: '/depreciation',
-    getParentRoute: () => AuthenticatedAppRoute,
-  } as any)
-const AuthenticatedAppDebtsRoute = AuthenticatedAppDebtsRouteImport.update({
-  id: '/debts',
-  path: '/debts',
   getParentRoute: () => AuthenticatedAppRoute,
 } as any)
 const AuthenticatedAppContactsRoute =
@@ -172,11 +89,99 @@ const AuthenticatedAppContactsRoute =
     path: '/contacts',
     getParentRoute: () => AuthenticatedAppRoute,
   } as any)
-const AuthenticatedAppWalletsIdRoute =
-  AuthenticatedAppWalletsIdRouteImport.update({
-    id: '/wallets_/$id',
-    path: '/wallets/$id',
+const AuthenticatedAppDebtsRoute = AuthenticatedAppDebtsRouteImport.update({
+  id: '/debts',
+  path: '/debts',
+  getParentRoute: () => AuthenticatedAppRoute,
+} as any)
+const AuthenticatedAppDepreciationRoute =
+  AuthenticatedAppDepreciationRouteImport.update({
+    id: '/depreciation',
+    path: '/depreciation',
     getParentRoute: () => AuthenticatedAppRoute,
+  } as any)
+const AuthenticatedAppEventsRoute = AuthenticatedAppEventsRouteImport.update({
+  id: '/events',
+  path: '/events',
+  getParentRoute: () => AuthenticatedAppRoute,
+} as any)
+const AuthenticatedAppExpensesRoute =
+  AuthenticatedAppExpensesRouteImport.update({
+    id: '/expenses',
+    path: '/expenses',
+    getParentRoute: () => AuthenticatedAppRoute,
+  } as any)
+const AuthenticatedAppInsightsRoute =
+  AuthenticatedAppInsightsRouteImport.update({
+    id: '/insights',
+    path: '/insights',
+    getParentRoute: () => AuthenticatedAppRoute,
+  } as any)
+const AuthenticatedAppInvestmentsRoute =
+  AuthenticatedAppInvestmentsRouteImport.update({
+    id: '/investments',
+    path: '/investments',
+    getParentRoute: () => AuthenticatedAppRoute,
+  } as any)
+const AuthenticatedAppPeopleRoute = AuthenticatedAppPeopleRouteImport.update({
+  id: '/people',
+  path: '/people',
+  getParentRoute: () => AuthenticatedAppRoute,
+} as any)
+const AuthenticatedAppProjectsRoute =
+  AuthenticatedAppProjectsRouteImport.update({
+    id: '/projects',
+    path: '/projects',
+    getParentRoute: () => AuthenticatedAppRoute,
+  } as any)
+const AuthenticatedAppRecurringRoute =
+  AuthenticatedAppRecurringRouteImport.update({
+    id: '/recurring',
+    path: '/recurring',
+    getParentRoute: () => AuthenticatedAppRoute,
+  } as any)
+const AuthenticatedAppReportsRoute = AuthenticatedAppReportsRouteImport.update({
+  id: '/reports',
+  path: '/reports',
+  getParentRoute: () => AuthenticatedAppRoute,
+} as any)
+const AuthenticatedAppSettingsRoute =
+  AuthenticatedAppSettingsRouteImport.update({
+    id: '/settings',
+    path: '/settings',
+    getParentRoute: () => AuthenticatedAppRoute,
+  } as any)
+const AuthenticatedAppSystemRoute = AuthenticatedAppSystemRouteImport.update({
+  id: '/system',
+  path: '/system',
+  getParentRoute: () => AuthenticatedAppRoute,
+} as any)
+const AuthenticatedAppTransactionsRoute =
+  AuthenticatedAppTransactionsRouteImport.update({
+    id: '/transactions',
+    path: '/transactions',
+    getParentRoute: () => AuthenticatedAppRoute,
+  } as any)
+const AuthenticatedAppWalletsRoute = AuthenticatedAppWalletsRouteImport.update({
+  id: '/wallets',
+  path: '/wallets',
+  getParentRoute: () => AuthenticatedAppRoute,
+} as any)
+const AuthenticatedAppZakatRoute = AuthenticatedAppZakatRouteImport.update({
+  id: '/zakat',
+  path: '/zakat',
+  getParentRoute: () => AuthenticatedAppRoute,
+} as any)
+const AuthenticatedAppDebtsIdRoute = AuthenticatedAppDebtsIdRouteImport.update({
+  id: '/$id',
+  path: '/$id',
+  getParentRoute: () => AuthenticatedAppDebtsRoute,
+} as any)
+const AuthenticatedAppPeopleIdRoute =
+  AuthenticatedAppPeopleIdRouteImport.update({
+    id: '/$id',
+    path: '/$id',
+    getParentRoute: () => AuthenticatedAppPeopleRoute,
   } as any)
 const AuthenticatedAppProjectsIdRoute =
   AuthenticatedAppProjectsIdRouteImport.update({
@@ -184,17 +189,12 @@ const AuthenticatedAppProjectsIdRoute =
     path: '/$id',
     getParentRoute: () => AuthenticatedAppProjectsRoute,
   } as any)
-const AuthenticatedAppPeopleIdRoute =
-  AuthenticatedAppPeopleIdRouteImport.update({
-    id: '/$id',
-    path: '/$id',
-    getParentRoute: () => AuthenticatedAppPeopleRoute,
+const AuthenticatedAppWalletsIdRoute =
+  AuthenticatedAppWalletsIdRouteImport.update({
+    id: '/wallets_/$id',
+    path: '/wallets/$id',
+    getParentRoute: () => AuthenticatedAppRoute,
   } as any)
-const AuthenticatedAppDebtsIdRoute = AuthenticatedAppDebtsIdRouteImport.update({
-  id: '/$id',
-  path: '/$id',
-  getParentRoute: () => AuthenticatedAppDebtsRoute,
-} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -392,11 +392,11 @@ export interface RootRouteChildren {
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
-    '/auth': {
-      id: '/auth'
-      path: '/auth'
-      fullPath: '/auth'
-      preLoaderRoute: typeof AuthRouteImport
+    '/': {
+      id: '/'
+      path: '/'
+      fullPath: '/'
+      preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/_authenticated': {
@@ -406,39 +406,11 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedRouteRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/': {
-      id: '/'
-      path: '/'
-      fullPath: '/'
-      preLoaderRoute: typeof IndexRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/legal/terms': {
-      id: '/legal/terms'
-      path: '/legal/terms'
-      fullPath: '/legal/terms'
-      preLoaderRoute: typeof LegalTermsRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/legal/privacy': {
-      id: '/legal/privacy'
-      path: '/legal/privacy'
-      fullPath: '/legal/privacy'
-      preLoaderRoute: typeof LegalPrivacyRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/legal/data-export': {
-      id: '/legal/data-export'
-      path: '/legal/data-export'
-      fullPath: '/legal/data-export'
-      preLoaderRoute: typeof LegalDataExportRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/legal/cookies': {
-      id: '/legal/cookies'
-      path: '/legal/cookies'
-      fullPath: '/legal/cookies'
-      preLoaderRoute: typeof LegalCookiesRouteImport
+    '/auth': {
+      id: '/auth'
+      path: '/auth'
+      fullPath: '/auth'
+      preLoaderRoute: typeof AuthRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/_authenticated/app': {
@@ -448,116 +420,39 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedAppRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
+    '/legal/cookies': {
+      id: '/legal/cookies'
+      path: '/legal/cookies'
+      fullPath: '/legal/cookies'
+      preLoaderRoute: typeof LegalCookiesRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/legal/data-export': {
+      id: '/legal/data-export'
+      path: '/legal/data-export'
+      fullPath: '/legal/data-export'
+      preLoaderRoute: typeof LegalDataExportRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/legal/privacy': {
+      id: '/legal/privacy'
+      path: '/legal/privacy'
+      fullPath: '/legal/privacy'
+      preLoaderRoute: typeof LegalPrivacyRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/legal/terms': {
+      id: '/legal/terms'
+      path: '/legal/terms'
+      fullPath: '/legal/terms'
+      preLoaderRoute: typeof LegalTermsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/_authenticated/app/': {
       id: '/_authenticated/app/'
       path: '/'
       fullPath: '/app/'
       preLoaderRoute: typeof AuthenticatedAppIndexRouteImport
-      parentRoute: typeof AuthenticatedAppRoute
-    }
-    '/_authenticated/app/zakat': {
-      id: '/_authenticated/app/zakat'
-      path: '/zakat'
-      fullPath: '/app/zakat'
-      preLoaderRoute: typeof AuthenticatedAppZakatRouteImport
-      parentRoute: typeof AuthenticatedAppRoute
-    }
-    '/_authenticated/app/wallets': {
-      id: '/_authenticated/app/wallets'
-      path: '/wallets'
-      fullPath: '/app/wallets'
-      preLoaderRoute: typeof AuthenticatedAppWalletsRouteImport
-      parentRoute: typeof AuthenticatedAppRoute
-    }
-    '/_authenticated/app/transactions': {
-      id: '/_authenticated/app/transactions'
-      path: '/transactions'
-      fullPath: '/app/transactions'
-      preLoaderRoute: typeof AuthenticatedAppTransactionsRouteImport
-      parentRoute: typeof AuthenticatedAppRoute
-    }
-    '/_authenticated/app/system': {
-      id: '/_authenticated/app/system'
-      path: '/system'
-      fullPath: '/app/system'
-      preLoaderRoute: typeof AuthenticatedAppSystemRouteImport
-      parentRoute: typeof AuthenticatedAppRoute
-    }
-    '/_authenticated/app/settings': {
-      id: '/_authenticated/app/settings'
-      path: '/settings'
-      fullPath: '/app/settings'
-      preLoaderRoute: typeof AuthenticatedAppSettingsRouteImport
-      parentRoute: typeof AuthenticatedAppRoute
-    }
-    '/_authenticated/app/reports': {
-      id: '/_authenticated/app/reports'
-      path: '/reports'
-      fullPath: '/app/reports'
-      preLoaderRoute: typeof AuthenticatedAppReportsRouteImport
-      parentRoute: typeof AuthenticatedAppRoute
-    }
-    '/_authenticated/app/recurring': {
-      id: '/_authenticated/app/recurring'
-      path: '/recurring'
-      fullPath: '/app/recurring'
-      preLoaderRoute: typeof AuthenticatedAppRecurringRouteImport
-      parentRoute: typeof AuthenticatedAppRoute
-    }
-    '/_authenticated/app/projects': {
-      id: '/_authenticated/app/projects'
-      path: '/projects'
-      fullPath: '/app/projects'
-      preLoaderRoute: typeof AuthenticatedAppProjectsRouteImport
-      parentRoute: typeof AuthenticatedAppRoute
-    }
-    '/_authenticated/app/people': {
-      id: '/_authenticated/app/people'
-      path: '/people'
-      fullPath: '/app/people'
-      preLoaderRoute: typeof AuthenticatedAppPeopleRouteImport
-      parentRoute: typeof AuthenticatedAppRoute
-    }
-    '/_authenticated/app/investments': {
-      id: '/_authenticated/app/investments'
-      path: '/investments'
-      fullPath: '/app/investments'
-      preLoaderRoute: typeof AuthenticatedAppInvestmentsRouteImport
-      parentRoute: typeof AuthenticatedAppRoute
-    }
-    '/_authenticated/app/insights': {
-      id: '/_authenticated/app/insights'
-      path: '/insights'
-      fullPath: '/app/insights'
-      preLoaderRoute: typeof AuthenticatedAppInsightsRouteImport
-      parentRoute: typeof AuthenticatedAppRoute
-    }
-    '/_authenticated/app/expenses': {
-      id: '/_authenticated/app/expenses'
-      path: '/expenses'
-      fullPath: '/app/expenses'
-      preLoaderRoute: typeof AuthenticatedAppExpensesRouteImport
-      parentRoute: typeof AuthenticatedAppRoute
-    }
-    '/_authenticated/app/events': {
-      id: '/_authenticated/app/events'
-      path: '/events'
-      fullPath: '/app/events'
-      preLoaderRoute: typeof AuthenticatedAppEventsRouteImport
-      parentRoute: typeof AuthenticatedAppRoute
-    }
-    '/_authenticated/app/depreciation': {
-      id: '/_authenticated/app/depreciation'
-      path: '/depreciation'
-      fullPath: '/app/depreciation'
-      preLoaderRoute: typeof AuthenticatedAppDepreciationRouteImport
-      parentRoute: typeof AuthenticatedAppRoute
-    }
-    '/_authenticated/app/debts': {
-      id: '/_authenticated/app/debts'
-      path: '/debts'
-      fullPath: '/app/debts'
-      preLoaderRoute: typeof AuthenticatedAppDebtsRouteImport
       parentRoute: typeof AuthenticatedAppRoute
     }
     '/_authenticated/app/contacts': {
@@ -567,19 +462,117 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedAppContactsRouteImport
       parentRoute: typeof AuthenticatedAppRoute
     }
-    '/_authenticated/app/wallets_/$id': {
-      id: '/_authenticated/app/wallets_/$id'
-      path: '/wallets/$id'
-      fullPath: '/app/wallets/$id'
-      preLoaderRoute: typeof AuthenticatedAppWalletsIdRouteImport
+    '/_authenticated/app/debts': {
+      id: '/_authenticated/app/debts'
+      path: '/debts'
+      fullPath: '/app/debts'
+      preLoaderRoute: typeof AuthenticatedAppDebtsRouteImport
       parentRoute: typeof AuthenticatedAppRoute
     }
-    '/_authenticated/app/projects/$id': {
-      id: '/_authenticated/app/projects/$id'
+    '/_authenticated/app/depreciation': {
+      id: '/_authenticated/app/depreciation'
+      path: '/depreciation'
+      fullPath: '/app/depreciation'
+      preLoaderRoute: typeof AuthenticatedAppDepreciationRouteImport
+      parentRoute: typeof AuthenticatedAppRoute
+    }
+    '/_authenticated/app/events': {
+      id: '/_authenticated/app/events'
+      path: '/events'
+      fullPath: '/app/events'
+      preLoaderRoute: typeof AuthenticatedAppEventsRouteImport
+      parentRoute: typeof AuthenticatedAppRoute
+    }
+    '/_authenticated/app/expenses': {
+      id: '/_authenticated/app/expenses'
+      path: '/expenses'
+      fullPath: '/app/expenses'
+      preLoaderRoute: typeof AuthenticatedAppExpensesRouteImport
+      parentRoute: typeof AuthenticatedAppRoute
+    }
+    '/_authenticated/app/insights': {
+      id: '/_authenticated/app/insights'
+      path: '/insights'
+      fullPath: '/app/insights'
+      preLoaderRoute: typeof AuthenticatedAppInsightsRouteImport
+      parentRoute: typeof AuthenticatedAppRoute
+    }
+    '/_authenticated/app/investments': {
+      id: '/_authenticated/app/investments'
+      path: '/investments'
+      fullPath: '/app/investments'
+      preLoaderRoute: typeof AuthenticatedAppInvestmentsRouteImport
+      parentRoute: typeof AuthenticatedAppRoute
+    }
+    '/_authenticated/app/people': {
+      id: '/_authenticated/app/people'
+      path: '/people'
+      fullPath: '/app/people'
+      preLoaderRoute: typeof AuthenticatedAppPeopleRouteImport
+      parentRoute: typeof AuthenticatedAppRoute
+    }
+    '/_authenticated/app/projects': {
+      id: '/_authenticated/app/projects'
+      path: '/projects'
+      fullPath: '/app/projects'
+      preLoaderRoute: typeof AuthenticatedAppProjectsRouteImport
+      parentRoute: typeof AuthenticatedAppRoute
+    }
+    '/_authenticated/app/recurring': {
+      id: '/_authenticated/app/recurring'
+      path: '/recurring'
+      fullPath: '/app/recurring'
+      preLoaderRoute: typeof AuthenticatedAppRecurringRouteImport
+      parentRoute: typeof AuthenticatedAppRoute
+    }
+    '/_authenticated/app/reports': {
+      id: '/_authenticated/app/reports'
+      path: '/reports'
+      fullPath: '/app/reports'
+      preLoaderRoute: typeof AuthenticatedAppReportsRouteImport
+      parentRoute: typeof AuthenticatedAppRoute
+    }
+    '/_authenticated/app/settings': {
+      id: '/_authenticated/app/settings'
+      path: '/settings'
+      fullPath: '/app/settings'
+      preLoaderRoute: typeof AuthenticatedAppSettingsRouteImport
+      parentRoute: typeof AuthenticatedAppRoute
+    }
+    '/_authenticated/app/system': {
+      id: '/_authenticated/app/system'
+      path: '/system'
+      fullPath: '/app/system'
+      preLoaderRoute: typeof AuthenticatedAppSystemRouteImport
+      parentRoute: typeof AuthenticatedAppRoute
+    }
+    '/_authenticated/app/transactions': {
+      id: '/_authenticated/app/transactions'
+      path: '/transactions'
+      fullPath: '/app/transactions'
+      preLoaderRoute: typeof AuthenticatedAppTransactionsRouteImport
+      parentRoute: typeof AuthenticatedAppRoute
+    }
+    '/_authenticated/app/wallets': {
+      id: '/_authenticated/app/wallets'
+      path: '/wallets'
+      fullPath: '/app/wallets'
+      preLoaderRoute: typeof AuthenticatedAppWalletsRouteImport
+      parentRoute: typeof AuthenticatedAppRoute
+    }
+    '/_authenticated/app/zakat': {
+      id: '/_authenticated/app/zakat'
+      path: '/zakat'
+      fullPath: '/app/zakat'
+      preLoaderRoute: typeof AuthenticatedAppZakatRouteImport
+      parentRoute: typeof AuthenticatedAppRoute
+    }
+    '/_authenticated/app/debts/$id': {
+      id: '/_authenticated/app/debts/$id'
       path: '/$id'
-      fullPath: '/app/projects/$id'
-      preLoaderRoute: typeof AuthenticatedAppProjectsIdRouteImport
-      parentRoute: typeof AuthenticatedAppProjectsRoute
+      fullPath: '/app/debts/$id'
+      preLoaderRoute: typeof AuthenticatedAppDebtsIdRouteImport
+      parentRoute: typeof AuthenticatedAppDebtsRoute
     }
     '/_authenticated/app/people/$id': {
       id: '/_authenticated/app/people/$id'
@@ -588,12 +581,19 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedAppPeopleIdRouteImport
       parentRoute: typeof AuthenticatedAppPeopleRoute
     }
-    '/_authenticated/app/debts/$id': {
-      id: '/_authenticated/app/debts/$id'
+    '/_authenticated/app/projects/$id': {
+      id: '/_authenticated/app/projects/$id'
       path: '/$id'
-      fullPath: '/app/debts/$id'
-      preLoaderRoute: typeof AuthenticatedAppDebtsIdRouteImport
-      parentRoute: typeof AuthenticatedAppDebtsRoute
+      fullPath: '/app/projects/$id'
+      preLoaderRoute: typeof AuthenticatedAppProjectsIdRouteImport
+      parentRoute: typeof AuthenticatedAppProjectsRoute
+    }
+    '/_authenticated/app/wallets_/$id': {
+      id: '/_authenticated/app/wallets_/$id'
+      path: '/wallets/$id'
+      fullPath: '/app/wallets/$id'
+      preLoaderRoute: typeof AuthenticatedAppWalletsIdRouteImport
+      parentRoute: typeof AuthenticatedAppRoute
     }
   }
 }
