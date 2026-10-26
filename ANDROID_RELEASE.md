@@ -38,7 +38,17 @@ bun run android:apk          # Release APK → android/app/build/outputs/apk/rel
 bun run android:aab          # Release AAB → android/app/build/outputs/bundle/release/
 ```
 
-يتطلب Android SDK + JDK 17 محليًا (غير متوفر في بيئة Lovable).
+يتطلب Android SDK + JDK 21 لـ Capacitor 8 محليًا (غير متوفر في بيئة Lovable).
+
+### بناء APK اختباري من GitHub
+
+أُضيف مسار يدوي `Android hosted debug package` في Actions. اضبط repository variables
+`VITE_SUPABASE_URL` و`VITE_SUPABASE_PUBLISHABLE_KEY` و`VITE_SUPABASE_PROJECT_ID`
+من إعدادات التطبيق العامة؛ لا تستخدم مفتاحًا خاصًا أو service-role.
+يبني المسار نسخة ويب، ويولّد مشروع Android داخل بيئة البناء فقط، ثم APK debug
+وملف SHA-256 ضمن artifact يحتفظ به 14 يومًا. لا يوقّع إصدار متجر ولا يرفع إلى Google Play.
+لم يُشغّل هذا المسار من هذه الجلسة؛ نجاحه وتثبيت APK على جهاز شرط قبل اعتماد الجاهزية.
+ملف index.html المؤقت في مخرجات البناء هو bootstrap فقط؛ التشغيل يبقى عبر HTTPS المستضاف.
 
 ## 4. التوقيع (Signing)
 
@@ -53,10 +63,13 @@ keytool -genkey -v -keystore rasd-release.jks -keyalg RSA -keysize 2048 \
 
 ```properties
 storeFile=/absolute/path/rasd-release.jks
-storePassword=${ANDROID_KEYSTORE_PASSWORD}
+storePassword=<local-keystore-password>
 keyAlias=rasd
-keyPassword=${ANDROID_KEY_PASSWORD}
+keyPassword=<local-key-password>
 ```
+
+ملف Properties لا يوسّع `${ENV_VAR}` تلقائيًا. القيم أعلاه محلية فقط ولا تُرفع إلى Git؛
+في CI اقرأ الأسرار مباشرةً عبر `System.getenv` في إعداد Gradle.
 
 وفي CI استخدم أسرارًا: `ANDROID_KEYSTORE_PATH` · `ANDROID_KEYSTORE_PASSWORD` ·
 `ANDROID_KEY_ALIAS` · `ANDROID_KEY_PASSWORD`.
@@ -86,5 +99,5 @@ android {
 - لا يوجد SDK إعلانات مثبّت حاليًا (`AdProviderRoot` يستخدم `NoopAdProvider`).
 - قبل التفعيل: أضف `ca-app-pub-…~…` في `AndroidManifest.xml` وحزمة AdMob لـ Capacitor.
 - في التطوير استخدم معرّفات Google الاختبارية فقط (`TEST_IDS` في `src/lib/ads/ad-config.ts`).
-- المعرّفات الحقيقية تُدخل في `src/lib/ads/ad-config.ts` بدل الـ placeholders.
+- المعرّفات العامة الحقيقية تُدخل كمتغيرات `VITE_ADMOB_ANDROID_APP_ID` و`VITE_ADMOB_ANDROID_BANNER_ID` و`VITE_ADMOB_ANDROID_INTERSTITIAL_ID`، مع `VITE_ADS_MODE=production`؛ لا حاجة لكتابة مفاتيح خاصة.
 - التدقيق: `src/lib/ads/production-audit.ts` ويظهر في `/app/system`.

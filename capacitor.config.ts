@@ -1,4 +1,5 @@
 import type { CapacitorConfig } from '@capacitor/cli';
+import { validateAndroidReleaseUrl } from './src/lib/mobile/release-url';
 
 // ─────────────────────────────────────────────────────────────
 // وضعان صريحان:
@@ -11,7 +12,8 @@ import type { CapacitorConfig } from '@capacitor/cli';
 // مثال:  CAP_ENV=production bun run android:aab
 // ─────────────────────────────────────────────────────────────
 const isProduction = process.env['CAP_ENV'] === 'production';
-const PROD_URL = process.env['CAP_SERVER_URL'] || 'https://balance-buddy-980.lovable.app';
+const productionUrl = process.env['CAP_SERVER_URL'] || 'https://balance-buddy-980.lovable.app';
+const PROD_URL = isProduction ? validateAndroidReleaseUrl(productionUrl) : productionUrl;
 const DEV_URL = 'https://a152564d-27eb-4c34-88c3-bd4d16c0e912.lovableproject.com?forceHideBadge=true';
 
 const config: CapacitorConfig = {

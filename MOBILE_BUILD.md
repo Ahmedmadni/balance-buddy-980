@@ -22,7 +22,7 @@
 ## 📱 خطوات البناء (أول مرة فقط)
 
 ### المتطلبات
-- **Node.js / Bun** + **Android Studio** (آخر إصدار) + **JDK 17+**
+- **Node.js / Bun** + **Android Studio** (آخر إصدار) + **JDK 21** لـ Capacitor 8
 
 ### 1) صدّر المشروع إلى GitHub واستنسخه محلياً
 ```bash
@@ -57,19 +57,14 @@ bun run android:open
 
 ## 🚀 إنشاء APK/AAB للنشر على Play Store
 
-### 1) عطّل Live Reload
-في `capacitor.config.ts` **علّق كائن `server` بالكامل**:
-```ts
-// server: {
-//   url: '...',
-//   cleartext: true,
-//   androidScheme: 'https',
-// },
-```
+### 1) اختر وضع الإنتاج
+لا تحذف كائن `server`: التطبيق الحالي يستعمل نسخة HTTPS المستضافة بسبب SSR.
+استخدم `CAP_ENV=production`؛ يمنع هذا الوضع cleartext وmixed content وتصحيح WebView.
+يلزم الاتصال بالإنترنت لبدء التطبيق، ولا يُعد هذا إصدارًا كاملًا دون اتصال.
 
 ### 2) أعد المزامنة
 ```bash
-bun run android:sync
+bun run android:sync:prod
 bun run android:open
 ```
 
@@ -102,7 +97,7 @@ defaultConfig {
 ```bash
 # 1) عدّل versionCode و versionName في android/app/build.gradle
 # 2) ابنِ وزامن
-bun run android:sync
+bun run android:sync:prod
 # 3) أنشئ AAB موقّع جديد بنفس الـ Keystore
 ```
 
