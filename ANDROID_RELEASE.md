@@ -120,3 +120,18 @@ android {
 - في التطوير استخدم معرّفات Google الاختبارية فقط (`TEST_IDS` في `src/lib/ads/ad-config.ts`).
 - المعرّفات العامة الحقيقية تُدخل كمتغيرات `VITE_ADMOB_ANDROID_APP_ID` و`VITE_ADMOB_ANDROID_BANNER_ID` و`VITE_ADMOB_ANDROID_INTERSTITIAL_ID`، مع `VITE_ADS_MODE=production`؛ لا حاجة لكتابة مفاتيح خاصة.
 - التدقيق: `src/lib/ads/production-audit.ts` ويظهر في `/app/system`.
+
+## Signed release via GitHub Actions (`android-release.yml`)
+
+Manual workflow that builds a **signed** release APK and AAB and uploads them as private artifacts. It never publishes to Google Play.
+
+Required repository secrets (GitHub → Settings → Secrets and variables → Actions):
+
+| Secret | Content |
+|---|---|
+| `ANDROID_KEYSTORE_BASE64` | The `.jks` keystore encoded with `base64 -w0 release.jks` |
+| `ANDROID_KEYSTORE_PASSWORD` | Keystore password |
+| `ANDROID_KEY_ALIAS` | Key alias inside the keystore |
+| `ANDROID_KEY_PASSWORD` | Key password |
+
+Run: Actions → "Android signed release (APK + AAB)" → Run workflow, with an increasing `version_code` and a `version_name`. The keystore is decoded only into the runner temp dir and deleted after the build. Keep an offline backup of the keystore: losing it blocks future updates of the same app.
