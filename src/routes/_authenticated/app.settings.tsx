@@ -1,3 +1,4 @@
+import { AppLockSettings } from "@/components/AppLockSettings";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -101,7 +102,7 @@ function SettingsPage() {
         </TabsContent>
         <TabsContent value="advanced"><AdvancedPlaceholder /></TabsContent>
         <TabsContent value="system"><SystemToolsSection /></TabsContent>
-        <TabsContent value="mobile"><MobileSettingsSection /></TabsContent>
+        <TabsContent value="mobile" className="space-y-4"><AppLockSettings /><MobileSettingsSection /></TabsContent>
         <TabsContent value="ads"><AdsSection /></TabsContent>
         <TabsContent value="help"><HelpSection /></TabsContent>
 
