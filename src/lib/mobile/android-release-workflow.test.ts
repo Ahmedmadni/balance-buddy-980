@@ -2,7 +2,7 @@ import { describe, expect, test } from "bun:test";
 import { readFileSync } from "node:fs";
 import { spawnSync } from "node:child_process";
 
-const workflow = readFileSync(new URL("../../../..//.github/workflows/android-release.yml", import.meta.url), "utf8");
+const workflow = readFileSync(new URL("../../../.github/workflows/android-release.yml", import.meta.url), "utf8");
 const start = workflow.indexOf("          missing=0");
 const end = workflow.indexOf("\n      - name: Check hosted", start);
 if (start < 0 || end < 0) throw new Error("Release preflight missing");
