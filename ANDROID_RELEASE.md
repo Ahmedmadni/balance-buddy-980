@@ -1,7 +1,7 @@
 # Android Release — رصد (Rasd)
 
-> حالة اليوم: **لا يوجد مجلد `android/` في المستودع** — لم تُضف منصّة Capacitor بعد،
-> وبالتالي **لم يُبنَ أي APK أو AAB**. هذا الملف هو مسار التنفيذ الفعلي.
+> حالة التحقق في 3 نوفمبر 2026: نجح بناء APK تجريبي على GitHub؛ يُولّد مجلد
+> `android/` داخل بيئة البناء. إصدار APK/AAB الإنتاجي الموقّع لم يُبنَ بعد لأن أسرار التوقيع غير مضافة.
 
 ## 1. الهوية والإصدار (Source of truth)
 
@@ -46,10 +46,9 @@ bun run android:aab          # Release AAB → android/app/build/outputs/bundle/
 رابط التطبيق المنشور؛ لا يحتاج متغيرات اتصال قاعدة البيانات لأن الحزمة عميل HTTPS مستضاف.
 يختبر الاعتمادات ويفحص أمانها، ويولّد مشروع Android داخل بيئة البناء فقط، ثم APK debug
 وملف SHA-256 ضمن artifact يحتفظ به 14 يومًا. لا يوقّع إصدار متجر ولا يرفع إلى Google Play.
-شُغّل المسار في 1 نوفمبر 2026، لكنه توقف أثناء إعداد Android SDK لأن حزمة `tools`
-القديمة لم تعد متاحة. عُدّل الإعداد إلى `platform-tools` وثُبّت Ubuntu 24.04 وJDK 21.
-يلزم تشغيله مجددًا بعد وصول التعديلات إلى GitHub؛ لا يوجد ملف تحميل لهذا التشغيل الفاشل.
-نجاحه وتثبيت APK على جهاز شرط قبل اعتماد الجاهزية.
+نجح التشغيل الأخير في 2 نوفمبر 2026 بعد إصلاح إعداد SDK.
+رابط التشغيل المتحقق منه: https://github.com/Ahmedmadni/balance-buddy-980/actions/runs/41420922221
+هذه نسخة debug للاختبار، وليست إصدار متجر إنتاجيًا؛ تجربة جهاز فعلي ما زالت مطلوبة.
 ملف index.html المؤقت في مخرجات البناء هو bootstrap فقط؛ التشغيل يبقى عبر HTTPS المستضاف.
 
 بعد نجاح التشغيل، افتح صفحة التشغيل في GitHub Actions ثم قسم **Artifacts** واختر
@@ -90,7 +89,7 @@ keyPassword=<local-key-password>
 ملف Properties لا يوسّع `${ENV_VAR}` تلقائيًا. القيم أعلاه محلية فقط ولا تُرفع إلى Git؛
 في CI اقرأ الأسرار مباشرةً عبر `System.getenv` في إعداد Gradle.
 
-وفي CI استخدم أسرارًا: `ANDROID_KEYSTORE_PATH` · `ANDROID_KEYSTORE_PASSWORD` ·
+وفي مسار GitHub الحالي استخدم أسرارًا: `ANDROID_KEYSTORE_BASE64` · `ANDROID_KEYSTORE_PASSWORD` ·
 `ANDROID_KEY_ALIAS` · `ANDROID_KEY_PASSWORD`.
 
 `android/app/build.gradle` (بعد إنشاء المنصّة):
@@ -123,7 +122,7 @@ android {
 
 ## Signed release via GitHub Actions (`android-release.yml`)
 
-Manual workflow that builds a **signed** release APK and AAB and uploads them as private artifacts. It never publishes to Google Play.
+Manual workflow that builds a **signed** release APK and AAB and uploads them as GitHub Actions artifacts requiring repository download access. It never publishes to Google Play. Artifacts are not a private storage vault; never upload signing files or passwords.
 
 Required repository secrets (GitHub → Settings → Secrets and variables → Actions):
 
@@ -135,3 +134,11 @@ Required repository secrets (GitHub → Settings → Secrets and variables → A
 | `ANDROID_KEY_PASSWORD` | Key password |
 
 Run: Actions → "Android signed release (APK + AAB)" → Run workflow, with an increasing `version_code` and a `version_name`. The keystore is decoded only into the runner temp dir and deleted after the build. Keep an offline backup of the keystore: losing it blocks future updates of the same app.
+
+### متابعة الإصدار الموقّع — 3 نوفمبر 2026
+
+- تم التحقق عبر اتصال **Ahmed's GitHub API** من أن المسار موجود ومفعّل، وأن قائمة أسرار المستودع فارغة؛ لا يمكن بناء إصدار موقّع قبل إضافتها.
+- أضف الأسرار الأربعة أعلاه مباشرة في [إعدادات أسرار GitHub](https://github.com/Ahmedmadni/balance-buddy-980/settings/secrets/actions). لا ترسل ملف المفتاح أو كلمات المرور في المحادثة.
+- `version_code` عدد صحيح من 1 إلى 2100000000؛ استخدم رقمًا أكبر من آخر إصدار موزّع. `version_name` من 1 إلى 64 محرفًا من الحروف الإنجليزية والأرقام و`. _ + -`.
+- المسار يرفض بيانات إصدار غير آمنة، ويتحقق من توقيع APK وAAB وتطابق شهادة توقيعهما، ثم يُخرج الملفين وبصماتهما SHA-256 لمدة 30 يومًا.
+- التحقق الكامل لتوقيع الإنتاج مؤجل إلى حين إضافة الأسرار وتشغيل المسار. لم يُنشر أي شيء على Google Play، ولم يتغير المنطق المالي.

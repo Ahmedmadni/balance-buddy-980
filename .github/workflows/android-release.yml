@@ -24,6 +24,8 @@ jobs:
     env:
       CAP_ENV: production
       CAP_SERVER_URL: https://balance-buddy-980.lovable.app
+      RELEASE_VERSION_CODE: ${{ inputs.version_code }}
+      RELEASE_VERSION_NAME: ${{ inputs.version_name }}
     steps:
       - uses: actions/checkout@v5
       - uses: oven-sh/setup-bun@v2
@@ -49,7 +51,8 @@ jobs:
             if [ -z "${!n}" ]; then echo "::error::Missing signing secret ($n)"; missing=1; fi
           done
           [ "$missing" = 0 ]
-          case "${{ inputs.version_code }}" in (*[!0-9]*|'') echo "::error::version_code must be an integer"; exit 1;; esac
+          [[ "$RELEASE_VERSION_CODE" =~ ^[1-9][0-9]{0,9}$ ]] && [ "$RELEASE_VERSION_CODE" -le 2100000000 ] || { echo "::error::version_code must be between 1 and 2100000000"; exit 1; }
+          [[ "$RELEASE_VERSION_NAME" =~ ^[A-Za-z0-9][A-Za-z0-9._+-]{0,63}$ ]] || { echo "::error::version_name must be 1-64 safe version characters"; exit 1; }
 
       - name: Check hosted application availability
         run: curl --fail --silent --show-error --location --output /dev/null "$CAP_SERVER_URL/auth"
@@ -69,16 +72,18 @@ jobs:
       - name: Set version
         run: |
           f=android/app/build.gradle
-          sed -i -E "s/versionCode [0-9]+/versionCode ${{ inputs.version_code }}/" "$f"
-          sed -i -E "s/versionName \"[^\"]*\"/versionName \"${{ inputs.version_name }}\"/" "$f"
+          sed -i -E "s/versionCode [0-9]+/versionCode $RELEASE_VERSION_CODE/" "$f"
+          sed -i -E "s/versionName \"[^\"]*\"/versionName \"$RELEASE_VERSION_NAME\"/" "$f"
           grep -E "versionCode|versionName" "$f"
 
       - name: Restore keystore (temporary, runner only)
         env:
           KS_B64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
         run: |
-          echo "$KS_B64" | base64 --decode > "$RUNNER_TEMP/release.keystore"
+          umask 077
+          printf '%s' "$KS_B64" | base64 --decode > "$RUNNER_TEMP/release.keystore"
           chmod 600 "$RUNNER_TEMP/release.keystore"
+          test -s "$RUNNER_TEMP/release.keystore"
 
       - name: Build signed APK and AAB
         working-directory: android
@@ -98,6 +103,17 @@ jobs:
         run: |
           BT=$(ls -d "$ANDROID_HOME"/build-tools/* | sort -V | tail -1)
           "$BT/apksigner" verify --print-certs android/app/build/outputs/apk/release/*.apk | grep -v -i "password"
+
+      - name: Verify AAB signature and matching signing certificate
+        run: |
+          aab=android/app/build/outputs/bundle/release/app-release.aab
+          apk=android/app/build/outputs/apk/release/app-release.apk
+          jarsigner -verify "$aab" > "$RUNNER_TEMP/aab-verification.txt" 2>&1
+          grep -q 'jar verified\.' "$RUNNER_TEMP/aab-verification.txt" || { echo "::error::AAB signature verification failed"; exit 1; }
+          BT=$(ls -d "$ANDROID_HOME"/build-tools/* | sort -V | tail -1)
+          apk_cert=$("$BT/apksigner" verify --print-certs "$apk" | sed -n 's/^Signer #1 certificate SHA-256 digest: //p' | tr -d ': ' | tr '[:upper:]' '[:lower:]')
+          aab_cert=$(keytool -printcert -jarfile "$aab" | sed -n 's/^[[:space:]]*SHA256: //p' | tr -d ': ' | tr '[:upper:]' '[:lower:]')
+          test -n "$apk_cert" && test "$apk_cert" = "$aab_cert" || { echo "::error::APK and AAB signing certificates do not match"; exit 1; }
 
       - name: Remove keystore
         if: always()
