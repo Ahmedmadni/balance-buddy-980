@@ -101,7 +101,7 @@ function SettingsPage() {
         </TabsContent>
         <TabsContent value="advanced"><AdvancedPlaceholder /></TabsContent>
         <TabsContent value="system"><SystemToolsSection /></TabsContent>
-        <TabsContent value="mobile"><MobileSettingsSection /></TabsContent>
+        <TabsContent value="mobile" className="space-y-4"><AppLockSettings /><MobileSettingsSection /></TabsContent>
         <TabsContent value="ads"><AdsSection /></TabsContent>
         <TabsContent value="help"><HelpSection /></TabsContent>
 
