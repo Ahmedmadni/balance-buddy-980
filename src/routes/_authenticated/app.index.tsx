@@ -1,7 +1,7 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import { formatMoney } from "@/lib/format";
+import { formatMoney, todayISO } from "@/lib/format";
 import { ArrowDownRight, ArrowUpRight, Wallet, TrendingUp, BellRing, Plus, Receipt, PieChart as PieChartIcon, Eye, EyeOff } from "lucide-react";
 import { usePrivacy } from "@/hooks/use-privacy";
 
@@ -24,7 +24,7 @@ export const Route = createFileRoute("/_authenticated/app/")({
 });
 
 function Dashboard() {
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, isError, refetch } = useQuery({
     queryKey: ["dashboard"],
     queryFn: async () => {
       const [ledgerRes, expensesRes, walletsRes, txRes, allocRes, invRes, invTxRes] = await Promise.all([
@@ -36,6 +36,8 @@ function Dashboard() {
         supabase.from("investments").select("id,principal,base_value,current_value,currency,status,sold_amount,sold_at"),
         supabase.from("investment_transactions").select("investment_id,kind,tx_class,amount,currency,happened_at"),
       ]);
+      const failed = [ledgerRes, expensesRes, walletsRes, txRes, allocRes, invRes, invTxRes].find((res) => res.error);
+      if (failed?.error) throw new Error("تعذر تحميل بيانات الحساب المالية");
       return {
         ledger: ledgerRes.data ?? [],
         expenses: expensesRes.data ?? [],
@@ -49,8 +51,9 @@ function Dashboard() {
   });
 
   if (isLoading) return <SkeletonGrid />;
-  const d = data!;
-  const today = new Date().toISOString().slice(0, 10);
+  if (isError || !data) return <div role="alert" className="rounded-2xl border border-destructive/30 bg-card p-5 text-center space-y-3"><p className="font-semibold">تعذر تحميل بياناتك المالية</p><p className="text-sm text-muted-foreground">لن نعرض أرقاما ناقصة أو أرصدة صفرية عند تعذر الاتصال.</p><button type="button" onClick={() => void refetch()} className="min-h-11 rounded-xl bg-primary px-5 text-primary-foreground">إعادة المحاولة</button></div>;
+  const d = data;
+  const today = todayISO();
   const currentMonth = today.slice(0, 7);
 
   const owedToMe: Record<string, number> = {};
@@ -81,7 +84,7 @@ function Dashboard() {
   }
 
   const prevMonthDate = new Date(); prevMonthDate.setDate(1); prevMonthDate.setMonth(prevMonthDate.getMonth() - 1);
-  const prevMonth = prevMonthDate.toISOString().slice(0, 7);
+  const prevMonth = `${prevMonthDate.getFullYear()}-${String(prevMonthDate.getMonth() + 1).padStart(2, "0")}`;
 
   const monthlyExp: Record<string, number> = {};
   const prevMonthExp: Record<string, number> = {};
@@ -147,7 +150,7 @@ function Dashboard() {
   const daily: { day: string; value: number }[] = [];
   for (let i = 13; i >= 0; i--) {
     const date = new Date(); date.setDate(date.getDate() - i);
-    const iso = date.toISOString().slice(0, 10);
+    const iso = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
     const sum = (d.expenses as any[]).filter((e) => e.spent_at === iso).reduce((s, e) => s + Number(e.amount), 0);
     daily.push({ day: date.toLocaleDateString("ar", { day: "numeric", month: "short" }), value: sum });
   }
