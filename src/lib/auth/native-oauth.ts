@@ -30,12 +30,8 @@ export async function listenForNativeOAuth(opts: {
     lastUrl = raw;
     try {
       if (payload.kind === "error") throw new Error(payload.message);
-      const result = payload.kind === "code"
-        ? await supabase.auth.exchangeCodeForSession(payload.code)
-        : await supabase.auth.setSession({
-            access_token: payload.accessToken,
-            refresh_token: payload.refreshToken,
-          });
+      if (payload.kind !== "code") throw new Error("No PKCE authorization code");
+      const result = await supabase.auth.exchangeCodeForSession(payload.code);
       if (result.error || !result.data?.session) {
         throw result.error ?? new Error("لم يتم إنشاء جلسة المستخدم");
       }
