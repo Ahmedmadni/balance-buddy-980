@@ -20,7 +20,7 @@ export const Route = createFileRoute("/_authenticated/app/reports")({
 
 function ReportsPage() {
   const today = new Date();
-  const monthStart = new Date(today.getFullYear(), today.getMonth(), 1).toISOString().slice(0, 10);
+  const monthStart = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}-01`;
   const [from, setFrom] = useState(monthStart);
   const [to, setTo] = useState(todayISO());
   const [type, setType] = useState<"expenses" | "people" | "transactions" | "assets">("transactions");
