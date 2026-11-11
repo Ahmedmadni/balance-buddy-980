@@ -81,7 +81,7 @@ function AuthPage() {
           </div>
           <span className="text-xl font-bold">رصد</span>
         </Link>
-        <div className="rounded-2xl border bg-card p-8 shadow-[var(--shadow-card)]">
+        <div className="rounded-2xl border bg-card p-5 shadow-[var(--shadow-card)] sm:p-8">
           <h1 className="text-2xl font-bold text-center">مرحباً بك</h1>
           <p className="mt-2 text-center text-sm text-muted-foreground">سجّل الدخول للوصول إلى ديونك ومصاريفك بأمان</p>
           <Button onClick={signIn} disabled={loading} size="lg" className="mt-8 w-full" variant="outline">
