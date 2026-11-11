@@ -24,6 +24,7 @@ function createSupabaseClient() {
       storage: brokeredPreviewStorage(),
       persistSession: true,
       autoRefreshToken: true,
+      flowType: "pkce",
     }
   });
 }
