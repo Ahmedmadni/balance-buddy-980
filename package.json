@@ -22,15 +22,16 @@
     "test:sale-semantics": "bun test src/lib/assets/sale-semantics.test.ts",
     "test:route-perf": "bun test src/components/motion/RouteProgressBar.test.ts src/router.config.test.ts",
     "format": "prettier --write .",
-    "android:add": "npx cap add android",
+    "android:add": "node scripts/ensure-android.mjs",
     "android:assets": "npx capacitor-assets generate --android",
-    "android:sync": "bun run build && npx cap sync android",
+    "android:sync": "bun run build && bun run android:prepare && npx cap sync android",
     "android:open": "npx cap open android",
     "android:run": "bun run android:sync && npx cap run android",
-    "android:sync:prod": "CAP_ENV=production bun run build && CAP_ENV=production npx cap sync android",
-    "android:debug": "bun run android:sync && cd android && ./gradlew assembleDebug",
+    "android:sync:prod": "CAP_ENV=production bun run build && bun run android:prepare && CAP_ENV=production npx cap sync android",
+    "android:debug": "bun run android:sync:prod && cd android && ./gradlew assembleDebug",
     "android:apk": "bun run android:sync:prod && cd android && ./gradlew assembleRelease",
-    "android:aab": "bun run android:sync:prod && cd android && ./gradlew bundleRelease"
+    "android:aab": "bun run android:sync:prod && cd android && ./gradlew bundleRelease",
+    "android:prepare": "node scripts/ensure-android.mjs"
   },
   "dependencies": {
     "@aparajita/capacitor-biometric-auth": "^10.0.0",
@@ -100,7 +101,8 @@
     "vaul": "^1.1.2",
     "vite-tsconfig-paths": "^6.0.2",
     "xlsx": "https://cdn.sheetjs.com/xlsx-0.20.3/xlsx-0.20.3.tgz",
-    "zod": "^4.6.7"
+    "zod": "^4.6.7",
+    "@capacitor/browser": "^8.0.0"
   },
   "devDependencies": {
     "@capacitor/assets": "^3.0.5",
