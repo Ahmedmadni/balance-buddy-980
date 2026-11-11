@@ -5,10 +5,8 @@ describe("Android OAuth callback validation", () => {
   test("accepts the exact app scheme and one-time PKCE code", () => {
     expect(parseNativeAuthCallback(NATIVE_AUTH_CALLBACK + "?code=abc")).toEqual({kind: "code", code: "abc"});
   });
-  test("reads fallback token hash without logging tokens", () => {
-    expect(parseNativeAuthCallback(NATIVE_AUTH_CALLBACK + "#access_token=aa&refresh_token=bb")).toEqual({
-      kind: "tokens", accessToken: "aa", refreshToken: "bb",
-    });
+  test("never consumes bearer tokens from an app-scheme URL", () => {
+    expect(parseNativeAuthCallback(NATIVE_AUTH_CALLBACK + "#access_token=aa&refresh_token=bb")?.kind).toBe("error");
   });
   test("rejects look-alike hosts and unrelated routes", () => {
     for (const url of ["https://evil.example/auth/callback?code=abc", "app.lovable.rasd://other/callback?code=abc",
