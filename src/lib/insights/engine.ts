@@ -66,6 +66,12 @@ export async function computeFinancialInsights(): Promise<FinancialInsights> {
     computeUpcomingEvents({ horizonDays: 365 }),
   ]);
 
+  // Financial insights must not silently convert a failed query into zero wealth.
+  const failed = [walletsRes, walletTxRes, expensesRes, transactionsRes, ledgerRes,
+    investmentsRes, invTxRes, marketValuesRes, depreciationRes, zakatRecordRes, zakatSettingsRes]
+    .find((res) => res.error);
+  if (failed?.error) throw new Error("تعذر تحميل البيانات المالية للتحليل");
+
   const investments = investmentsRes.data ?? [];
   const invTxs = (invTxRes.data ?? []) as InvestmentTxRow[];
   const ledger = ledgerRes.data ?? [];
