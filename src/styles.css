@@ -206,3 +206,9 @@ body { overflow-wrap: anywhere; }
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { scroll-behavior: auto !important; }
 }
+
+/* Preserve legible and unbroken currency figures on narrow devices. */
+.tabular-nums { overflow-wrap: normal; word-break: normal; }
+@media (max-width: 360px) {
+  main :where(.rounded-3xl, .rounded-2xl) { max-width: 100%; }
+}
