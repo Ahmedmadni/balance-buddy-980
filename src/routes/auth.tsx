@@ -2,6 +2,8 @@ import { createFileRoute, useNavigate, Link } from "@tanstack/react-router";
 import { useEffect, useRef, useState } from "react";
 import { authReturnUrl, canEnterApp } from "@/lib/auth/session-navigation";
 import { supabase } from "@/integrations/supabase/client";
+import { isNative } from "@/lib/mobile/platform";
+import { startNativeGoogleSignIn } from "@/lib/auth/native-oauth";
 import { lovable } from "@/integrations/lovable/index";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
@@ -44,6 +46,10 @@ function AuthPage() {
     signingIn.current = true;
     setLoading(true);
     try {
+      if (isNative()) {
+        await startNativeGoogleSignIn();
+        return;
+      }
       const result = await lovable.auth.signInWithOAuth("google", {
         redirect_uri: authReturnUrl(window.location.origin),
       });
@@ -59,7 +65,7 @@ function AuthPage() {
       }
       await navigate({ to: "/app", replace: true });
     } catch {
-      toast.error("خطأ غير متوقع");
+      toast.error("تعذر تسجيل الدخول", { description: "تحقق من الاتصال وإعداد رابط العودة داخل التطبيق." });
     } finally {
       signingIn.current = false;
       setLoading(false);
@@ -75,7 +81,7 @@ function AuthPage() {
           </div>
           <span className="text-xl font-bold">رصد</span>
         </Link>
-        <div className="rounded-2xl border bg-card p-8 shadow-[var(--shadow-card)]">
+        <div className="rounded-2xl border bg-card p-5 shadow-[var(--shadow-card)] sm:p-8">
           <h1 className="text-2xl font-bold text-center">مرحباً بك</h1>
           <p className="mt-2 text-center text-sm text-muted-foreground">سجّل الدخول للوصول إلى ديونك ومصاريفك بأمان</p>
           <Button onClick={signIn} disabled={loading} size="lg" className="mt-8 w-full" variant="outline">

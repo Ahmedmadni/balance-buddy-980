@@ -227,8 +227,8 @@ function AppLayout() {
         </div>
       </header>
 
-      <main className="md:mr-64 pb-24 md:pb-8">
-        <div className="container mx-auto max-w-6xl px-4 py-6 md:py-8">
+      <main className="md:mr-64 pb-[calc(6.75rem+env(safe-area-inset-bottom))] md:pb-8">
+        <div className="container mx-auto max-w-6xl min-w-0 px-3 py-5 sm:px-4 md:py-8">
           <AppLockGate>
             <PageTransition>
               <Outlet />
@@ -238,12 +238,12 @@ function AppLayout() {
       </main>
 
       {/* Bottom nav mobile */}
-      <nav className="fixed bottom-0 inset-x-0 z-20 border-t border-border bg-card/95 backdrop-blur md:hidden">
+      <nav className="fixed bottom-0 inset-x-0 z-20 border-t border-border bg-card/95 pb-[env(safe-area-inset-bottom)] backdrop-blur md:hidden">
         <div className="grid grid-cols-5">
           {BOTTOM_NAV.map((n) => {
             const active = n.exact ? pathname === n.to : pathname.startsWith(n.to);
             return (
-              <Link key={n.to} to={n.to} className={cn("flex flex-col items-center gap-1 py-2.5 text-[11px] transition-colors", active ? "text-primary" : "text-muted-foreground")}>
+              <Link key={n.to} to={n.to} className={cn("flex min-w-0 flex-col items-center justify-center gap-1 py-2.5 text-[clamp(0.68rem,2.7vw,0.78rem)] leading-tight transition-colors", active ? "text-primary" : "text-muted-foreground")}>
                 <n.icon className={cn("h-5 w-5 transition-transform", active && "scale-110")} />
                 {n.label}
               </Link>

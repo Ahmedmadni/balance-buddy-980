@@ -13,6 +13,20 @@ import { kindMeta, kindSign } from "@/components/PersonTxForm";
 import * as XLSX from "xlsx";
 import { AdSlot } from "@/components/ads/AdSlot";
 
+// Keyset/order-stable pages prevent silent truncation at Supabase's per-query row cap.
+async function readAllReportRows(
+  fetchPage: (start: number, end: number) => Promise<{ data: any[] | null; error: { message: string } | null }>,
+): Promise<any[]> {
+  const pageSize = 500;
+  const result: any[] = [];
+  for (let offset = 0; ; offset += pageSize) {
+    const { data, error } = await fetchPage(offset, offset + pageSize - 1);
+    if (error) throw new Error("تعذر تحميل كل سجلات التقرير");
+    result.push(...(data ?? []));
+    if ((data?.length ?? 0) < pageSize) return result;
+  }
+}
+
 export const Route = createFileRoute("/_authenticated/app/reports")({
   head: () => ({ meta: [{ title: "التقارير — رصد" }] }),
   component: ReportsPage,
@@ -20,7 +34,7 @@ export const Route = createFileRoute("/_authenticated/app/reports")({
 
 function ReportsPage() {
   const today = new Date();
-  const monthStart = new Date(today.getFullYear(), today.getMonth(), 1).toISOString().slice(0, 10);
+  const monthStart = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}-01`;
   const [from, setFrom] = useState(monthStart);
   const [to, setTo] = useState(todayISO());
   const [type, setType] = useState<"expenses" | "people" | "transactions" | "assets">("transactions");
@@ -31,54 +45,51 @@ function ReportsPage() {
     queryFn: async () => (await supabase.from("projects").select("id,name")).data ?? [],
   });
 
-  const { data, refetch, isFetching } = useQuery({
+  const { data, refetch, isFetching, isError } = useQuery({
     queryKey: ["report", type, from, to, projectId],
     queryFn: async () => {
       if (type === "transactions") {
-        const { data, error } = await supabase.from("transactions")
+        const rows = await readAllReportRows(async (start, end) => await supabase.from("transactions")
           .select("id,type,direction,amount,currency,happened_at,description,person_name,account_id,counterparty_account_id")
           .gte("happened_at", from).lte("happened_at", to)
-          .order("happened_at", { ascending: false })
-          .limit(5000);
-        if (error) throw error;
-        return { rows: data ?? [] };
+          .order("happened_at", { ascending: false }).order("id", { ascending: false })
+          .range(start, end));
+        return { rows };
       } else if (type === "expenses") {
-        const q = supabase.from("expense_allocations")
-          .select("amount,currency,period,expenses(id,note,category_id,project_id,wallet_id,categories(name),projects(name),wallets(name))")
+        let rows = await readAllReportRows(async (start, end) => await supabase.from("expense_allocations")
+          .select("id,amount,currency,period,expenses(id,note,category_id,project_id,wallet_id,categories(name),projects(name),wallets(name))")
           .gte("period", from.slice(0, 7) + "-01")
           .lte("period", to.slice(0, 7) + "-01")
-          .order("period", { ascending: false });
-        const { data, error } = await q;
-        if (error) throw error;
-        let rows = (data ?? []) as any[];
+          .order("period", { ascending: false }).order("id", { ascending: false })
+          .range(start, end));
         if (projectId !== "all") rows = rows.filter((r) => r.expenses?.project_id === projectId);
         return { rows };
       } else if (type === "assets") {
-        const [iRes, tRes] = await Promise.all([
-          supabase.from("investments").select("*"),
-          supabase.from("investment_transactions").select("*").gte("happened_at", from).lte("happened_at", to),
+        const [investments, txs] = await Promise.all([
+          readAllReportRows(async (start, end) => await supabase.from("investments").select("*")
+            .order("id", { ascending: true }).range(start, end)),
+          readAllReportRows(async (start, end) => await supabase.from("investment_transactions").select("*")
+            .gte("happened_at", from).lte("happened_at", to)
+            .order("happened_at", { ascending: false }).order("id", { ascending: false })
+            .range(start, end)),
         ]);
-        const txs = (tRes.data ?? []) as any[];
         const byInv = new Map<string, any[]>();
         for (const t of txs) { const a = byInv.get(t.investment_id) ?? []; a.push(t); byInv.set(t.investment_id, a); }
         const { computeAssetMetrics } = await import("@/lib/assets/calculator");
-        const rows = (iRes.data ?? []).map((inv: any) => ({
-          ...inv,
-          _m: computeAssetMetrics(inv, byInv.get(inv.id) ?? []),
-        }));
-        return { rows };
+        return { rows: investments.map((inv: any) => ({
+          ...inv, _m: computeAssetMetrics(inv, byInv.get(inv.id) ?? []),
+        })) };
       } else {
-        const { data, error } = await supabase.from("person_ledger")
-          .select("*")
-          .gte("happened_at", from).lte("happened_at", to)
-          .order("happened_at", { ascending: false });
-        if (error) throw error;
-        return { rows: data ?? [] };
+        const rows = await readAllReportRows(async (start, end) => await supabase.from("person_ledger")
+          .select("*").gte("happened_at", from).lte("happened_at", to)
+          .order("happened_at", { ascending: false }).order("id", { ascending: false })
+          .range(start, end));
+        return { rows };
       }
     },
   });
 
-  const rows = data?.rows ?? [];
+  const rows = isError ? [] : data?.rows ?? [];
 
   function exportExcel() {
     const TYPE_LABEL: Record<string, string> = {
@@ -88,12 +99,18 @@ function ReportsPage() {
       ? (rows as any[]).map((r) => ({ "التاريخ": r.happened_at, "النوع": TYPE_LABEL[r.type] ?? r.type, "الاتجاه": r.direction, "الوصف": r.description ?? "", "الشخص": r.person_name ?? "", "المبلغ": Number(r.amount), "العملة": r.currency }))
       : type === "expenses"
       ? rows.map((r: any) => ({ "الشهر": (r.period as string).slice(0, 7), "الفئة": r.expenses?.categories?.name ?? "", "المشروع": r.expenses?.projects?.name ?? "", "المحفظة": r.expenses?.wallets?.name ?? "", "المبلغ": Number(r.amount), "العملة": r.currency, "ملاحظة": r.expenses?.note ?? "" }))
+      : type === "assets"
+      ? rows.map((r: any) => ({
+        "الأصل": r.name, "العملة": r.currency, "القيمة الدفترية": r._m?.bookValue ?? 0,
+        "القيمة السوقية": r._m?.marketValue ?? 0, "الربح المحقق": r._m?.realizedPnl ?? 0,
+        "الربح غير المحقق": r._m?.unrealizedPnl ?? 0, "إجمالي العائد": r._m?.totalPnl ?? 0,
+      }))
       : rows.map((r: any) => ({ "التاريخ": r.happened_at, "الشخص": r.contact_name, "النوع": kindMeta(r.kind).label, "المبلغ": Number(r.amount), "العملة": r.currency, "الاستحقاق": r.due_date ?? "", "مسدد": r.settled_at ? "نعم" : "لا", "ملاحظات": r.notes ?? "" }));
     if (sheetData.length === 0) return;
     const ws = XLSX.utils.json_to_sheet(sheetData);
     ws["!cols"] = Object.keys(sheetData[0]).map(() => ({ wch: 18 }));
     const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, type === "expenses" ? "المصاريف" : type === "people" ? "الأشخاص" : "العمليات");
+    XLSX.utils.book_append_sheet(wb, ws, type === "expenses" ? "المصاريف" : type === "people" ? "الأشخاص" : type === "assets" ? "الأصول" : "العمليات");
     XLSX.writeFile(wb, `تقرير-${type}-${from}_${to}.xlsx`);
   }
 
@@ -120,9 +137,10 @@ function ReportsPage() {
         <p className="text-sm text-muted-foreground mt-1">تقارير شهرية بحسب التوزيع</p>
       </div>
 
-      <div className="rounded-2xl border bg-card p-4 space-y-4 no-print">
+      {isError && <div role="alert" className="rounded-xl border border-destructive/30 bg-card p-4 text-sm">تعذر تحميل التقرير كاملا. لن يتم عرض أرقام جزئية. <Button variant="outline" size="sm" onClick={() => void refetch()}>إعادة المحاولة</Button></div>}
+      <div className="rounded-2xl border bg-card p-3 sm:p-4 space-y-4 no-print">
         <Tabs value={type} onValueChange={(v) => setType(v as any)}>
-          <TabsList className="grid grid-cols-4 w-full">
+          <TabsList className="grid grid-cols-4 w-full min-w-0">
             <TabsTrigger value="transactions">العمليات</TabsTrigger>
             <TabsTrigger value="expenses">مصاريف</TabsTrigger>
             <TabsTrigger value="assets">الأصول</TabsTrigger>
@@ -150,8 +168,8 @@ function ReportsPage() {
 
         <div className="flex gap-2">
           <Button onClick={() => refetch()} variant="outline" className="flex-1">{isFetching ? "جاري..." : "تحديث"}</Button>
-          <Button onClick={() => window.print()} className="flex-1"><Printer className="h-4 w-4" /> طباعة</Button>
-          <Button onClick={exportExcel} variant="outline" disabled={rows.length === 0}><FileSpreadsheet className="h-4 w-4" /></Button>
+          <Button onClick={() => window.print()} disabled={isError || isFetching} className="flex-1"><Printer className="h-4 w-4" /> طباعة</Button>
+          <Button onClick={exportExcel} variant="outline" disabled={isError || isFetching || rows.length === 0}><FileSpreadsheet className="h-4 w-4" /></Button>
         </div>
       </div>
 

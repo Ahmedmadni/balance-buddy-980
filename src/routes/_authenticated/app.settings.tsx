@@ -73,7 +73,7 @@ function SettingsPage() {
       </div>
 
       <Tabs defaultValue="general" className="space-y-5">
-        <TabsList className="w-full justify-start flex-wrap h-auto gap-1 bg-card border p-1 rounded-2xl">
+        <TabsList className="flex h-auto w-full max-w-[calc(100vw-1.5rem)] flex-nowrap justify-start gap-1 overflow-x-auto whitespace-nowrap rounded-2xl border bg-card p-1 [scrollbar-width:thin] md:max-w-none md:flex-wrap md:overflow-visible">
           <TabsTrigger value="general" className="gap-1.5"><SettingsIcon className="h-4 w-4" />عام</TabsTrigger>
           <TabsTrigger value="wallets" className="gap-1.5"><WalletIcon className="h-4 w-4" />المحافظ</TabsTrigger>
           <TabsTrigger value="categories" className="gap-1.5"><Tags className="h-4 w-4" />الفئات</TabsTrigger>

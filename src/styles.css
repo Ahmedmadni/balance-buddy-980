@@ -186,3 +186,29 @@ html.privacy-on [data-private]:hover {
   100% { transform: translateX(150%); }
 }
 
+
+/* Android/mobile-first typography, safe areas and predictable touch targets. */
+html, body { min-width: 280px; }
+html { text-size-adjust: 100%; -webkit-text-size-adjust: 100%; }
+body { overflow-wrap: anywhere; }
+:where(input, select, textarea, button) { font: inherit; }
+:where(.recharts-responsive-container) { min-width: 0; max-width: 100%; }
+@media (max-width: 640px) {
+  html { font-size: clamp(15px, 3.9vw, 16px); }
+  main { min-width: 0; }
+  main :where(button, [role="button"], input:not([type="checkbox"]), select, textarea) {
+    min-height: 40px;
+    touch-action: manipulation;
+  }
+  main :where(.grid, .flex) { min-width: 0; }
+  main :where(h1, h2, h3) { line-height: 1.4; }
+}
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { scroll-behavior: auto !important; }
+}
+
+/* Preserve legible and unbroken currency figures on narrow devices. */
+.tabular-nums { overflow-wrap: normal; word-break: normal; }
+@media (max-width: 360px) {
+  main :where(.rounded-3xl, .rounded-2xl) { max-width: 100%; }
+}

@@ -18,6 +18,8 @@ import { initErrorTracking } from "@/lib/system/errors";
 import { registerServiceWorker } from "@/lib/pwa/register";
 import { ConsentBanner } from "@/components/ConsentBanner";
 import { RouteProgressBar } from "@/components/motion/RouteProgressBar";
+import { listenForNativeOAuth } from "@/lib/auth/native-oauth";
+import { toast } from "sonner";
 
 function NotFoundComponent() {
   return (
@@ -117,6 +119,10 @@ function RootComponent() {
     }
     initErrorTracking();
     registerServiceWorker();
+    const nativeAuth = listenForNativeOAuth({
+      onSuccess: () => { void router.invalidate(); },
+      onFailure: (message) => toast.error("تعذر تسجيل الدخول", { description: message }),
+    });
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event) => {
       if (event !== "SIGNED_IN" && event !== "SIGNED_OUT" && event !== "USER_UPDATED") return;
       if (event === "SIGNED_IN") createAuditEntry("login", "تسجيل دخول");
@@ -124,7 +130,7 @@ function RootComponent() {
       router.invalidate();
       if (event !== "SIGNED_OUT") queryClient.invalidateQueries();
     });
-    return () => subscription.unsubscribe();
+    return () => { subscription.unsubscribe(); void nativeAuth.then((cleanup) => cleanup()); };
   }, [router, queryClient]);
 
   return (

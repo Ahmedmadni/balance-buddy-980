@@ -174,7 +174,7 @@ function MoneyZakat() {
       if (r.kind === "lend") slot.receivables += Number(r.amount);
       else if (r.kind === "borrow") slot.payables += Number(r.amount);
       else if (r.kind === "collect") slot.receivables -= Number(r.amount);
-      else if (r.kind === "repay") slot.payables -= Number(r.amount);
+      else if (r.kind === "pay" || r.kind === "repay") slot.payables -= Number(r.amount);
     }
 
     // Per-currency raw + per-currency converted to base
