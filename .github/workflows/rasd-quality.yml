@@ -1,0 +1,22 @@
+name: Rasd web and Android source quality
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  quality:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+      - name: Install locked dependencies
+        run: bun install --frozen-lockfile
+      - name: TypeScript
+        run: bun run typecheck
+      - name: Unit regression tests
+        run: bun run test:unit
+      - name: Android setup script syntax
+        run: node --check scripts/ensure-android.mjs
