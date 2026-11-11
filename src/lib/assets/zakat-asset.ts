@@ -110,7 +110,7 @@ export function computeAssetZakat(input: AssetZakatInput): AssetZakatResult {
 
   const marketValue = metrics.sold ? 0 : resolveMarketValue(asset.current_value, bookValue, marketValues);
 
-  const ownership = (n(asset.ownership_pct) || 100) / 100;
+  const ownership = (asset.ownership_pct == null ? 100 : n(asset.ownership_pct)) / 100;
 
   // Effective method: mode can override the user method (except 'excluded')
   let effectiveMethod: AssetZakatMethod = settings.method;
