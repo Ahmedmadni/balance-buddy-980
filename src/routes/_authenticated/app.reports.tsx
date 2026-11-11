@@ -89,7 +89,7 @@ function ReportsPage() {
     },
   });
 
-  const rows = data?.rows ?? [];
+  const rows = isError ? [] : data?.rows ?? [];
 
   function exportExcel() {
     const TYPE_LABEL: Record<string, string> = {
@@ -99,12 +99,18 @@ function ReportsPage() {
       ? (rows as any[]).map((r) => ({ "التاريخ": r.happened_at, "النوع": TYPE_LABEL[r.type] ?? r.type, "الاتجاه": r.direction, "الوصف": r.description ?? "", "الشخص": r.person_name ?? "", "المبلغ": Number(r.amount), "العملة": r.currency }))
       : type === "expenses"
       ? rows.map((r: any) => ({ "الشهر": (r.period as string).slice(0, 7), "الفئة": r.expenses?.categories?.name ?? "", "المشروع": r.expenses?.projects?.name ?? "", "المحفظة": r.expenses?.wallets?.name ?? "", "المبلغ": Number(r.amount), "العملة": r.currency, "ملاحظة": r.expenses?.note ?? "" }))
+      : type === "assets"
+      ? rows.map((r: any) => ({
+        "الأصل": r.name, "العملة": r.currency, "القيمة الدفترية": r._m?.bookValue ?? 0,
+        "القيمة السوقية": r._m?.marketValue ?? 0, "الربح المحقق": r._m?.realizedPnl ?? 0,
+        "الربح غير المحقق": r._m?.unrealizedPnl ?? 0, "إجمالي العائد": r._m?.totalPnl ?? 0,
+      }))
       : rows.map((r: any) => ({ "التاريخ": r.happened_at, "الشخص": r.contact_name, "النوع": kindMeta(r.kind).label, "المبلغ": Number(r.amount), "العملة": r.currency, "الاستحقاق": r.due_date ?? "", "مسدد": r.settled_at ? "نعم" : "لا", "ملاحظات": r.notes ?? "" }));
     if (sheetData.length === 0) return;
     const ws = XLSX.utils.json_to_sheet(sheetData);
     ws["!cols"] = Object.keys(sheetData[0]).map(() => ({ wch: 18 }));
     const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, type === "expenses" ? "المصاريف" : type === "people" ? "الأشخاص" : "العمليات");
+    XLSX.utils.book_append_sheet(wb, ws, type === "expenses" ? "المصاريف" : type === "people" ? "الأشخاص" : type === "assets" ? "الأصول" : "العمليات");
     XLSX.writeFile(wb, `تقرير-${type}-${from}_${to}.xlsx`);
   }
 
