@@ -103,15 +103,21 @@ export async function exportUserData(scope: BackupScope = "full"): Promise<Backu
   const data: Record<string, any[]> = {};
   const counts: Record<string, number> = {};
 
+  // Every page must export successfully: silently treating failed tables as empty
+  // can cause irreversible data loss when a partial backup is restored.
+  const PAGE_SIZE = 500;
   for (const t of tables) {
-    const { data: rows, error } = await supabase.from(t as any).select("*");
-    if (error) {
-      console.warn(`[backup] skip ${t}: ${error.message}`);
-      data[t] = []; counts[t] = 0;
-      continue;
+    const allRows: any[] = [];
+    for (let offset = 0; ; offset += PAGE_SIZE) {
+      const { data: rows, error } = await supabase.from(t as any)
+        .select("*").order("id", { ascending: true })
+        .range(offset, offset + PAGE_SIZE - 1);
+      if (error) throw new Error(`فشل نسخ جدول ${t}: ${error.message}`);
+      allRows.push(...(rows ?? []));
+      if ((rows?.length ?? 0) < PAGE_SIZE) break;
     }
-    data[t] = rows ?? [];
-    counts[t] = (rows ?? []).length;
+    data[t] = allRows;
+    counts[t] = allRows.length;
   }
 
   const { data: session } = await supabase.auth.getUser();
