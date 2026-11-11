@@ -2,6 +2,8 @@ import { createFileRoute, useNavigate, Link } from "@tanstack/react-router";
 import { useEffect, useRef, useState } from "react";
 import { authReturnUrl, canEnterApp } from "@/lib/auth/session-navigation";
 import { supabase } from "@/integrations/supabase/client";
+import { isNative } from "@/lib/mobile/platform";
+import { startNativeGoogleSignIn } from "@/lib/auth/native-oauth";
 import { lovable } from "@/integrations/lovable/index";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
@@ -44,6 +46,10 @@ function AuthPage() {
     signingIn.current = true;
     setLoading(true);
     try {
+      if (isNative()) {
+        await startNativeGoogleSignIn();
+        return;
+      }
       const result = await lovable.auth.signInWithOAuth("google", {
         redirect_uri: authReturnUrl(window.location.origin),
       });
@@ -59,7 +65,7 @@ function AuthPage() {
       }
       await navigate({ to: "/app", replace: true });
     } catch {
-      toast.error("خطأ غير متوقع");
+      toast.error("تعذر تسجيل الدخول", { description: "تحقق من الاتصال وإعداد رابط العودة داخل التطبيق." });
     } finally {
       signingIn.current = false;
       setLoading(false);
