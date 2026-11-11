@@ -25,7 +25,7 @@ if (!manifest.includes('android:scheme="' + scheme + '"')) {
     '                <data android:scheme="' + scheme + '" android:host="auth" android:path="/callback" />',
     '            </intent-filter>',
   ].join("\n");
-  const activity = /<activity\\b[^>]*>/;
+  const activity = /<activity\b[^>]*>/;
   if (!activity.test(manifest)) throw new Error("MainActivity tag not found in AndroidManifest.xml");
   manifest = manifest.replace(activity, (match) => match + "\n" + filter);
   writeFileSync(manifestPath, manifest);
