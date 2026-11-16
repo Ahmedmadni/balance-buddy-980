@@ -109,7 +109,7 @@ export function NotificationSettingsSection() {
               <Switch
                 checked={settings.channels[c]}
                 onCheckedChange={(v) => toggleChannel(c, v)}
-                disabled={!settings.enabled}
+                disabled={!settings.enabled || !CHANNEL_AVAILABLE[c]}
               />
             </div>
           ))}
