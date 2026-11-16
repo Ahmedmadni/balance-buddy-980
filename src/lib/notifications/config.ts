@@ -18,7 +18,7 @@ export const CHANNEL_LABEL: Record<NotificationChannel, string> = {
 };
 
 export const CHANNEL_AVAILABLE: Record<NotificationChannel, boolean> = {
-  // Only "local" has a real implementation today (Web Notifications API).
+  // Only local notifications have an implementation; Android needs a user permission.
   // The rest are wired end-to-end but backed by stub providers until a
   // real vendor (FCM/SendGrid/Twilio/WhatsApp Business API/...) is connected.
   push: false,
