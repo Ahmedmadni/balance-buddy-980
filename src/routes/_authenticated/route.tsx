@@ -14,6 +14,8 @@ import { AppLockGate } from "@/components/AppLockGate";
 import { cn } from "@/lib/utils";
 import { useEffect, useState } from "react";
 import { processPendingNotifications } from "@/lib/notifications/engine";
+import { Capacitor } from "@capacitor/core";
+import { syncNativeReminders, clearNativeReminders } from "@/lib/notifications/native-scheduler";
 import { trackBetaSession, recordPageVisit, finalizeCurrentPage } from "@/lib/beta/session";
 import { usePrivacy } from "@/hooks/use-privacy";
 
@@ -110,15 +112,21 @@ function AppLayout() {
   // on layout mount and every 5 minutes while the app stays open; a no-op
   // when notifications are disabled in Settings (see engine.ts).
   useEffect(() => {
-    const tick = () => { processPendingNotifications().catch(() => {}); };
+    const tick = () => {
+      if (Capacitor.isNativePlatform()) void syncNativeReminders(user.id).catch(() => {});
+      else void processPendingNotifications().catch(() => {});
+    };
     tick();
-    const id = setInterval(tick, 5 * 60 * 1000);
-    return () => clearInterval(id);
-  }, []);
+    const id = setInterval(tick, 10 * 60 * 1000);
+    const onResume = () => { if (!document.hidden) tick(); };
+    document.addEventListener("visibilitychange", onResume);
+    return () => { clearInterval(id); document.removeEventListener("visibilitychange", onResume); };
+  }, [user.id]);
 
   async function signOut() {
     await qc.cancelQueries();
     qc.clear();
+    if (Capacitor.isNativePlatform()) await clearNativeReminders().catch(() => {});
     await supabase.auth.signOut();
     navigate({ to: "/auth", replace: true });
   }
