@@ -21,7 +21,7 @@ const config: CapacitorConfig = {
   appName: 'رصد',
   webDir: 'dist/client',
   server: isProduction
-    ? { url: PROD_URL, cleartext: false, androidScheme: 'https' }
+    ? { url: PROD_URL, cleartext: false, androidScheme: 'https', errorPath: 'offline.html' }
     : { url: DEV_URL, cleartext: true, androidScheme: 'https' },
 
   android: {
