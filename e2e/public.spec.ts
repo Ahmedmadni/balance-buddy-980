@@ -38,12 +38,17 @@ for (const width of [320, 360, 393, 430]) {
 }
 
 for (const scheme of ["light", "dark"] as const) {
-  test(`تباين نص شاشة الدخول في الوضع ${scheme} واضح وقابل للقراءة`, async ({ page }) => {
+  for (const surface of ["web", "android-native"] as const) {
+  test(`تباين نص شاشة الدخول في الوضع ${scheme} على ${surface} واضح وقابل للقراءة`, async ({ page }) => {
     await page.emulateMedia({ colorScheme: scheme });
     await page.goto("/auth");
     const heading = page.getByRole("heading", { name: "مرحباً بك" });
     await expect(heading).toBeVisible();
     await page.waitForFunction((mode) => document.documentElement.classList.contains("dark") === (mode === "dark"), scheme);
+    if (surface === "android-native") {
+      // Exercise the native-shell CSS palette without needing a signed device.
+      await page.evaluate(() => document.documentElement.classList.add("rasd-native-app"));
+    }
     const contrast = await heading.evaluate((node) => {
       const card = node.closest(".rounded-2xl");
       if (!card) return 0;
@@ -66,4 +71,5 @@ for (const scheme of ["light", "dark"] as const) {
     });
     expect(contrast).toBeGreaterThan(4.5);
   });
+  }
 }
