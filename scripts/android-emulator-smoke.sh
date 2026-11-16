@@ -11,6 +11,7 @@ collect_diagnostics() {
   adb devices -l > "$EVIDENCE/adb-devices.txt" 2>&1 || true
   adb shell dumpsys activity activities > "$EVIDENCE/activity.txt" 2>&1 || true
   adb shell dumpsys window > "$EVIDENCE/windows.txt" 2>&1 || true
+  adb shell dumpsys webviewupdate > "$EVIDENCE/webview-provider.txt" 2>&1 || true
   adb logcat -d -b crash > "$EVIDENCE/crash-log.txt" 2>&1 || true
   adb logcat -d -b main -b system -t 1200 > "$EVIDENCE/system-log.txt" 2>&1 || true
   adb exec-out screencap -p > "$EVIDENCE/last-screen.png" 2>/dev/null || true
