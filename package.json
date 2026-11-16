@@ -27,10 +27,10 @@
     "android:sync": "bun run build && bun run android:prepare && npx cap sync android",
     "android:open": "npx cap open android",
     "android:run": "bun run android:sync && npx cap run android",
-    "android:sync:prod": "CAP_ENV=production bun run build && bun run android:prepare && CAP_ENV=production npx cap sync android",
-    "android:debug": "bun run android:sync:prod && cd android && ./gradlew assembleDebug",
-    "android:apk": "bun run android:sync:prod && cd android && ./gradlew assembleRelease",
-    "android:aab": "bun run android:sync:prod && cd android && ./gradlew bundleRelease",
+    "android:sync:prod": "node scripts/android-build.mjs sync-prod",
+    "android:debug": "node scripts/android-build.mjs debug",
+    "android:apk": "node scripts/android-build.mjs apk",
+    "android:aab": "node scripts/android-build.mjs aab",
     "android:prepare": "node scripts/ensure-android.mjs"
   },
   "dependencies": {
