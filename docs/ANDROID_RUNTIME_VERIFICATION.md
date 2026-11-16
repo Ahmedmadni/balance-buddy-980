@@ -36,3 +36,12 @@ This is an evidence-based release matrix. **"Compiles" ≠ "works on an Android 
 
 ## Release criteria
 Do not declare `100% works` until all required real-device rows are tested and OAuth has passed. The online-only architecture is an explicit limitation, not a verified offline feature.
+
+## Android CI diagnosis and fixes (2026-11-16)
+- Early expanded emulator tests failed while the Android **system process** was unresponsive (system dialog visible in screenshots) or ADB disconnected. This is not a confirmed application crash.
+- After switching to an API 33 Pixel 2 emulator with KVM, an expanded smoke test **passed**: login UI was present in the accessibility tree, launcher return worked, and a compact screenshot was collected. Evidence: GitHub Actions run `43810844264`, job `133112606746`. No Google auth was initiated.
+- Examining the passing emulator screenshot identified very low contrast on the login screen (black text against the navy underlying background). Added native-only hex colors and an `@supports not (color: oklch(...))` fallback for old WebViews; verify again on the installed APK after the hosted site is deployed.
+- The same screenshot shows an **Edit with Lovable** badge supplied by hosting. Its removal, if authorized by the user's Lovable subscription, must be configured via the hosting platform; native code builds alone do not remove it.
+- Supabase regression had a transient Mailpit port 54324 bind conflict. CI now excludes Mailpit and other unneeded services; subsequent database tests passed.
+- Android packaging has three paths: the standard `rasd-quality` debug build, manual hosted debug and manual signed release. All now apply `scripts/ensure-android.mjs` before native sync so OAuth deep links, privacy flags, and native PrintManager are consistently included.
+- The APK packages a local **offline.html** recovery page for WebView load errors with an explicit retry action. This is a connectivity UX fallback, *not offline accounting*. Some DNS/TLS hangs may not invoke the page; a real-device cold-start offline test remains required.
