@@ -18,7 +18,7 @@ import {
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { createAuditEntry } from "@/lib/system/audit";
-import { isBackupJsonFile, validateBackupV2, type BackupV2 } from "@/lib/backup/v2-validation";
+import { countBackupV2Rows, isBackupJsonFile, validateBackupV2, type BackupV2 } from "@/lib/backup/v2-validation";
 
 export function BackupV2Section() {
   const qc = useQueryClient();
@@ -230,6 +230,21 @@ export function BackupV2Section() {
             </AlertDescription>
           </Alert>
 
+          {pendingBackup && (
+            <div className="rounded-xl border p-3 text-xs space-y-1">
+              <p className="font-semibold">
+                محتوى الملف: {countBackupV2Rows(pendingBackup).toLocaleString("ar-SA")} سجل في {Object.keys(pendingBackup.data).length} مجموعة بيانات
+              </p>
+              <p className="text-muted-foreground">
+                محافظ: {pendingBackup.data.wallets.length}، ديون: {pendingBackup.data.person_ledger.length}، مصروفات: {pendingBackup.data.expenses.length}، استثمارات: {pendingBackup.data.investments.length}.
+              </p>
+              {countBackupV2Rows(pendingBackup) === 0 && (
+                <p className="font-semibold text-destructive">
+                  تحذير: النسخة تحتوي على صفر سجلات مالية. الاستعادة ستزيل السجلات الحالية المشمولة في النسخ الاحتياطي.
+                </p>
+              )}
+            </div>
+          )}
           <p className="text-xs text-muted-foreground">
             ملاحظة: المرفقات والملفات المرفوعة غير مشمولة حاليًا في النسخة الاحتياطية.
           </p>

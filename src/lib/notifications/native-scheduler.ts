@@ -4,9 +4,10 @@ import { computeUpcomingEvents } from "@/lib/events/engine";
 import { loadNotificationSettings, passesPriorityFilter } from "./config";
 import { plannedReminderTime } from "./due-time";
 import { compareNativeReminderState } from "./native-reconcile";
+import { dailySummaryDecision } from "./daily-summary";
 import { loadReminderPrefs } from "@/lib/events/engine";
 
-interface Planned { user: string; entries: Record<string, string> }
+interface Planned { user: string; entries: Record<string, string>; lastOverdueKey?: string }
 const KEY = "rasd.native-reminders.v1";
 const MAX_REMINDERS = 50;
 
@@ -71,6 +72,7 @@ export async function syncNativeReminders(
   const { all, overdue } = await computeUpcomingEvents({ horizonDays: 30 });
   const now = Date.now();
   const desired = new Map<number, { when: Date; key: string }>();
+  let scheduledOverdueKey: string | undefined;
   const userPlan = previous.user === userId ? previous : loadPlan();
   // Android can remove scheduled alarms after a reboot, settings change, or
   // OS cleanup. A localStorage entry alone is not proof the alarm still exists.
@@ -100,13 +102,14 @@ export async function syncNativeReminders(
     const today = new Date(now);
     const ymd = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}-${String(today.getDate()).padStart(2, "0")}`;
     const key = `${userId}:overdue:${ymd}`;
-    // Preserve a pending daily summary; if it already fired, never schedule
-    // another one that same day merely because it vanished from getPending().
-    const previousSummary = Object.entries(userPlan.entries).find(([, storedKey]) => storedKey === key);
-    if (previousSummary) {
-      const id = Number(previousSummary[0]);
-      if (osPendingIds.has(id)) desired.set(id, { key, when: new Date(now + 2 * 60_000) });
-    } else {
+    const decision = dailySummaryDecision(
+      key, userPlan.lastOverdueKey, userPlan.entries, osPendingIds,
+    );
+    if (decision.keepPendingId !== null) {
+      // This exact ID/key is still pending on Android. Its original time
+      // remains inside the OS; no new schedule request will be issued.
+      desired.set(decision.keepPendingId, { key, when: new Date(now + 2 * 60_000) });
+    } else if (decision.shouldCreate) {
       const at = plannedReminderTime(new Date(now + 2 * 60_000).toISOString(), settings.quietHours, "normal");
       if (at && +at > now) {
         let id = nativeId(key);
@@ -114,6 +117,7 @@ export async function syncNativeReminders(
           id = id === 999_999_999 ? 600_000_000 : id + 1;
         }
         desired.set(id, { key, when: at });
+        scheduledOverdueKey = key;
       }
     }
   }
@@ -134,6 +138,13 @@ export async function syncNativeReminders(
   if (toCancel.length) await LocalNotifications.cancel({
     notifications: toCancel.map((id) => ({ id })),
   });
-  savePlan({ user: userId, entries: Object.fromEntries([...desired.entries()].map(([id, entry]) => [String(id), entry.key])) });
+  savePlan({
+    user: userId,
+    entries: Object.fromEntries([...desired.entries()].map(([id, entry]) => [String(id), entry.key])),
+    // Persist the date marker after successful OS scheduling. Otherwise the
+    // reminder can fire, vanish from getPending, then be rescheduled at the
+    // next 10-minute foreground sync (more than once per day).
+    lastOverdueKey: scheduledOverdueKey ?? userPlan.lastOverdueKey,
+  });
   return { scheduled: desired.size, permission: "granted" };
 }
