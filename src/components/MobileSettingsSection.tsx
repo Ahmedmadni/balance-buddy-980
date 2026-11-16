@@ -125,7 +125,7 @@ export function MobileSettingsSection() {
       <div className="rounded-2xl border bg-card p-4">
         <div className="flex items-center gap-2 mb-1">
           <FolderDown className="h-4 w-4 text-primary" />
-          <h3 className="font-semibold text-sm">مجلد التصدير</h3>
+          <h3 className="font-semibold text-sm">طريقة حفظ الملفات</h3>
         </div>
         <p className="text-[11px] text-muted-foreground">
           {native
@@ -181,7 +181,7 @@ export function MobileSettingsSection() {
               <h3 className="font-semibold text-sm">تشخيص التوافق</h3>
               <p className="text-[11px] text-muted-foreground mt-0.5">
                 {unsupportedCount === 0
-                  ? "كل ميزات الجهاز مدعومة"
+                  ? "واجهات الجهاز الأساسية متاحة مبدئيا (الفحص العملي مستقل)"
                   : `${unsupportedCount} ميزة غير مؤكدة على هذا الجهاز/المتصفح`}
                 <Badge
                   variant={unsupportedCount === 0 ? "secondary" : "outline"}
