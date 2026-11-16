@@ -13,6 +13,7 @@ import { kindMeta, kindSign } from "@/components/PersonTxForm";
 import * as XLSX from "xlsx";
 import { exportFile } from "@/lib/mobile/share-export";
 import { AdSlot } from "@/components/ads/AdSlot";
+import { toast } from "sonner";
 
 // Keyset/order-stable pages prevent silent truncation at Supabase's per-query row cap.
 async function readAllReportRows(
