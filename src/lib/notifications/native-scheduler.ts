@@ -3,6 +3,7 @@ import { LocalNotifications } from "@capacitor/local-notifications";
 import { computeUpcomingEvents } from "@/lib/events/engine";
 import { loadNotificationSettings, passesPriorityFilter } from "./config";
 import { plannedReminderTime } from "./due-time";
+import { compareNativeReminderState } from "./native-reconcile";
 import { loadReminderPrefs } from "@/lib/events/engine";
 
 interface Planned { user: string; entries: Record<string, string> }
@@ -71,6 +72,10 @@ export async function syncNativeReminders(
   const now = Date.now();
   const desired = new Map<number, { when: Date; key: string }>();
   const userPlan = previous.user === userId ? previous : loadPlan();
+  // Android can remove scheduled alarms after a reboot, settings change, or
+  // OS cleanup. A localStorage entry alone is not proof the alarm still exists.
+  const pending = await LocalNotifications.getPending();
+  const osPendingIds = new Set(pending.notifications.map((item) => item.id));
 
   for (const event of all) {
     if (desired.size >= MAX_REMINDERS) break;
@@ -95,19 +100,27 @@ export async function syncNativeReminders(
     const today = new Date(now);
     const ymd = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}-${String(today.getDate()).padStart(2, "0")}`;
     const key = `${userId}:overdue:${ymd}`;
-    const at = plannedReminderTime(new Date(now + 2 * 60_000).toISOString(), settings.quietHours, "normal");
-    if (at && +at > now) {
-      let id = nativeId(key);
-      while (desired.has(id) && desired.get(id)?.key !== key) {
-        id = id === 999_999_999 ? 600_000_000 : id + 1;
+    // Preserve a pending daily summary; if it already fired, never schedule
+    // another one that same day merely because it vanished from getPending().
+    const previousSummary = Object.entries(userPlan.entries).find(([, storedKey]) => storedKey === key);
+    if (previousSummary) {
+      const id = Number(previousSummary[0]);
+      if (osPendingIds.has(id)) desired.set(id, { key, when: new Date(now + 2 * 60_000) });
+    } else {
+      const at = plannedReminderTime(new Date(now + 2 * 60_000).toISOString(), settings.quietHours, "normal");
+      if (at && +at > now) {
+        let id = nativeId(key);
+        while (desired.has(id) && desired.get(id)?.key !== key) {
+          id = id === 999_999_999 ? 600_000_000 : id + 1;
+        }
+        desired.set(id, { key, when: at });
       }
-      desired.set(id, { key, when: at });
     }
   }
 
-  const saved = Object.entries(userPlan.entries);
-  const old = saved.filter(([id, key]) => desired.get(Number(id))?.key !== key);
-  const toCreate = [...desired.entries()].filter(([id, entry]) => userPlan.entries[String(id)] !== entry.key);
+  const { toSchedule: toCreate, toCancel } = compareNativeReminderState(
+    userPlan.entries, desired, osPendingIds,
+  );
   // Install new reminders before deleting old ones, so a plugin/scheduling
   // failure leaves previously scheduled reminders intact.
   if (toCreate.length) await LocalNotifications.schedule({
@@ -116,10 +129,11 @@ export async function syncNativeReminders(
       schedule: { at: entry.when }, extra: { rasd: true },
     })),
   });
-  // If a (rare) hashed ID is reused by a changed event, scheduling has
-  // already replaced its content; canceling it here would delete the update.
-  const removed = old.filter(([id]) => !desired.has(Number(id)));
-  if (removed.length) await LocalNotifications.cancel({ notifications: removed.map(([id]) => ({ id: Number(id) })) });
+  // If a hashed ID was reused by a changed event, scheduling already
+  // replaced it and the reconciliation planner does not cancel that ID.
+  if (toCancel.length) await LocalNotifications.cancel({
+    notifications: toCancel.map((id) => ({ id })),
+  });
   savePlan({ user: userId, entries: Object.fromEntries([...desired.entries()].map(([id, entry]) => [String(id), entry.key])) });
   return { scheduled: desired.size, permission: "granted" };
 }
