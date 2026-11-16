@@ -5,7 +5,7 @@ import { Share } from "@capacitor/share";
 export type ExportOutcome = "share_sheet_opened" | "browser_download_requested";
 
 export function safeExportName(name: string): string {
-  const cleaned = name.replace(/[\\/<>:"|?*\x00-\x1f]/g, "-").replace(/^\.+/, "").trim().slice(0, 120);
+  const cleaned = [...name].map((ch) => (ch.charCodeAt(0) < 32 || /[\\/<>:"|?*]/.test(ch)) ? "-" : ch).join("").replace(/^\.+/, "").trim().slice(0, 120);
   if (!cleaned || cleaned === "." || cleaned === "..") throw new Error("اسم ملف غير صالح");
   return cleaned;
 }
