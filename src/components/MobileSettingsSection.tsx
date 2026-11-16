@@ -10,11 +10,15 @@ import {
   FolderDown,
   Stethoscope,
   ExternalLink,
+  CheckCircle2, AlertTriangle, RefreshCw, Share2,
 } from "lucide-react";
 import { getPlatform, isNative } from "@/lib/mobile/platform";
 import { APP_VERSION } from "@/lib/mobile/version";
 import { createDeviceProviders, type PermissionStatus } from "@/lib/mobile/providers";
 import { auditMobileCompatibility } from "@/lib/mobile/compatibility";
+import { runAndroidSelfCheck, type NativeSelfCheckResult } from "@/lib/mobile/native-self-check";
+import { exportFile } from "@/lib/mobile/share-export";
+import { toast } from "sonner";
 
 const PLATFORM_LABEL: Record<ReturnType<typeof getPlatform>, string> = {
   android: "أندرويد",
@@ -45,12 +49,50 @@ export function MobileSettingsSection() {
     quotaBytes: number | null;
   } | null>(null);
   const [notifPermission, setNotifPermission] = useState<PermissionStatus | null>(null);
+  const [checkingNative, setCheckingNative] = useState(false);
+  const [testingShare, setTestingShare] = useState(false);
+  const [nativeResult, setNativeResult] = useState<NativeSelfCheckResult | null>(null);
 
   useEffect(() => {
     providers.storage.getUsage().then(setStorage);
     providers.notifications.getPermissionStatus().then(setNotifPermission);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  async function checkNativeFeatures() {
+    setCheckingNative(true);
+    try {
+      const result = await runAndroidSelfCheck();
+      setNativeResult(result);
+      if (result.checks.some((item) => item.status === "error")) {
+        toast.warning("بعض وظائف Android تحتاج إصلاحا أو مراجعة");
+      } else {
+        toast.info("اكتمل الفحص المحلي؛ حفظ الملفات النهائي والإشعارات الفعلية يحتاجان تجربة على الهاتف");
+      }
+    } catch {
+      toast.error("تعذر تشغيل الفحص المحلي على هذا الجهاز");
+    } finally {
+      setCheckingNative(false);
+    }
+  }
+
+  async function tryNativeFileShare() {
+    setTestingShare(true);
+    try {
+      const testText = "Rasd Android test file. No financial data.\\n";
+      const outcome = await exportFile(
+        new Blob([testText], { type: "text/plain;charset=utf-8" }),
+        "rasd-android-device-check.txt",
+      );
+      toast.info(outcome === "share_sheet_opened"
+        ? "اختر تطبيق الملفات أو Drive واحفظ الملف، ثم تحقق من وجوده خارج تطبيق رصد"
+        : "بدأ تنزيل الملف التجريبي؛ تأكد من وجوده في جهازك");
+    } catch {
+      toast.error("فشل فتح مشاركة الملف التجريبي على Android");
+    } finally {
+      setTestingShare(false);
+    }
+  }
 
   const compat = auditMobileCompatibility();
   const unsupportedCount = compat.items.filter((i) => !i.supported).length;
@@ -87,10 +129,49 @@ export function MobileSettingsSection() {
         </div>
         <p className="text-[11px] text-muted-foreground">
           {native
-            ? "الملفات المُصدَّرة (نسخ احتياطية، تقارير) تُحفظ في مجلد التنزيلات الافتراضي للجهاز — لا يوجد مسار مخصص من داخل التطبيق حالياً."
+            ? "يفتح رصد نافذة مشاركة Android عند التصدير. يجب اختيار تطبيق الملفات أو Drive وحفظ الملف بنفسك؛ النسخة المؤقتة داخل التطبيق ليست نسخة احتياطية دائمة."
             : "الملفات المُصدَّرة تُحفظ في مجلد التنزيلات الافتراضي للمتصفح، حسب إعدادات نظامك."}
         </p>
       </div>
+
+      {native && (
+        <div className="rounded-2xl border bg-card p-4 space-y-3">
+          <div>
+            <h3 className="font-semibold text-sm">فحص وظائف Android الفعلية</h3>
+            <p className="text-[11px] text-muted-foreground mt-1">
+              يفحص ملفًا مؤقتًا، وإذن الإشعارات، وتسجيل إضافات الطباعة والمشاركة. لا يصل إلى بياناتك المالية ولا يطلب أذونات جديدة.
+            </p>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <Button size="sm" variant="outline" disabled={checkingNative || testingShare} onClick={() => void checkNativeFeatures()}>
+              <RefreshCw className={`h-4 w-4 ${checkingNative ? "animate-spin" : ""}`} />
+              {checkingNative ? "جارٍ الفحص..." : "فحص وظائف الهاتف"}
+            </Button>
+            <Button size="sm" variant="outline" disabled={checkingNative || testingShare} onClick={() => void tryNativeFileShare()}>
+              <Share2 className="h-4 w-4" />
+              {testingShare ? "فتح المشاركة..." : "تجربة حفظ ملف"}
+            </Button>
+          </div>
+          {nativeResult && (
+            <div className="space-y-2" role="status" aria-live="polite">
+              {nativeResult.checks.map((result) => (
+                <div key={result.id} className="flex gap-2 rounded-xl border p-2.5">
+                  {result.status === "ok"
+                    ? <CheckCircle2 aria-hidden="true" className="h-4 w-4 shrink-0 text-emerald-600 mt-0.5" />
+                    : <AlertTriangle aria-hidden="true" className="h-4 w-4 shrink-0 text-amber-600 mt-0.5" />}
+                  <div className="min-w-0">
+                    <p className="text-xs font-semibold">{result.label}</p>
+                    <p className="text-[11px] text-muted-foreground mt-0.5">{result.details}</p>
+                  </div>
+                </div>
+              ))}
+              <p className="text-[11px] text-muted-foreground">
+                نجاح الفحص لا يثبت وصول التنبيهات في الخلفية أو حفظ PDF أو اكتمال تسجيل Google. هذه تحتاج اختبارًا يدويًا مستقلًا.
+              </p>
+            </div>
+          )}
+        </div>
+      )}
 
       <div className="rounded-2xl border bg-card p-4">
         <div className="flex items-center justify-between gap-3 flex-wrap">
