@@ -40,3 +40,19 @@ bun run android:apk
 - Backend OAuth provider/redirect configuration is not version-controlled here.
 - No actual on-device Google login or signed APK smoke test is attested by source review.
 - The published remote WebView requires network connectivity; do not market this build as fully offline.
+
+## Android phase 2: non-login changes (2026-11-16)
+- **Export**: Reports and recommended backup v2 use `@capacitor/filesystem` (Cache) and `@capacitor/share`. This opens the Android share sheet. A file is not safely backed up until the user explicitly saves it in Files/Drive and verifies it there.
+- **Encrypted backup**: Recommended v2 downloads are wrapped with AES-256-GCM and a PBKDF2-SHA256 key derived from an independent 12+ character backup passphrase. The passphrase is not stored. Wrong password and tampered files fail closed. Retain the passphrase separately from the device.
+- **Restore**: Encrypted backups can be decrypted and restored through the existing server-side v2 restore RPC. Legacy unencrypted v2 imports remain available with a visible warning, but legacy backup-v1 UI is disabled on Android.
+- **Local reminders**: Opt-in reminders are scheduled for upcoming due dates via `@capacitor/local-notifications` on application startup/resume and Settings save. Android notification permission is requested only via an explicit Settings action. Display time and background reliability depend on OS settings and battery optimization. Push, email, SMS and WhatsApp providers remain unimplemented.
+- **PIN**: Incorrect PIN attempts are delayed with an exponential local UI lockout; this is **not** Keystore-backed brute-force protection or data-at-rest encryption.
+- **App lifecycle**: Android back gesture, native app minimization, offline status banner, privacy blur for background activity, and small-screen input/layout adjustments.
+- **Validation**: CI checks typecheck, unit tests including encryption/tampering, lint, browser layout at 320–430px, database regressions, native debug APK compile and basic emulator launch **without Google sign-in**.
+
+## Important limitations
+- Google OAuth settings and on-device login remain deliberately deferred for the final login phase.
+- Background reminders are scheduled when the app was online and running, not via a continuous offline scheduler. Long-term reliability on different Android vendors requires device validation.
+- The application still uses a remotely hosted WebView. It **does not** support offline financial mutations or offline-first synchronization. If network access is interrupted, do not assume a financial write succeeded.
+- The new share sheet cannot attest the user's destination or verify that a separate backup copy exists. Explicitly verify the exported file.
+- A plain Excel/CSV report saved by the user is not encrypted just because the separate JSON backup format is encrypted. Avoid sharing sensitive exports insecurely.
