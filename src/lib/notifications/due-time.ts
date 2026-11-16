@@ -23,10 +23,11 @@ export function plannedReminderTime(
   raw: string,
   quiet: QuietHours,
   priority: EventPriority,
+  allDay = false,
 ): Date | null {
   const due = parseDueDate(raw);
   if (!due) return null;
-  const dateOnly = /^\d{4}-\d{2}-\d{2}$/.test(raw);
+  const dateOnly = allDay || /^\d{4}-\d{2}-\d{2}$/.test(raw);
   const at = dateOnly
     ? new Date(due.getFullYear(), due.getMonth(), due.getDate(), 9, 0)
     : new Date(due.getTime());
