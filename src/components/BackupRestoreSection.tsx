@@ -2,6 +2,7 @@
 // Local, manual only. No scheduled backups, no cloud sync, no encryption.
 
 import { useState, useRef, useEffect } from "react";
+import { Capacitor } from "@capacitor/core";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -40,7 +41,7 @@ export function BackupRestoreSection() {
   const [confirming, setConfirming] = useState(false);
   const [running, setRunning] = useState(false);
 
-  useEffect(() => { loadLastBackup().then(setLastBundle); }, []);
+  useEffect(() => { if (!Capacitor.isNativePlatform()) void loadLastBackup().then(setLastBundle); }, []);
 
   async function doExport(fmt: "json" | "csv" | "xlsx") {
     setBusy(fmt);
@@ -97,6 +98,10 @@ export function BackupRestoreSection() {
       toast.error("فشل الاستيراد", { description: e.message });
     } finally { setRunning(false); }
   }
+
+  if (Capacitor.isNativePlatform()) return (
+    <div className="rounded-xl border p-4 text-sm text-muted-foreground">تم إيقاف أداة النسخ الاحتياطي القديمة غير المشفرة على Android. استخدم النسخ الاحتياطي المشفر (v2) الموجود أعلاه لحماية بياناتك المالية.</div>
+  );
 
   return (
     <div className="space-y-5">
