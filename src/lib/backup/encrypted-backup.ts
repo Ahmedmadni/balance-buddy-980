@@ -34,7 +34,7 @@ function decode(value: string): Uint8Array {
 async function deriveKey(password: string, salt: Uint8Array, usage: KeyUsage): Promise<CryptoKey> {
   const base = await crypto.subtle.importKey("raw", encoder.encode(password), "PBKDF2", false, ["deriveKey"]);
   return crypto.subtle.deriveKey(
-    { name: "PBKDF2", salt, iterations, hash: "SHA-256" },
+    { name: "PBKDF2", salt: new Uint8Array(salt).buffer, iterations, hash: "SHA-256" },
     base,
     { name: "AES-GCM", length: 256 },
     false,
@@ -56,7 +56,7 @@ export async function encryptBackup(value: unknown, password: string): Promise<E
   const iv = crypto.getRandomValues(new Uint8Array(12));
   const key = await deriveKey(password, salt, "encrypt");
   const plaintext = encoder.encode(JSON.stringify(value));
-  const ciphertext = new Uint8Array(await crypto.subtle.encrypt({ name: "AES-GCM", iv }, key, plaintext));
+  const ciphertext = new Uint8Array(await crypto.subtle.encrypt({ name: "AES-GCM", iv: new Uint8Array(iv).buffer }, key, plaintext));
   return {
     format: "rasd-encrypted-backup", version: 1, kdf: "PBKDF2-SHA256",
     iterations, cipher: "AES-256-GCM", salt: encode(salt), iv: encode(iv), data: encode(ciphertext),
