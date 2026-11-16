@@ -13,6 +13,11 @@ describe("Android financial reminder timestamps", () => {
     const date = plannedReminderTime("2026-11-17", quiet, "high")!;
     expect([date.getDate(), date.getHours(), date.getMinutes()]).toEqual([17, 9, 0]);
   });
+  test("all-day flags preserve 9 AM for derived ISO dates", () => {
+    const stored = new Date(2026, 10, 17).toISOString();
+    const date = plannedReminderTime(stored, quiet, "normal", true)!;
+    expect([date.getDate(), date.getHours(), date.getMinutes()]).toEqual([17, 9, 0]);
+  });
   test("keeps explicit times rather than silently shifting to 9 AM", () => {
     const date = plannedReminderTime("2026-11-17T13:25:00", quiet, "normal")!;
     expect([date.getDate(), date.getHours(), date.getMinutes()]).toEqual([17, 13, 25]);
