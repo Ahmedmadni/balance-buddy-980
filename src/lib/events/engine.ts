@@ -5,6 +5,7 @@
 // No notifications, no triggers, no schema mutation of source tables.
 
 import { supabase } from "@/integrations/supabase/client";
+import { parseDueDate } from "@/lib/notifications/due-time";
 
 export type EventType =
   | "payment_due"
@@ -67,8 +68,9 @@ export const PRIORITY_LABEL: Record<EventPriority, string> = {
 };
 
 function daysBetween(a: Date, b: Date) {
-  const ms = a.getTime() - b.getTime();
-  return Math.floor(ms / (1000 * 60 * 60 * 24));
+  // Compare calendar days, not millisecond durations: DST days can be 23/25h.
+  const ordinal = (d: Date) => Date.UTC(d.getFullYear(), d.getMonth(), d.getDate());
+  return Math.round((ordinal(a) - ordinal(b)) / 86_400_000);
 }
 
 function inferPriority(daysOut: number, type: EventType): EventPriority {
@@ -136,7 +138,8 @@ export async function computeUpcomingEvents(opts?: { horizonDays?: number }): Pr
   // 2) Debt due dates
   for (const d of ledgerRes.data ?? []) {
     if (!d.due_date || d.settled_at) continue;
-    const due = new Date(d.due_date);
+    const due = parseDueDate(d.due_date);
+    if (!due) continue;
     const daysOut = daysBetween(due, today0);
     if (daysOut > horizon) continue;
     events.push({
@@ -147,14 +150,15 @@ export async function computeUpcomingEvents(opts?: { horizonDays?: number }): Pr
       due_date: due.toISOString(),
       priority: inferPriority(daysOut, "payment_due"),
       status: "pending",
-      metadata: { amount: d.amount, currency: d.currency, kind: d.kind },
+      metadata: { amount: d.amount, currency: d.currency, kind: d.kind, allDay: /^\d{4}-\d{2}-\d{2}$/.test(d.due_date) },
     });
   }
 
   // 3) Recurring expenses
   for (const r of recRes.data ?? []) {
     if (!r.next_due) continue;
-    const due = new Date(r.next_due);
+    const due = parseDueDate(r.next_due);
+    if (!due) continue;
     const daysOut = daysBetween(due, today0);
     if (daysOut > horizon) continue;
     events.push({
@@ -164,7 +168,7 @@ export async function computeUpcomingEvents(opts?: { horizonDays?: number }): Pr
       due_date: due.toISOString(),
       priority: inferPriority(daysOut, "recurring_expense_due"),
       status: "pending",
-      metadata: { amount: r.amount, currency: r.currency },
+      metadata: { amount: r.amount, currency: r.currency, allDay: /^\d{4}-\d{2}-\d{2}$/.test(r.next_due) },
     });
   }
 
@@ -180,8 +184,8 @@ export async function computeUpcomingEvents(opts?: { horizonDays?: number }): Pr
     for (const f of assetDateFields) {
       const raw = meta[f.key];
       if (!raw) continue;
-      const due = new Date(raw);
-      if (Number.isNaN(due.getTime())) continue;
+      const due = typeof raw === "string" ? parseDueDate(raw) : null;
+      if (!due) continue;
       const daysOut = daysBetween(due, today0);
       if (daysOut > horizon) continue;
       events.push({
@@ -191,7 +195,7 @@ export async function computeUpcomingEvents(opts?: { horizonDays?: number }): Pr
         due_date: due.toISOString(),
         priority: inferPriority(daysOut, f.type),
         status: "pending",
-        metadata: { asset_kind: a.asset_kind, field: f.key },
+        metadata: { asset_kind: a.asset_kind, field: f.key, allDay: /^\d{4}-\d{2}-\d{2}$/.test(raw) },
       });
     }
   }
@@ -199,7 +203,8 @@ export async function computeUpcomingEvents(opts?: { horizonDays?: number }): Pr
   // 5) Depreciation review (annual anniversary of start_date)
   for (const dp of depRes.data ?? []) {
     if (!dp.start_date) continue;
-    const start = new Date(dp.start_date);
+    const start = parseDueDate(dp.start_date);
+    if (!start) continue;
     const next = new Date(start);
     const yearsPassed = Math.max(0, today0.getFullYear() - start.getFullYear());
     next.setFullYear(start.getFullYear() + yearsPassed);
@@ -214,6 +219,7 @@ export async function computeUpcomingEvents(opts?: { horizonDays?: number }): Pr
       due_date: next.toISOString(),
       priority: inferPriority(daysOut, "review_depreciation"),
       status: "pending",
+      metadata: { allDay: true },
     });
   }
 
@@ -226,7 +232,8 @@ export async function computeUpcomingEvents(opts?: { horizonDays?: number }): Pr
   for (const a of invRes.data ?? []) {
     const last = mvByAsset.get(a.id);
     if (!last) continue;
-    const reviewAt = new Date(last);
+    const reviewAt = parseDueDate(last);
+    if (!reviewAt) continue;
     reviewAt.setDate(reviewAt.getDate() + 90);
     const daysOut = daysBetween(reviewAt, today0);
     if (daysOut > horizon) continue;
@@ -237,13 +244,15 @@ export async function computeUpcomingEvents(opts?: { horizonDays?: number }): Pr
       due_date: reviewAt.toISOString(),
       priority: inferPriority(daysOut, "review_market_value"),
       status: "pending",
+      metadata: { allDay: true },
     });
   }
 
   // 7) Zakat haul (Hijri ≈ 354 days from last haul start)
   for (const z of zsRes.data ?? []) {
     if (!z.last_haul_start_date) continue;
-    const due = new Date(z.last_haul_start_date);
+    const due = parseDueDate(z.last_haul_start_date);
+    if (!due) continue;
     due.setDate(due.getDate() + 354);
     const daysOut = daysBetween(due, today0);
     if (daysOut > horizon) continue;
@@ -255,7 +264,7 @@ export async function computeUpcomingEvents(opts?: { horizonDays?: number }): Pr
       due_date: due.toISOString(),
       priority: inferPriority(daysOut, "zakat_due"),
       status: "pending",
-      metadata: { currency: z.base_currency },
+      metadata: { currency: z.base_currency, allDay: true },
     });
   }
 
