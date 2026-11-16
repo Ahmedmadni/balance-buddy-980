@@ -4,6 +4,10 @@
 import { useRef, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { exportFile } from "@/lib/mobile/share-export";
+import { decryptBackup, encryptBackup, isEncryptedBackup } from "@/lib/backup/encrypted-backup";
+import { Capacitor } from "@capacitor/core";
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription,
 } from "@/components/ui/dialog";
@@ -20,6 +24,10 @@ import { isBackupJsonFile, validateBackupV2, type BackupV2 } from "@/lib/backup/
 export function BackupV2Section() {
   const qc = useQueryClient();
   const [exporting, setExporting] = useState(false);
+  const [backupPassword, setBackupPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [restorePassword, setRestorePassword] = useState("");
+  const [legacyUnencrypted, setLegacyUnencrypted] = useState(false);
   const [restoring, setRestoring] = useState(false);
   const [pendingBackup, setPendingBackup] = useState<BackupV2 | null>(null);
   const [confirmOpen, setConfirmOpen] = useState(false);
@@ -30,6 +38,8 @@ export function BackupV2Section() {
 
   async function doExport() {
     if (operationLock.current) return;
+    if (backupPassword.length < 12) { toast.error("أدخل كلمة مرور مستقلة للنسخة من 12 حرفا على الأقل"); return; }
+    if (backupPassword !== confirmPassword) { toast.error("كلمتا مرور النسخة غير متطابقتين"); return; }
     operationLock.current = true;
     setExporting(true);
     try {
@@ -43,15 +53,16 @@ export function BackupV2Section() {
       const now = new Date();
       const pad = (n: number) => String(n).padStart(2, "0");
       const stamp = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}-${pad(now.getHours())}${pad(now.getMinutes())}`;
-      const blob = new Blob([JSON.stringify(backup, null, 2)], { type: "application/json" });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = `rasd-backup-${stamp}.json`;
-      a.click();
-      window.setTimeout(() => URL.revokeObjectURL(url), 1000);
-      createAuditEntry("backup", "تنزيل نسخة احتياطية (v2)", { meta: { version: 2 } });
-      toast.success("تم تنزيل النسخة الاحتياطية");
+      const encrypted = await encryptBackup(backup, backupPassword);
+      const blob = new Blob([JSON.stringify(encrypted)], { type: "application/json" });
+      const outcome = await exportFile(blob, `rasd-encrypted-backup-${stamp}.json`);
+      createAuditEntry("backup", "إنشاء ملف نسخة مشفرة (v2)", { meta: { version: 2, encrypted: true } });
+      setBackupPassword(""); setConfirmPassword("");
+      if (outcome === "share_sheet_opened") {
+        toast.info("اختر وجهة الحفظ من Android، ثم تأكد من وجود الملف خارج التطبيق");
+      } else {
+        toast.info("بدأ تنزيل الملف المشفر؛ تحقق من اكتماله في مجلد التنزيلات");
+      }
     } catch {
       toast.error("فشل تنزيل النسخة الاحتياطية", { description: "تحقق من اتصالك وتسجيل الدخول ثم حاول مرة أخرى." });
     } finally {
@@ -76,15 +87,22 @@ export function BackupV2Section() {
         toast.error("ملف غير صالح", { description: "تعذر قراءة الملف — يجب أن يكون ملف JSON صالحاً." });
         return;
       }
-      const backup = validateBackupV2(raw);
+      const encrypted = isEncryptedBackup(raw);
+      if (encrypted && !restorePassword) {
+        toast.error("أدخل كلمة مرور النسخة المستوردة قبل اختيار الملف");
+        return;
+      }
+      const payload = encrypted ? await decryptBackup(raw, restorePassword) : raw;
+      const backup = validateBackupV2(payload);
       if (!backup) {
         toast.error("نسخة غير مدعومة", { description: "الملف ليس نسخة احتياطية صالحة من رصد (الإصدار 2)." });
         return;
       }
+      setLegacyUnencrypted(!encrypted);
       setPendingBackup(backup);
       setConfirmOpen(true);
-    } catch {
-      toast.error("خطأ في القراءة", { description: "تعذر فتح الملف المحدد." });
+    } catch (err) {
+      toast.error("تعذر فتح النسخة", { description: err instanceof Error ? err.message : "ملف غير صالح" });
     } finally {
       operationLock.current = false;
     }
@@ -100,6 +118,7 @@ export function BackupV2Section() {
       createAuditEntry("restore", "استعادة نسخة احتياطية (v2)", { meta: { version: 2 } });
       setConfirmOpen(false);
       setPendingBackup(null);
+      setRestorePassword("");
     } catch {
       toast.error("فشلت الاستعادة", { description: "لم تكتمل الاستعادة. تحقق من اتصالك وحالة بياناتك قبل المحاولة مجددًا." });
       operationLock.current = false;
@@ -119,7 +138,7 @@ export function BackupV2Section() {
   }
 
   return (
-    <div className="rounded-2xl border bg-card p-5 space-y-4">
+    <div className="rounded-2xl border bg-card p-4 sm:p-5 space-y-4">
       <div className="flex items-center gap-3">
         <div className="grid h-10 w-10 place-items-center rounded-xl bg-primary/10 text-primary">
           <CloudDownload className="h-5 w-5" />
@@ -141,6 +160,16 @@ export function BackupV2Section() {
         </AlertDescription>
       </Alert>
 
+      <div className="space-y-2 rounded-xl border p-3">
+        <p className="text-xs font-semibold">تشفير النسخة قبل التصدير (AES-256-GCM)</p>
+        <p className="text-xs text-muted-foreground">اختر كلمة مرور مستقلة لا تقل عن 12 حرفا. لن يتم حفظها في التطبيق؛ فقدانها يعني تعذر استعادة النسخة.</p>
+        <Input type="password" autoComplete="new-password" placeholder="كلمة مرور النسخة" aria-label="كلمة مرور النسخة" value={backupPassword} onChange={(e) => setBackupPassword(e.target.value)} />
+        <Input type="password" autoComplete="new-password" placeholder="تأكيد كلمة المرور" aria-label="تأكيد كلمة مرور النسخة" value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} />
+      </div>
+      <div className="space-y-2">
+        <p className="text-xs text-muted-foreground">لاستعادة ملف مشفر، أدخل كلمة مروره هنا قبل اختياره. يمكن استيراد ملفات v2 القديمة غير المشفرة مع تحذير.</p>
+        <Input type="password" autoComplete="off" placeholder="كلمة مرور الملف المراد استعادته" aria-label="كلمة مرور ملف الاستعادة" value={restorePassword} onChange={(e) => setRestorePassword(e.target.value)} />
+      </div>
       <div className="grid gap-2 sm:grid-cols-2">
         <Button onClick={doExport} disabled={busy}>
           {exporting ? <RefreshCw className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
@@ -179,6 +208,7 @@ export function BackupV2Section() {
             <DialogDescription className="sr-only">تأكيد استبدال البيانات الحالية بالنسخة الاحتياطية</DialogDescription>
           </DialogHeader>
 
+          {legacyUnencrypted && <Alert variant="destructive"><FileWarning className="h-4 w-4" /><AlertDescription className="text-xs">هذا الملف غير مشفر. تجنب مشاركته، وبعد الاستعادة أنشئ نسخة مشفرة جديدة.</AlertDescription></Alert>}
           <Alert variant="destructive">
             <ShieldAlert className="h-4 w-4" />
             <AlertDescription className="text-xs leading-relaxed">
