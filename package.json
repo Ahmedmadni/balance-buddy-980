@@ -102,7 +102,11 @@
     "vite-tsconfig-paths": "^6.0.2",
     "xlsx": "https://cdn.sheetjs.com/xlsx-0.20.3/xlsx-0.20.3.tgz",
     "zod": "^4.6.7",
-    "@capacitor/browser": "^8.0.0"
+    "@capacitor/browser": "^8.0.0",
+    "@capacitor/filesystem": "^8.0.0",
+    "@capacitor/share": "^8.0.0",
+    "@capacitor/local-notifications": "^8.0.0",
+    "@capacitor/synapse": "^1.0.4"
   },
   "devDependencies": {
     "@capacitor/assets": "^3.0.5",

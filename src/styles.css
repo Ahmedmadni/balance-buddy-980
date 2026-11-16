@@ -212,3 +212,19 @@ body { overflow-wrap: anywhere; }
 @media (max-width: 360px) {
   main :where(.rounded-3xl, .rounded-2xl) { max-width: 100%; }
 }
+
+/* Android snapshot privacy when the app is no longer foregrounded. */
+html.rasd-app-inactive body {
+  filter: blur(24px);
+  pointer-events: none;
+}
+/* Readable RTL form controls on 320–430 px devices and when keyboards appear. */
+@media (max-width: 640px) {
+  input:not([type="checkbox"]):not([type="radio"]), textarea, select {
+    font-size: max(1rem, 16px);
+    max-width: 100%;
+  }
+  button, [role="tab"], [role="menuitem"] { touch-action: manipulation; }
+  [role="dialog"] { max-height: min(92dvh, 100%); overflow-y: auto; }
+  main :where(table) { font-variant-numeric: tabular-nums; }
+}

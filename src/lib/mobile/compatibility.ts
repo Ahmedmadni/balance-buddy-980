@@ -74,9 +74,11 @@ export function auditMobileCompatibility(): MobileCompatibilityReport {
     probe(
       "file_export",
       "تصدير الملفات (Blob + تنزيل)",
-      () => typeof Blob !== "undefined" && "download" in document.createElement("a"),
-      "مدعوم — يُستخدم فعلياً في محرك النسخ الاحتياطي",
-      "غير مدعوم — التصدير المحلي لن يعمل",
+      () => isNative()
+        ? !!getCapacitorPlugin("Filesystem") && !!getCapacitorPlugin("Share")
+        : typeof Blob !== "undefined" && "download" in document.createElement("a"),
+      isNative() ? "تصدير عبر نافذة مشاركة Android (يجب اختيار وجهة الحفظ)" : "تنزيل عبر المتصفح",
+      "إضافة التصدير غير متاحة على هذا الجهاز",
     ),
   );
 
@@ -141,8 +143,10 @@ export function auditMobileCompatibility(): MobileCompatibilityReport {
     probe(
       "share",
       "مشاركة (Share API)",
-      () => typeof navigator !== "undefined" && typeof navigator.share === "function",
-      "متاح — navigator.share()",
+      () => isNative()
+        ? !!getCapacitorPlugin("Share")
+        : typeof navigator !== "undefined" && typeof navigator.share === "function",
+      isNative() ? "متاح — Capacitor Share" : "متاح — navigator.share()",
       "غير مدعوم — استخدم زر التنزيل كبديل",
     ),
   );
@@ -191,6 +195,7 @@ export async function checkOfflineCapabilities(cachedQueryCount = 0): Promise<Of
     // رصد لا يكتب أي عملية أثناء عدم الاتصال — كل الكتابة تمر مباشرة عبر Supabase.
     // هذا الحقل موجود ليعكس تلك الحقيقة صراحة، وليس لأنه يوجد طابور مزامنة فعلي.
     unsyncedOperations: 0,
-    ready: !!lastBackup, // الحد الأدنى لـ"جاهزية عدم الاتصال" هنا هو وجود نسخة احتياطية حديثة
+    // A downloadable backup does not make remote WebView transactions work offline.
+    ready: false,
   };
 }

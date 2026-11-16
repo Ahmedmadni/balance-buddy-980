@@ -20,6 +20,9 @@ import { ConsentBanner } from "@/components/ConsentBanner";
 import { RouteProgressBar } from "@/components/motion/RouteProgressBar";
 import { listenForNativeOAuth } from "@/lib/auth/native-oauth";
 import { toast } from "sonner";
+import { App } from "@capacitor/app";
+import { Capacitor } from "@capacitor/core";
+import { AndroidOfflineBanner } from "@/components/AndroidOfflineBanner";
 
 function NotFoundComponent() {
   return (
@@ -119,6 +122,22 @@ function RootComponent() {
     }
     initErrorTracking();
     registerServiceWorker();
+    // Respect Android's system back gesture and blur sensitive app snapshots.
+    const nativeListeners = Capacitor.isNativePlatform()
+      ? Promise.all([
+          App.addListener("backButton", ({ canGoBack }) => {
+            if (document.querySelector('[role="dialog"][data-state="open"]')) {
+              document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", code: "Escape", bubbles: true }));
+              return;
+            }
+            if (canGoBack && location.pathname !== "/app") window.history.back();
+            else void App.minimizeApp();
+          }),
+          App.addListener("appStateChange", ({ isActive }) => {
+            document.documentElement.classList.toggle("rasd-app-inactive", !isActive);
+          }),
+        ])
+      : Promise.resolve([]);
     const nativeAuth = listenForNativeOAuth({
       onSuccess: () => { void router.invalidate(); },
       onFailure: (message) => toast.error("تعذر تسجيل الدخول", { description: message }),
@@ -130,12 +149,18 @@ function RootComponent() {
       router.invalidate();
       if (event !== "SIGNED_OUT") queryClient.invalidateQueries();
     });
-    return () => { subscription.unsubscribe(); void nativeAuth.then((cleanup) => cleanup()); };
+    return () => {
+      subscription.unsubscribe();
+      void nativeAuth.then((cleanup) => cleanup());
+      void nativeListeners.then((listeners) => listeners.forEach((listener) => { void listener.remove(); }));
+      document.documentElement.classList.remove("rasd-app-inactive");
+    };
   }, [router, queryClient]);
 
   return (
     <QueryClientProvider client={queryClient}>
       <AdProviderRoot>
+        <AndroidOfflineBanner />
         <RouteProgressBar />
         <Outlet />
         <Toaster position="top-center" richColors closeButton />

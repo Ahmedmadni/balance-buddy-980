@@ -9,6 +9,10 @@
         "@capacitor/android": "^8.4.0",
         "@capacitor/app": "^8.1.0",
         "@capacitor/browser": "^8.0.0",
+        "@capacitor/synapse": "^1.0.4",
+        "@capacitor/local-notifications": "^8.0.0",
+        "@capacitor/share": "^8.0.0",
+        "@capacitor/filesystem": "^8.0.0",
         "@capacitor/core": "^8.4.0",
         "@capacitor/haptics": "^8.0.2",
         "@capacitor/keyboard": "^8.0.3",
@@ -76,7 +80,10 @@
         "zod": "^4.6.7",
       },
       "devDependencies": {
-        "@capacitor/assets": "^3.0.5",
+
+
+
+    "@capacitor/assets": "^3.0.5",
         "@capacitor/cli": "8.4.3",
         "@eslint/js": "^9.32.0",
         "@lovable.dev/vite-tanstack-config": "2.26.5",
@@ -156,6 +163,15 @@
     "@capacitor/app": ["@capacitor/app@8.1.1", "", { "peerDependencies": { "@capacitor/core": ">=8.0.0" } }, "sha512-xM2ZTX5jK60tFtmjsmJv+Cdj1Qsb6NcavkqmdEnCPQBeya9oKhamZJxYOnQNj1ZvcJM7sWfG6BEtSLx42pisbA=="],
 
     "@capacitor/browser": ["@capacitor/browser@8.0.0", "", { "peerDependencies": { "@capacitor/core": ">=8.0.0" } }, ""],
+
+    "@capacitor/filesystem": ["@capacitor/filesystem@8.0.0", "", { "dependencies": { "@capacitor/synapse": "^1.0.4" }, "peerDependencies": { "@capacitor/core": ">=8.0.0" } }, ""],
+
+    "@capacitor/share": ["@capacitor/share@8.0.0", "", { "peerDependencies": { "@capacitor/core": ">=8.0.0" } }, ""],
+
+    "@capacitor/local-notifications": ["@capacitor/local-notifications@8.0.0", "", { "peerDependencies": { "@capacitor/core": ">=8.0.0" } }, ""],
+
+
+    "@capacitor/synapse": ["@capacitor/synapse@1.0.4", "", {}, ""],
 
     "@capacitor/assets": ["@capacitor/assets@3.0.5", "", { "dependencies": { "@capacitor/cli": "^5.3.0", "@ionic/utils-array": "2.1.6", "@ionic/utils-fs": "3.1.7", "@trapezedev/project": "^7.0.10", "commander": "8.3.0", "debug": "4.3.4", "fs-extra": "10.1.0", "node-fetch": "2.7.0", "node-html-parser": "5.4.2", "sharp": "0.32.6", "tslib": "2.6.2", "yargs": "17.7.2" }, "bin": { "capacitor-assets": "bin/capacitor-assets" } }, "sha512-ohz/OUq61Y1Fc6aVSt0uDrUdeOA7oTH4pkWDbv/8I3UrPjH7oPkzYhShuDRUjekNp9RBi198VSFdt0CetpEOzw=="],
 
