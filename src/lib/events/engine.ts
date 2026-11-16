@@ -68,8 +68,9 @@ export const PRIORITY_LABEL: Record<EventPriority, string> = {
 };
 
 function daysBetween(a: Date, b: Date) {
-  const ms = a.getTime() - b.getTime();
-  return Math.floor(ms / (1000 * 60 * 60 * 24));
+  // Compare calendar days, not millisecond durations: DST days can be 23/25h.
+  const ordinal = (d: Date) => Date.UTC(d.getFullYear(), d.getMonth(), d.getDate());
+  return Math.round((ordinal(a) - ordinal(b)) / 86_400_000);
 }
 
 function inferPriority(daysOut: number, type: EventType): EventPriority {
