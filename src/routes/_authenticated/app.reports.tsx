@@ -11,6 +11,7 @@ import { Printer, FileSpreadsheet } from "lucide-react";
 import { formatMoney, formatDate, todayISO } from "@/lib/format";
 import { kindMeta, kindSign } from "@/components/PersonTxForm";
 import * as XLSX from "xlsx";
+import { exportFile } from "@/lib/mobile/share-export";
 import { AdSlot } from "@/components/ads/AdSlot";
 
 // Keyset/order-stable pages prevent silent truncation at Supabase's per-query row cap.
@@ -91,7 +92,7 @@ function ReportsPage() {
 
   const rows = isError ? [] : data?.rows ?? [];
 
-  function exportExcel() {
+  async function exportExcel() {
     const TYPE_LABEL: Record<string, string> = {
       income: "دخل", expense: "مصروف", transfer: "تحويل", debt: "دين", investment: "استثمار", adjustment: "تسوية",
     };
@@ -111,7 +112,13 @@ function ReportsPage() {
     ws["!cols"] = Object.keys(sheetData[0]).map(() => ({ wch: 18 }));
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, type === "expenses" ? "المصاريف" : type === "people" ? "الأشخاص" : type === "assets" ? "الأصول" : "العمليات");
-    XLSX.writeFile(wb, `تقرير-${type}-${from}_${to}.xlsx`);
+    const content = XLSX.write(wb, { bookType: "xlsx", type: "array" }) as ArrayBuffer;
+    try {
+      const outcome = await exportFile(new Blob([content], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" }), `تقرير-${type}-${from}_${to}.xlsx`);
+      toast.info(outcome === "share_sheet_opened" ? "اختر مكان حفظ التقرير من نافذة Android" : "بدأ تنزيل التقرير؛ تحقق من الملف");
+    } catch {
+      toast.error("تعذر تصدير التقرير إلى ملف");
+    }
   }
 
   // Totals
@@ -169,7 +176,7 @@ function ReportsPage() {
         <div className="flex gap-2">
           <Button onClick={() => refetch()} variant="outline" className="flex-1">{isFetching ? "جاري..." : "تحديث"}</Button>
           <Button onClick={() => window.print()} disabled={isError || isFetching} className="flex-1"><Printer className="h-4 w-4" /> طباعة</Button>
-          <Button onClick={exportExcel} variant="outline" disabled={isError || isFetching || rows.length === 0}><FileSpreadsheet className="h-4 w-4" /></Button>
+          <Button onClick={() => void exportExcel()} variant="outline" disabled={isError || isFetching || rows.length === 0}><FileSpreadsheet className="h-4 w-4" /></Button>
         </div>
       </div>
 
