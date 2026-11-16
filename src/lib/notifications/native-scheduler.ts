@@ -75,7 +75,7 @@ export async function syncNativeReminders(
   for (const event of all) {
     if (desired.size >= MAX_REMINDERS) break;
     if (event.status !== "pending" || !passesPriorityFilter(event.priority, settings.priorityFilter)) continue;
-    const at = plannedReminderTime(event.due_date, settings.quietHours, event.priority);
+    const at = plannedReminderTime(event.due_date, settings.quietHours, event.priority, event.metadata?.allDay === true);
     if (!at) continue;
     if (+at < now + 60_000 || +at > now + 31 * 86_400_000) continue;
     const key = `${userId}:${event.id}:${event.due_date}:${at.toISOString()}`;
