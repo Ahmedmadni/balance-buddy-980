@@ -49,6 +49,10 @@ export function validateBackupV2(raw: unknown): BackupV2 | null {
   }
   const data = value.data as Record<string, unknown>;
   if (PROHIBITED_COLLECTIONS.some((key) => key in data)) return null;
+  // A v2 restore ignores extra collections, so rejecting them prevents users
+  // from believing unsupported financial records have been restored.
+  const supported = new Set<string>(BACKUP_V2_COLLECTIONS);
+  if (Object.keys(data).some((key) => !supported.has(key))) return null;
   for (const name of BACKUP_V2_COLLECTIONS) {
     const rows = data[name];
     if (!Array.isArray(rows)) return null;
