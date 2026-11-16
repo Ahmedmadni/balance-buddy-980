@@ -394,3 +394,25 @@ html.rasd-native-app.dark {
   --sidebar-foreground: #f8fafc;
   --gradient-primary: linear-gradient(135deg, #5eead4, #0d9488);
 }
+
+/* Explicit native fallback for CSS engines that ignore tokenized color values. */
+html.rasd-native-app:not(.dark) body,
+html.rasd-native-app:not(.dark) .bg-background {
+  background-color: #f8fafc;
+  color: #0f172a;
+}
+html.rasd-native-app:not(.dark) .bg-card {
+  background-color: #ffffff;
+  color: #0f172a;
+}
+html.rasd-native-app:not(.dark) .text-muted-foreground { color: #475569; }
+html.rasd-native-app.dark body,
+html.rasd-native-app.dark .bg-background {
+  background-color: #0f172a;
+  color: #f8fafc;
+}
+html.rasd-native-app.dark .bg-card {
+  background-color: #1e293b;
+  color: #f8fafc;
+}
+html.rasd-native-app.dark .text-muted-foreground { color: #cbd5e1; }
