@@ -52,3 +52,9 @@ Do not declare `100% works` until all required real-device rows are tested and O
 - Corrected misleading Android export-folder copy: files **do not** automatically appear in Downloads. The share chooser must be completed by the user; app cache is temporary.
 - Once-daily overdue reminder now persists a user-scoped local calendar-day marker separately from scheduled-alarm IDs, so delivered alarms disappearing from `getPending` do not cause repeats every 10 minutes. Clearing local app data or explicitly switching the alerts off and on resets this marker.
 - The diagnostic deliberately does **not** trigger a PDF print or send a notification, as those would intrude into the owner's workflow. Google sign-in remains deferred; automated tests cannot prove actual background delivery, biometrics or real-device report print completion.
+
+## Backup v2 preflight parity (phase 5)
+- Before **any restore confirmation**, the web and Android client now requires all 19 named collections that the server-side `restore_user_backup` RPC requires, verifies they are arrays of objects, rejects forbidden derived/system/attachment collections, and rejects identity fields (`user_id` on rows and `id`/`user_id` on profile).
+- The server remains the authoritative validator before any destructive work. UI validation is additional protection, not a replacement.
+- The destructive confirmation previews total row count and major collection counts; a fully empty (but structurally complete) backup receives an explicit warning that the covered financial records will be replaced/cleared.
+- An encrypted file still requires its passphrase and the typed confirmation `استعادة`. Never experiment with restoration on a production account.
