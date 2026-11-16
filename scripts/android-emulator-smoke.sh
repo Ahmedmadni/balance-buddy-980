@@ -75,4 +75,9 @@ adb shell wm density 320
 adb exec-out screencap -p > "$EVIDENCE/compact.png" 2>/dev/null || true
 adb shell wm size reset
 adb shell wm density reset
+adb logcat -d -b crash > "$EVIDENCE/crash-log.txt" 2>&1 || true
+if grep -Fq 'Process: app.lovable.rasd' "$EVIDENCE/crash-log.txt"; then
+  echo "::error::Rasd Android process crashed; see crash-log.txt."
+  exit 1
+fi
 echo "PASS: login UI observed, lifecycle survived background, compact screenshot captured."
