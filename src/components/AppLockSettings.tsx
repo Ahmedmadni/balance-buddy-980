@@ -31,7 +31,7 @@ export function AppLockSettings() {
     <div className="rounded-xl border border-border bg-card p-4 space-y-3">
       <div className="flex items-center gap-2 font-semibold"><Lock className="h-4 w-4" /> قفل التطبيق</div>
       <p className="text-xs text-muted-foreground">
-        يُحفظ الرمز مشفّراً على هذا الجهاز فقط ولا يُرسل إلى أي خادم. يُطلب عند فتح التطبيق وبعد دقيقة من الخروج منه.
+        تُحفظ بصمة مشتقة من رمز القفل على هذا الجهاز، وليس الرمز نفسه. القفل يحمي الواجهة فقط ولا يُشفّر البيانات المالية أو النسخ الاحتياطية.
       </p>
       <div className="grid gap-2 sm:grid-cols-2">
         <Input type="password" inputMode="numeric" maxLength={8} placeholder={enabled ? "رمز جديد" : "رمز الدخول"} value={p1} onChange={(e) => setP1(e.target.value.replace(/\D/g, ""))} />
