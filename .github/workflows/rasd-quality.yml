@@ -19,7 +19,7 @@ jobs:
       - name: Unit regression tests
         run: bun run test:unit
       - name: Android setup script syntax
-        run: node --check scripts/ensure-android.mjs && node --check scripts/android-build.mjs
+        run: node --check scripts/ensure-android.mjs && node --check scripts/android-build.mjs && bash -n scripts/android-emulator-smoke.sh
 
   android-debug:
     runs-on: ubuntu-latest
@@ -51,6 +51,7 @@ jobs:
     needs: android-debug
     timeout-minutes: 35
     steps:
+      - uses: actions/checkout@v4
       - uses: actions/download-artifact@v4
         with:
           name: rasd-android-debug-apk
@@ -66,8 +67,12 @@ jobs:
           target: google_apis
           arch: x86_64
           profile: pixel_6
-          script: |
-            adb install android-apk/app-debug.apk
-            adb shell am start -n app.lovable.rasd/.MainActivity
-            sleep 12
-            adb shell pidof app.lovable.rasd
+          script: bash scripts/android-emulator-smoke.sh android-apk/app-debug.apk
+      - name: Upload Android UI screenshots and crash logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: rasd-android-smoke-evidence
+          path: android-smoke-evidence
+          if-no-files-found: warn
+          retention-days: 14
