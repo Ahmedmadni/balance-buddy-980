@@ -12,6 +12,7 @@ import { formatMoney, formatDate, todayISO } from "@/lib/format";
 import { kindMeta, kindSign } from "@/components/PersonTxForm";
 import * as XLSX from "xlsx";
 import { exportFile } from "@/lib/mobile/share-export";
+import { printCurrentReport } from "@/lib/mobile/native-print";
 import { AdSlot } from "@/components/ads/AdSlot";
 import { toast } from "sonner";
 
@@ -122,6 +123,15 @@ function ReportsPage() {
     }
   }
 
+  async function printReport() {
+    if (isError || isFetching) return;
+    try {
+      await printCurrentReport(`رصد-${type}-${from}_${to}`);
+    } catch (error) {
+      toast.error("تعذر فتح طباعة Android", { description: error instanceof Error ? error.message : "حدث خطأ غير متوقع" });
+    }
+  }
+
   // Totals
   const totalsByCur: Record<string, number> = {};
   if (type === "expenses") for (const r of rows as any[]) totalsByCur[r.currency] = (totalsByCur[r.currency] ?? 0) + Number(r.amount);
@@ -176,12 +186,12 @@ function ReportsPage() {
 
         <div className="flex gap-2">
           <Button onClick={() => refetch()} variant="outline" className="flex-1">{isFetching ? "جاري..." : "تحديث"}</Button>
-          <Button onClick={() => window.print()} disabled={isError || isFetching} className="flex-1"><Printer className="h-4 w-4" /> طباعة</Button>
+          <Button onClick={() => void printReport()} disabled={isError || isFetching} className="flex-1"><Printer className="h-4 w-4" /> طباعة</Button>
           <Button onClick={() => void exportExcel()} variant="outline" disabled={isError || isFetching || rows.length === 0}><FileSpreadsheet className="h-4 w-4" /></Button>
         </div>
       </div>
 
-      <div className="rounded-2xl border bg-card p-6">
+      <div id="rasd-report-print" className="rounded-2xl border bg-card p-4 sm:p-6">
         <div className="text-center mb-4 pb-4 border-b">
           <h2 className="text-xl font-bold">تقرير {type === "expenses" ? "المصاريف" : type === "people" ? "الأشخاص" : type === "assets" ? "أداء الأصول" : "العمليات"}</h2>
           <div className="text-sm text-muted-foreground mt-1">من {formatDate(from)} إلى {formatDate(to)}</div>
