@@ -70,7 +70,7 @@ export async function decryptBackup(envelope: EncryptedBackup, password: string)
     const iv = decode(envelope.iv);
     if (salt.length !== 16 || iv.length !== 12) throw new Error("Invalid IV/salt");
     const key = await deriveKey(password, salt, "decrypt");
-    const bytes = await crypto.subtle.decrypt({ name: "AES-GCM", iv }, key, decode(envelope.data));
+    const bytes = await crypto.subtle.decrypt({ name: "AES-GCM", iv: new Uint8Array(iv).buffer }, key, new Uint8Array(decode(envelope.data)).buffer);
     return JSON.parse(decoder.decode(bytes));
   } catch {
     // Avoid revealing whether a password, authentication tag, or file failed.
