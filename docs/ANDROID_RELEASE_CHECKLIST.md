@@ -56,3 +56,13 @@ bun run android:apk
 - The application still uses a remotely hosted WebView. It **does not** support offline financial mutations or offline-first synchronization. If network access is interrupted, do not assume a financial write succeeded.
 - The new share sheet cannot attest the user's destination or verify that a separate backup copy exists. Explicitly verify the exported file.
 - A plain Excel/CSV report saved by the user is not encrypted just because the separate JSON backup format is encrypted. Avoid sharing sensitive exports insecurely.
+
+## Android phase 3: reminder correctness and destructive-action safeguards
+- Financial **date-only** due dates are treated as local calendar dates; derived debt, recurring expense, asset and zakat reminders retain all-day semantics even if stored as an ISO timestamp.
+- Events with explicit time keep their time; quiet hours move non-critical notifications **forward** to the next permitted local time. Do not imply exact delivery on Android versions restricting alarm scheduling.
+- New alarms are scheduled before obsolete alarms are cancelled, reducing the risk of losing pre-existing reminders when a native schedule request fails.
+- Overdue obligations generate at most one generic, privacy-safe daily summary when the user has opted into local reminders and opens/resumes the app. It contains no names or monetary amounts.
+- Import of financial backup files is limited to 50 MiB to reduce out-of-memory failures in Android WebView. Destructive v2 restore requires typing **استعادة** to confirm.
+- MainActivity enables Android's `FLAG_SECURE` on `onPause` to reduce exposure of recent-app snapshots and clears it on `onResume` so the owner may still capture reports while actively using the app. This is **not** end-to-end screen-recording prevention.
+- The above is release-code verification, not evidence that every Android manufacturer's background notification policy behaves identically. Real-device validation is still required.
+- As explicitly requested, Google login testing is deliberately the final phase and was **not** included in phase 3.
