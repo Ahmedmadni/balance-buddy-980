@@ -27,6 +27,7 @@ export function BackupV2Section() {
   const [confirmPassword, setConfirmPassword] = useState("");
   const [restorePassword, setRestorePassword] = useState("");
   const [legacyUnencrypted, setLegacyUnencrypted] = useState(false);
+  const [restoreConfirmation, setRestoreConfirmation] = useState("");
   const [restoring, setRestoring] = useState(false);
   const [pendingBackup, setPendingBackup] = useState<BackupV2 | null>(null);
   const [confirmOpen, setConfirmOpen] = useState(false);
@@ -72,6 +73,11 @@ export function BackupV2Section() {
 
   async function onFile(f: File) {
     if (operationLock.current) return;
+    // Keep a corrupt/hostile file from allocating excessive memory in WebView.
+    if (f.size > 50 * 1024 * 1024) {
+      toast.error("الملف يتجاوز الحد الآمن للمعالجة (50 ميجابايت)");
+      return;
+    }
     if (!isBackupJsonFile(f.name)) {
       toast.error("ملف غير صالح", { description: "اختر ملفًا بامتداد JSON فقط." });
       return;
@@ -99,6 +105,7 @@ export function BackupV2Section() {
       }
       setLegacyUnencrypted(!encrypted);
       setPendingBackup(backup);
+      setRestoreConfirmation("");
       setConfirmOpen(true);
     } catch (err) {
       toast.error("تعذر فتح النسخة", { description: err instanceof Error ? err.message : "ملف غير صالح" });
@@ -108,7 +115,7 @@ export function BackupV2Section() {
   }
 
   async function doRestore() {
-    if (!pendingBackup || operationLock.current) return;
+    if (!pendingBackup || operationLock.current || restoreConfirmation.trim() !== "استعادة") return;
     operationLock.current = true;
     setRestoring(true);
     try {
@@ -118,6 +125,7 @@ export function BackupV2Section() {
       setConfirmOpen(false);
       setPendingBackup(null);
       setRestorePassword("");
+      setRestoreConfirmation("");
     } catch {
       toast.error("فشلت الاستعادة", { description: "لم تكتمل الاستعادة. تحقق من اتصالك وحالة بياناتك قبل المحاولة مجددًا." });
       operationLock.current = false;
@@ -196,7 +204,7 @@ export function BackupV2Section() {
       <Dialog
         open={confirmOpen}
         onOpenChange={(v) => {
-          if (!v && !restoring) { setConfirmOpen(false); setPendingBackup(null); }
+          if (!v && !restoring) { setConfirmOpen(false); setPendingBackup(null); setRestoreConfirmation(""); }
         }}
       >
         <DialogContent className="max-w-md">
@@ -226,11 +234,24 @@ export function BackupV2Section() {
             ملاحظة: المرفقات والملفات المرفوعة غير مشمولة حاليًا في النسخة الاحتياطية.
           </p>
 
+          <div className="space-y-2">
+            <label htmlFor="restore-confirmation" className="text-xs font-medium">
+              لتأكيد استبدال البيانات اكتب كلمة «استعادة»:
+            </label>
+            <Input
+              id="restore-confirmation"
+              autoComplete="off"
+              placeholder="استعادة"
+              value={restoreConfirmation}
+              onChange={(e) => setRestoreConfirmation(e.target.value)}
+              disabled={restoring}
+            />
+          </div>
           <DialogFooter className="gap-2">
-            <Button variant="outline" onClick={() => { setConfirmOpen(false); setPendingBackup(null); }} disabled={restoring}>
+            <Button variant="outline" onClick={() => { setConfirmOpen(false); setPendingBackup(null); setRestoreConfirmation(""); }} disabled={restoring}>
               إلغاء
             </Button>
-            <Button variant="destructive" onClick={doRestore} disabled={restoring}>
+            <Button variant="destructive" onClick={doRestore} disabled={restoring || restoreConfirmation.trim() !== "استعادة"}>
               {restoring ? <RefreshCw className="h-4 w-4 animate-spin" /> : <CheckCircle2 className="h-4 w-4" />}
               {restoring ? "جارٍ الاستعادة…" : "تأكيد الاستبدال والاستعادة"}
             </Button>
