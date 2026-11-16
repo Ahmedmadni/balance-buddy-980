@@ -1,5 +1,26 @@
 // App lock: PIN (PBKDF2 hash) + optional device biometrics. Stored only on this device (localStorage).
+import { calculatePinDelay, getRetryMs, type PinAttempts } from "./pin-throttle";
 const KEY = "rasd.app-lock.v1";
+const ATTEMPTS_KEY = "rasd.app-lock-attempts.v1";
+
+function loadAttempts(): PinAttempts {
+  try {
+    const v = JSON.parse(localStorage.getItem(ATTEMPTS_KEY) || "null");
+    if (Number.isInteger(v?.failures) && Number.isFinite(v?.blockedUntil)) return v;
+  } catch { /* ignore malformed local state */ }
+  return { failures: 0, blockedUntil: 0 };
+}
+
+export function getPinRetryMs(now = Date.now()): number {
+  return getRetryMs(loadAttempts(), now);
+}
+
+function recordFailedPin() {
+  const previous = loadAttempts();
+  const failures = Math.max(0, previous.failures) + 1;
+  const delay = calculatePinDelay(failures);
+  localStorage.setItem(ATTEMPTS_KEY, JSON.stringify({ failures, blockedUntil: Date.now() + delay }));
+}
 
 export interface AppLockConfig {
   enabled: boolean;
@@ -42,6 +63,7 @@ export async function setPin(pin: string, biometric: boolean): Promise<void> {
   const salt = toHex(crypto.getRandomValues(new Uint8Array(16)));
   const hash = await hashPin(pin, salt);
   localStorage.setItem(KEY, JSON.stringify({ enabled: true, salt, hash, biometric }));
+  localStorage.removeItem(ATTEMPTS_KEY);
 }
 
 export function setBiometric(on: boolean) {
@@ -51,12 +73,17 @@ export function setBiometric(on: boolean) {
 
 export function disableLock() {
   localStorage.removeItem(KEY);
+  localStorage.removeItem(ATTEMPTS_KEY);
 }
 
 export async function verifyPin(pin: string): Promise<boolean> {
   const c = loadLock();
   if (!c) return true;
-  return (await hashPin(pin, c.salt)) === c.hash;
+  if (getPinRetryMs() > 0) return false;
+  const valid = (await hashPin(pin, c.salt)) === c.hash;
+  if (valid) localStorage.removeItem(ATTEMPTS_KEY);
+  else recordFailedPin();
+  return valid;
 }
 
 // ---- Biometrics (Android native only) ----
