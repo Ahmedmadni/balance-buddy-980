@@ -43,3 +43,38 @@ if (existsSync(stringsPath)) {
   writeFileSync(stringsPath, xml);
 }
 console.log("Android OAuth deep link installed:", scheme + "://auth/callback");
+
+// Native privacy protection for Android's recent-apps snapshot. Keep screenshots
+// available while the user is actively viewing their own financial reports.
+const activityJava = "android/app/src/main/java/app/lovable/rasd/MainActivity.java";
+if (!existsSync(activityJava)) {
+  throw new Error("MainActivity.java not found; verify Capacitor package layout before release");
+}
+let activitySource = readFileSync(activityJava, "utf8");
+if (!activitySource.includes("FLAG_SECURE")) {
+  if (!activitySource.includes("import com.getcapacitor.BridgeActivity;")) {
+    throw new Error("Unexpected MainActivity.java: cannot add privacy lifecycle handlers");
+  }
+  activitySource = activitySource.replace(
+    "import com.getcapacitor.BridgeActivity;",
+    "import com.getcapacitor.BridgeActivity;\nimport android.view.WindowManager;"
+  );
+  const opening = /public class MainActivity extends BridgeActivity\s*\{/;
+  if (!opening.test(activitySource)) throw new Error("MainActivity class not found for privacy hardening");
+  activitySource = activitySource.replace(opening, (match) => match + `
+    // Prevent Android's Recents thumbnail from exposing finance data.
+    @Override
+    protected void onPause() {
+        getWindow().addFlags(WindowManager.LayoutParams.FLAG_SECURE);
+        super.onPause();
+    }
+
+    // Allow screenshots while the owner is actively using the application.
+    @Override
+    protected void onResume() {
+        super.onResume();
+        getWindow().clearFlags(WindowManager.LayoutParams.FLAG_SECURE);
+    }
+`);
+  writeFileSync(activityJava, activitySource);
+}
