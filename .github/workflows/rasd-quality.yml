@@ -39,6 +39,8 @@ jobs:
         run: grep -q 'android:scheme="app.lovable.rasd"' android/app/src/main/AndroidManifest.xml
       - name: Verify Android background snapshot protection
         run: grep -q 'FLAG_SECURE' android/app/src/main/java/app/lovable/rasd/MainActivity.java
+      - name: Verify native PDF print bridge registration
+        run: grep -q 'registerPlugin(RasdPrintPlugin.class)' android/app/src/main/java/app/lovable/rasd/MainActivity.java && grep -q 'PrintManager' android/app/src/main/java/app/lovable/rasd/RasdPrintPlugin.java
       - uses: actions/upload-artifact@v4
         with:
           name: rasd-android-debug-apk
