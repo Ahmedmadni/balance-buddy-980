@@ -17,6 +17,37 @@ if (!existsSync(webDir + "/index.html")) {
   writeFileSync(webDir + "/index.html", `<!doctype html><html lang="ar" dir="rtl"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>رصد</title></head><body style="font-family:system-ui;text-align:center;padding:3rem"><h2>رصد</h2><p>يتطلب فتح البرنامج الاتصال بالإنترنت.</p></body></html>`);
 }
 
+// When the hosted app cannot load, Capacitor may show this *local* page.
+// No native plugins are used by errorPath; this is not offline ledger support.
+const hostedUrl = new URL("/auth", process.env.CAP_SERVER_URL || "https://balance-buddy-980.lovable.app").href;
+if (!hostedUrl.startsWith("https://")) throw new Error("Offline retry target must be HTTPS");
+writeFileSync(webDir + "/offline.html", `<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>رصد — تعذر الاتصال</title>
+<style>
+:root { color-scheme: light dark; } * { box-sizing: border-box; }
+body { margin:0; min-height:100dvh; background:#111827; color:#f8fafc; font: 16px system-ui, sans-serif;
+  display:grid; place-items:center; padding:24px; text-align:center; }
+main { max-width:410px; background:#1f2937; border:1px solid #475569; border-radius:20px; padding:30px 22px; }
+h1 { font-size:24px; margin:0 0 12px; } p { line-height:1.8; color:#cbd5e1; margin:0 0 16px; }
+button { min-height:48px; border:0; border-radius:12px; padding:12px 25px; font:inherit; background:#38bdf8; color:#082f49; font-weight:700; }
+small { display:block; margin-top:18px; color:#94a3b8; line-height:1.7; }
+</style>
+</head>
+<body><main role="main">
+<h1>تعذر الاتصال برصد</h1>
+<p>البرنامج يتطلب الإنترنت لعرض بياناتك وتسجيل العمليات. تحقق من الشبكة ثم حاول مجددا.</p>
+<button id="retry" type="button">إعادة المحاولة</button>
+<small>لم يتم إنشاء عمليات مالية دون اتصال، ولن نحفظ إدخالات غير مؤكدة.</small>
+</main>
+<script>
+document.getElementById("retry").addEventListener("click",function(){
+  location.replace(${JSON.stringify(hostedUrl)});
+});
+</script></body></html>`);
+
 if (!existsSync(manifestPath)) {
   const added = spawnSync("npx", ["cap", "add", "android"], { stdio: "inherit", shell: process.platform === "win32" });
   if (added.status !== 0) throw new Error("Capacitor Android platform generation failed");

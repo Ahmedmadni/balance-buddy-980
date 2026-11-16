@@ -249,3 +249,170 @@ html.rasd-app-inactive body {
   [role="dialog"] { max-height: min(92dvh, 100%); overflow-y: auto; }
   main :where(table) { font-variant-numeric: tabular-nums; }
 }
+
+/*
+ * Older Android System WebView builds do not always implement oklch().
+ * Without valid fallback colours the app may render black text over the
+ * native navy splash background even though the HTML layout is correct.
+ * Keep these tokens in sync with the light/dark palette above.
+ */
+@supports not (color: oklch(0.5 0.1 180)) {
+  :root {
+    --background: #f8fafc;
+    --foreground: #1e293b;
+    --card: #ffffff;
+    --card-foreground: #1e293b;
+    --popover: #ffffff;
+    --popover-foreground: #1e293b;
+    --primary: #0891b2;
+    --primary-foreground: #ffffff;
+    --secondary: #f1f5f9;
+    --secondary-foreground: #334155;
+    --muted: #f1f5f9;
+    --muted-foreground: #64748b;
+    --accent: #ccfbf1;
+    --accent-foreground: #115e59;
+    --destructive: #dc2626;
+    --destructive-foreground: #ffffff;
+    --success: #059669;
+    --success-foreground: #ffffff;
+    --warning: #f59e0b;
+    --warning-foreground: #451a03;
+    --border: #e2e8f0;
+    --input: #cbd5e1;
+    --ring: #0891b2;
+    --sidebar: #f8fafc;
+    --sidebar-foreground: #1e293b;
+    --sidebar-primary: #0891b2;
+    --sidebar-primary-foreground: #ffffff;
+    --sidebar-accent: #ccfbf1;
+    --sidebar-accent-foreground: #115e59;
+    --sidebar-border: #e2e8f0;
+    --sidebar-ring: #0891b2;
+    --chart-1: #0891b2;
+    --chart-2: #059669;
+    --chart-3: #dc2626;
+    --chart-4: #f59e0b;
+    --chart-5: #7c3aed;
+    --gradient-primary: linear-gradient(135deg, #0891b2, #0d9488);
+    --gradient-success: linear-gradient(135deg, #059669, #10b981);
+    --gradient-destructive: linear-gradient(135deg, #dc2626, #f43f5e);
+    --shadow-elegant: 0 10px 30px -10px rgba(8, 145, 178, 0.25);
+    --shadow-card: 0 1px 3px rgba(15, 23, 42, 0.06), 0 8px 24px -8px rgba(15, 23, 42, 0.08);
+  }
+  .dark {
+    --background: #0f172a;
+    --foreground: #f8fafc;
+    --card: #1e293b;
+    --card-foreground: #f8fafc;
+    --popover: #1e293b;
+    --popover-foreground: #f8fafc;
+    --primary: #5eead4;
+    --primary-foreground: #0f172a;
+    --secondary: #334155;
+    --secondary-foreground: #f8fafc;
+    --muted: #334155;
+    --muted-foreground: #cbd5e1;
+    --accent: #164e63;
+    --accent-foreground: #f8fafc;
+    --destructive: #fb7185;
+    --destructive-foreground: #0f172a;
+    --success: #34d399;
+    --success-foreground: #052e16;
+    --warning: #fbbf24;
+    --warning-foreground: #451a03;
+    --border: rgba(255, 255, 255, 0.16);
+    --input: rgba(255, 255, 255, 0.18);
+    --ring: #5eead4;
+    --sidebar: #1e293b;
+    --sidebar-foreground: #f8fafc;
+    --sidebar-primary: #5eead4;
+    --sidebar-primary-foreground: #0f172a;
+    --sidebar-accent: #164e63;
+    --sidebar-accent-foreground: #f8fafc;
+    --sidebar-border: rgba(255, 255, 255, 0.16);
+    --sidebar-ring: #5eead4;
+    --chart-1: #5eead4;
+    --chart-2: #34d399;
+    --chart-3: #fb7185;
+    --chart-4: #fbbf24;
+    --chart-5: #a78bfa;
+    --gradient-primary: linear-gradient(135deg, #5eead4, #0d9488);
+    --gradient-success: linear-gradient(135deg, #34d399, #10b981);
+    --gradient-destructive: linear-gradient(135deg, #fb7185, #ef4444);
+    --shadow-elegant: 0 10px 40px -10px rgba(94, 234, 212, 0.24);
+    --shadow-card: 0 1px 3px rgba(0, 0, 0, 0.3), 0 8px 24px -8px rgba(0, 0, 0, 0.4);
+  }
+}
+
+/*
+ * Android uses hex tokens regardless of OKLCH support: older system WebView
+ * builds can parse Tailwind layout utilities but leave CSS colors unset.
+ * Preserve high contrast without changing the desktop/web color system.
+ */
+html.rasd-native-app:not(.dark) {
+  --background: #f8fafc;
+  --foreground: #0f172a;
+  --card: #ffffff;
+  --card-foreground: #0f172a;
+  --popover: #ffffff;
+  --popover-foreground: #0f172a;
+  --muted: #f1f5f9;
+  --muted-foreground: #475569;
+  --primary: #0891b2;
+  --primary-foreground: #ffffff;
+  --secondary: #f1f5f9;
+  --secondary-foreground: #0f172a;
+  --accent: #cffafe;
+  --accent-foreground: #164e63;
+  --border: #cbd5e1;
+  --input: #cbd5e1;
+  --ring: #0891b2;
+  --sidebar: #f8fafc;
+  --sidebar-foreground: #0f172a;
+  --gradient-primary: linear-gradient(135deg, #0891b2, #0d9488);
+}
+html.rasd-native-app.dark {
+  --background: #0f172a;
+  --foreground: #f8fafc;
+  --card: #1e293b;
+  --card-foreground: #f8fafc;
+  --popover: #1e293b;
+  --popover-foreground: #f8fafc;
+  --muted: #334155;
+  --muted-foreground: #cbd5e1;
+  --primary: #5eead4;
+  --primary-foreground: #0f172a;
+  --secondary: #334155;
+  --secondary-foreground: #f8fafc;
+  --accent: #164e63;
+  --accent-foreground: #f8fafc;
+  --border: rgba(255,255,255,0.18);
+  --input: rgba(255,255,255,0.2);
+  --ring: #5eead4;
+  --sidebar: #1e293b;
+  --sidebar-foreground: #f8fafc;
+  --gradient-primary: linear-gradient(135deg, #5eead4, #0d9488);
+}
+
+/* Explicit native fallback for CSS engines that ignore tokenized color values. */
+html.rasd-native-app:not(.dark) body,
+html.rasd-native-app:not(.dark) .bg-background {
+  background-color: #f8fafc;
+  color: #0f172a;
+}
+html.rasd-native-app:not(.dark) .bg-card {
+  background-color: #ffffff;
+  color: #0f172a;
+}
+html.rasd-native-app:not(.dark) .text-muted-foreground { color: #475569; }
+html.rasd-native-app.dark body,
+html.rasd-native-app.dark .bg-background {
+  background-color: #0f172a;
+  color: #f8fafc;
+}
+html.rasd-native-app.dark .bg-card {
+  background-color: #1e293b;
+  color: #f8fafc;
+}
+html.rasd-native-app.dark .text-muted-foreground { color: #cbd5e1; }

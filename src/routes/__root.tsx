@@ -110,6 +110,9 @@ function RootComponent() {
   const router = useRouter();
 
   useEffect(() => {
+    // Native WebView versions may not support OKLCH, even when the web build does.
+    // A dedicated, contrast-safe palette avoids dark text on dark splash colours.
+    document.documentElement.classList.toggle("rasd-native-app", Capacitor.isNativePlatform());
     // Init theme from localStorage / system preference (avoid SSR flash by running early)
     try {
       const saved = localStorage.getItem("rasd-theme");

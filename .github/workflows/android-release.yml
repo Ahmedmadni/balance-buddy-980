@@ -67,7 +67,15 @@ jobs:
       - name: Generate Android project when absent
         run: if [ ! -d android ]; then bunx cap add android; fi
       - run: bun run android:assets
+      - name: Install native OAuth callback, privacy and report printing bridges
+        run: node scripts/ensure-android.mjs
       - run: bunx cap sync android
+      - name: Validate registered native Android features
+        run: |
+          grep -q 'android:scheme="app.lovable.rasd"' android/app/src/main/AndroidManifest.xml
+          grep -q 'FLAG_SECURE' android/app/src/main/java/app/lovable/rasd/MainActivity.java
+          grep -q 'registerPlugin(RasdPrintPlugin.class)' android/app/src/main/java/app/lovable/rasd/MainActivity.java
+          grep -q 'PrintManager' android/app/src/main/java/app/lovable/rasd/RasdPrintPlugin.java
 
       - name: Set version
         run: |

@@ -36,3 +36,40 @@ for (const width of [320, 360, 393, 430]) {
     expect(measurements.rtl).toBe("rtl");
   });
 }
+
+for (const scheme of ["light", "dark"] as const) {
+  for (const surface of ["web", "android-native"] as const) {
+  test(`تباين نص شاشة الدخول في الوضع ${scheme} على ${surface} واضح وقابل للقراءة`, async ({ page }) => {
+    await page.emulateMedia({ colorScheme: scheme });
+    await page.goto("/auth");
+    const heading = page.getByRole("heading", { name: "مرحباً بك" });
+    await expect(heading).toBeVisible();
+    await page.waitForFunction((mode) => document.documentElement.classList.contains("dark") === (mode === "dark"), scheme);
+    if (surface === "android-native") {
+      // Exercise the native-shell CSS palette without needing a signed device.
+      await page.evaluate(() => document.documentElement.classList.add("rasd-native-app"));
+    }
+    const contrast = await heading.evaluate((node) => {
+      const card = node.closest(".rounded-2xl");
+      if (!card) return 0;
+      const rgb = (css: string) => {
+        const canvas = document.createElement("canvas");
+        canvas.width = canvas.height = 1;
+        const ctx = canvas.getContext("2d", { willReadFrequently: true });
+        if (!ctx) return [0, 0, 0];
+        ctx.fillStyle = css;
+        ctx.fillRect(0, 0, 1, 1);
+        return Array.from(ctx.getImageData(0, 0, 1, 1).data.slice(0, 3)).map((n) => n / 255);
+      };
+      const luminance = (c: number[]) => {
+        const linear = c.map((v) => v <= 0.04045 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4);
+        return 0.2126 * linear[0] + 0.7152 * linear[1] + 0.0722 * linear[2];
+      };
+      const foreground = luminance(rgb(getComputedStyle(node).color));
+      const background = luminance(rgb(getComputedStyle(card).backgroundColor));
+      return (Math.max(foreground, background) + 0.05) / (Math.min(foreground, background) + 0.05);
+    });
+    expect(contrast).toBeGreaterThan(4.5);
+  });
+  }
+}

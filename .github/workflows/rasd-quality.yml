@@ -41,6 +41,10 @@ jobs:
         run: grep -q 'FLAG_SECURE' android/app/src/main/java/app/lovable/rasd/MainActivity.java
       - name: Verify native PDF print bridge registration
         run: grep -q 'registerPlugin(RasdPrintPlugin.class)' android/app/src/main/java/app/lovable/rasd/MainActivity.java && grep -q 'PrintManager' android/app/src/main/java/app/lovable/rasd/RasdPrintPlugin.java
+      - name: Verify packaged offline recovery page
+        run: |
+          grep -q 'تعذر الاتصال برصد' android/app/src/main/assets/public/offline.html
+          grep -q 'errorPath' android/app/src/main/assets/capacitor.config.json
       - uses: actions/upload-artifact@v4
         with:
           name: rasd-android-debug-apk
@@ -49,11 +53,20 @@ jobs:
           retention-days: 14
 
   android-smoke:
-    runs-on: ubuntu-latest
+    # API 33/Pixel 2 is less resource-intensive than API 35/Pixel 6 on CI.
+    runs-on: ubuntu-24.04
     needs: android-debug
-    timeout-minutes: 35
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
+      - name: Enable Android emulator KVM acceleration
+        run: |
+          if [ -e /dev/kvm ]; then
+            sudo chmod 666 /dev/kvm
+            ls -l /dev/kvm
+          else
+            echo "::warning::KVM unavailable; emulator will be slow or unstable"
+          fi
       - uses: actions/download-artifact@v4
         with:
           name: rasd-android-debug-apk
@@ -65,10 +78,14 @@ jobs:
       - name: Launch Rasd on Android emulator (no Google sign-in)
         uses: reactivecircus/android-emulator-runner@v2
         with:
-          api-level: 35
+          api-level: 33
           target: google_apis
           arch: x86_64
-          profile: pixel_6
+          profile: pixel_2
+          ram-size: 2048M
+          heap-size: 256M
+          disable-animations: true
+          emulator-options: -no-window -no-boot-anim -no-snapshot -noaudio -gpu swiftshader_indirect
           script: bash scripts/android-emulator-smoke.sh android-apk/app-debug.apk
       - name: Upload Android UI screenshots and crash logs
         if: always()
