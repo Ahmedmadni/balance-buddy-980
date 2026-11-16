@@ -32,6 +32,7 @@ describe("Backup v2 financial restore preflight", () => {
       { data: { ...baseline.data, wallets: [12] } },
       { data: { ...baseline.data, wallets: [{ user_id: "foreign" }] } },
       { data: { ...baseline.data, transactions: [] } },
+      { data: { ...baseline.data, unexpected_financial_table: [{ amount: 100 }] } },
       { data: { ...baseline.data, attachments: [] } },
       { data: { ...baseline.data, system_events: [] } },
       { profile: { id: "impersonation" } },
