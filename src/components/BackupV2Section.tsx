@@ -91,7 +91,7 @@ export function BackupV2Section() {
         toast.error("أدخل كلمة مرور النسخة المستوردة قبل اختيار الملف");
         return;
       }
-      const payload = encrypted ? await decryptBackup(raw, restorePassword) : raw;
+      const payload = isEncryptedBackup(raw) ? await decryptBackup(raw, restorePassword) : raw;
       const backup = validateBackupV2(payload);
       if (!backup) {
         toast.error("نسخة غير مدعومة", { description: "الملف ليس نسخة احتياطية صالحة من رصد (الإصدار 2)." });
