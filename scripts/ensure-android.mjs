@@ -129,10 +129,10 @@ if (!activitySource.includes("registerPlugin(RasdPrintPlugin.class)")) {
   if (!activitySource.includes("import android.os.Bundle;")) {
     activitySource = activitySource.replace(
       "import com.getcapacitor.BridgeActivity;",
-      "import com.getcapacitor.BridgeActivity;\\nimport android.os.Bundle;"
+      "import com.getcapacitor.BridgeActivity;\nimport android.os.Bundle;"
     );
   }
-  const mainClass = /public class MainActivity extends BridgeActivity\\s*\\{/;
+  const mainClass = /public class MainActivity extends BridgeActivity\s*\{/;
   if (!mainClass.test(activitySource)) throw new Error("Cannot register RasdPrintPlugin in MainActivity");
   activitySource = activitySource.replace(mainClass, (match) => match + `
     @Override
