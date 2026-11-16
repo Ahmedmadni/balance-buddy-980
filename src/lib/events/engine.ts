@@ -116,6 +116,9 @@ export async function computeUpcomingEvents(opts?: { horizonDays?: number }): Pr
     supabase.from("zakat_settings").select("base_currency,last_haul_start_date"),
   ]);
 
+  const failed = [sysRes, ledgerRes, recRes, invRes, depRes, mvRes, zsRes].find((result) => result.error);
+  if (failed?.error) throw new Error("تعذر جلب بيانات الاستحقاقات؛ لن يتم تغيير التذكيرات المجدولة");
+
   // 1) User-created system_events
   for (const r of sysRes.data ?? []) {
     const meta = r.metadata && typeof r.metadata === "object" && !Array.isArray(r.metadata)
