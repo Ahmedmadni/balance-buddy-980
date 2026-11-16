@@ -19,7 +19,7 @@ jobs:
       - name: Unit regression tests
         run: bun run test:unit
       - name: Android setup script syntax
-        run: node --check scripts/ensure-android.mjs
+        run: node --check scripts/ensure-android.mjs && node --check scripts/android-build.mjs
 
   android-debug:
     runs-on: ubuntu-latest
