@@ -37,6 +37,8 @@ jobs:
         run: bun run android:debug
       - name: Verify the OAuth callback is in AndroidManifest.xml
         run: grep -q 'android:scheme="app.lovable.rasd"' android/app/src/main/AndroidManifest.xml
+      - name: Verify Android background snapshot protection
+        run: grep -q 'FLAG_SECURE' android/app/src/main/java/app/lovable/rasd/MainActivity.java
       - uses: actions/upload-artifact@v4
         with:
           name: rasd-android-debug-apk
