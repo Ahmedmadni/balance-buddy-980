@@ -78,3 +78,68 @@ if (!activitySource.includes("FLAG_SECURE")) {
 `);
   writeFileSync(activityJava, activitySource);
 }
+
+const printerJavaPath = "android/app/src/main/java/app/lovable/rasd/RasdPrintPlugin.java";
+const printerJavaSource = `package app.lovable.rasd;
+
+import android.content.Context;
+import android.print.PrintAttributes;
+import android.print.PrintDocumentAdapter;
+import android.print.PrintManager;
+import android.webkit.WebView;
+import com.getcapacitor.Plugin;
+import com.getcapacitor.PluginCall;
+import com.getcapacitor.PluginMethod;
+import com.getcapacitor.annotation.CapacitorPlugin;
+
+/** Opens the Android system printing UI (including Save as PDF). */
+@CapacitorPlugin(name = "RasdPrinter")
+public class RasdPrintPlugin extends Plugin {
+    @PluginMethod
+    public void printPage(PluginCall call) {
+        String requestedName = call.getString("name");
+        final String jobName = requestedName == null || requestedName.isEmpty() ? "Rasd Report" : requestedName;
+        getActivity().runOnUiThread(() -> {
+            try {
+                WebView webView = getBridge().getWebView();
+                if (webView == null) {
+                    call.reject("Print WebView is unavailable");
+                    return;
+                }
+                PrintManager manager = (PrintManager) getContext().getSystemService(Context.PRINT_SERVICE);
+                if (manager == null) {
+                    call.reject("Android PrintManager is unavailable");
+                    return;
+                }
+                PrintDocumentAdapter adapter = webView.createPrintDocumentAdapter(jobName);
+                manager.print(jobName, adapter, new PrintAttributes.Builder().build());
+                call.resolve();
+            } catch (Exception e) {
+                call.reject("Unable to open Android print dialog", e);
+            }
+        });
+    }
+}
+`;
+if (!existsSync(printerJavaPath) || readFileSync(printerJavaPath, "utf8") !== printerJavaSource) {
+  writeFileSync(printerJavaPath, printerJavaSource);
+}
+activitySource = readFileSync(activityJava, "utf8");
+if (!activitySource.includes("registerPlugin(RasdPrintPlugin.class)")) {
+  if (!activitySource.includes("import android.os.Bundle;")) {
+    activitySource = activitySource.replace(
+      "import com.getcapacitor.BridgeActivity;",
+      "import com.getcapacitor.BridgeActivity;\\nimport android.os.Bundle;"
+    );
+  }
+  const mainClass = /public class MainActivity extends BridgeActivity\\s*\\{/;
+  if (!mainClass.test(activitySource)) throw new Error("Cannot register RasdPrintPlugin in MainActivity");
+  activitySource = activitySource.replace(mainClass, (match) => match + `
+    @Override
+    public void onCreate(Bundle savedInstanceState) {
+        registerPlugin(RasdPrintPlugin.class);
+        super.onCreate(savedInstanceState);
+    }
+`);
+  writeFileSync(activityJava, activitySource);
+}
