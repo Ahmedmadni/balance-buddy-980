@@ -67,7 +67,7 @@ export async function syncNativeReminders(
   if (permission.display !== "granted") return { scheduled: 0, permission: "denied" };
 
   // Do not cancel already scheduled reminders when the network/database fails.
-  const { all } = await computeUpcomingEvents({ horizonDays: 30 });
+  const { all, overdue } = await computeUpcomingEvents({ horizonDays: 30 });
   const now = Date.now();
   const desired = new Map<number, { when: Date; key: string }>();
   const userPlan = previous.user === userId ? previous : loadPlan();
@@ -84,6 +84,25 @@ export async function syncNativeReminders(
       id = id === 999_999_999 ? 600_000_000 : id + 1;
     }
     desired.set(id, { key, when: at });
+  }
+
+  // Preserve the old foreground-only feature for overdue debts: give an
+  // opt-in, privacy-safe summary once per local day instead of silently
+  // dropping overdue events because their due time has passed.
+  const outstanding = overdue.filter((event) =>
+    event.status === "pending" && passesPriorityFilter(event.priority, settings.priorityFilter));
+  if (outstanding.length && desired.size < MAX_REMINDERS) {
+    const today = new Date(now);
+    const ymd = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}-${String(today.getDate()).padStart(2, "0")}`;
+    const key = `${userId}:overdue:${ymd}`;
+    const at = plannedReminderTime(new Date(now + 2 * 60_000).toISOString(), settings.quietHours, "normal");
+    if (at && +at > now) {
+      let id = nativeId(key);
+      while (desired.has(id) && desired.get(id)?.key !== key) {
+        id = id === 999_999_999 ? 600_000_000 : id + 1;
+      }
+      desired.set(id, { key, when: at });
+    }
   }
 
   const saved = Object.entries(userPlan.entries);
