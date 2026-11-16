@@ -97,11 +97,9 @@ export class WhatsAppProviderStub extends NoopNotificationProvider {
 // ----- Local adapter (real, no external SDK) -----
 // Web: uses the browser Notification API directly.
 // Native (Capacitor Android/iOS): looks up `Capacitor.Plugins.LocalNotifications`
-// at runtime — no static import of `@capacitor/local-notifications`, so the
-// build doesn't need that package installed. If/when it's added as a
-// dependency (`bun add @capacitor/local-notifications`) and its side-effect
-// import registers the plugin, this branch starts working with no code
-// changes here.
+// at runtime. The Android package now includes @capacitor/local-notifications.
+// Scheduled future reminders use native-scheduler.ts, rather than the
+// foreground-only immediate notification adapter below.
 export class LocalNotificationProvider extends NoopNotificationProvider {
   async scheduleLocal(payload: NotificationPayload): Promise<NotificationSendResult> {
     if (typeof window === "undefined") return skip("local", "no_window");
