@@ -64,14 +64,14 @@ if (!activitySource.includes("FLAG_SECURE")) {
   activitySource = activitySource.replace(opening, (match) => match + `
     // Prevent Android's Recents thumbnail from exposing finance data.
     @Override
-    protected void onPause() {
+    public void onPause() {
         getWindow().addFlags(WindowManager.LayoutParams.FLAG_SECURE);
         super.onPause();
     }
 
     // Allow screenshots while the owner is actively using the application.
     @Override
-    protected void onResume() {
+    public void onResume() {
         super.onResume();
         getWindow().clearFlags(WindowManager.LayoutParams.FLAG_SECURE);
     }
