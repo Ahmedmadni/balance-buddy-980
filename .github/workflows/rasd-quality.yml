@@ -41,6 +41,10 @@ jobs:
         run: grep -q 'FLAG_SECURE' android/app/src/main/java/app/lovable/rasd/MainActivity.java
       - name: Verify native PDF print bridge registration
         run: grep -q 'registerPlugin(RasdPrintPlugin.class)' android/app/src/main/java/app/lovable/rasd/MainActivity.java && grep -q 'PrintManager' android/app/src/main/java/app/lovable/rasd/RasdPrintPlugin.java
+      - name: Verify packaged offline recovery page
+        run: |
+          grep -q 'تعذر الاتصال برصد' android/app/src/main/assets/public/offline.html
+          grep -q 'errorPath' android/app/src/main/assets/capacitor.config.json
       - uses: actions/upload-artifact@v4
         with:
           name: rasd-android-debug-apk
