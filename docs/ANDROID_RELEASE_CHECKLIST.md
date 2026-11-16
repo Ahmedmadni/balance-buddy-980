@@ -66,3 +66,7 @@ bun run android:apk
 - MainActivity enables Android's `FLAG_SECURE` on `onPause` to reduce exposure of recent-app snapshots and clears it on `onResume` so the owner may still capture reports while actively using the app. This is **not** end-to-end screen-recording prevention.
 - The above is release-code verification, not evidence that every Android manufacturer's background notification policy behaves identically. Real-device validation is still required.
 - As explicitly requested, Google login testing is deliberately the final phase and was **not** included in phase 3.
+
+## Windows Android Studio build compatibility
+- Use `bun install` then `bun run android:debug` to generate a debug APK, or `bun run android:apk` / `bun run android:aab` with release signing configured.
+- The production Android launcher runs `bun`, `npx cap sync android`, and `gradlew.bat` on Windows or `./gradlew` on Linux/macOS. It does not change Google OAuth or test login.
