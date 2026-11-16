@@ -21,7 +21,7 @@ if (!existsSync(webDir + "/index.html")) {
 // No native plugins are used by errorPath; this is not offline ledger support.
 const hostedUrl = new URL("/auth", process.env.CAP_SERVER_URL || "https://balance-buddy-980.lovable.app").href;
 if (!hostedUrl.startsWith("https://")) throw new Error("Offline retry target must be HTTPS");
-writeFileSync(webDir + "/offline.html", \`<!doctype html>
+writeFileSync(webDir + "/offline.html", `<!doctype html>
 <html lang="ar" dir="rtl">
 <head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
@@ -44,9 +44,9 @@ small { display:block; margin-top:18px; color:#94a3b8; line-height:1.7; }
 </main>
 <script>
 document.getElementById("retry").addEventListener("click",function(){
-  location.replace(\${JSON.stringify(hostedUrl)});
+  location.replace(${JSON.stringify(hostedUrl)});
 });
-</script></body></html>\`);
+</script></body></html>`);
 
 if (!existsSync(manifestPath)) {
   const added = spawnSync("npx", ["cap", "add", "android"], { stdio: "inherit", shell: process.platform === "win32" });
