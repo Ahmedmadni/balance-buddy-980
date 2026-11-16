@@ -20,6 +20,9 @@ import {
   type NotificationChannel,
 } from "@/lib/notifications/config";
 import { processPendingNotifications } from "@/lib/notifications/engine";
+import { syncNativeReminders } from "@/lib/notifications/native-scheduler";
+import { Capacitor } from "@capacitor/core";
+import { supabase } from "@/integrations/supabase/client";
 import { PRIORITY_LABEL, type EventPriority } from "@/lib/events/engine";
 import { toast } from "sonner";
 
@@ -36,14 +39,30 @@ export function NotificationSettingsSection() {
   function toggleChannel(c: NotificationChannel, v: boolean) {
     setSettings((s) => ({ ...s, channels: { ...s.channels, [c]: v } }));
   }
-  function save() {
+  async function save() {
     saveNotificationSettings(settings);
-    toast.success("تم حفظ إعدادات الإشعارات");
+    if (Capacitor.isNativePlatform()) {
+      try {
+        const { data: { user } } = await supabase.auth.getUser();
+        if (user) {
+          const r = await syncNativeReminders(user.id, { askPermission: true });
+          if (r.permission === "denied") toast.warning("تحتاج الإشعارات إلى إذن النظام. يمكنك السماح بها من إعدادات الهاتف.");
+          else toast.success(`تم حفظ الإعدادات — ${r.scheduled} تذكير مجدول على الجهاز`);
+        }
+      } catch { toast.warning("تم حفظ الإعدادات، لكن لم تكتمل جدولة إشعارات Android. تحقق من الاتصال."); }
+    } else toast.success("تم حفظ إعدادات الإشعارات");
   }
   async function checkNow() {
     setChecking(true);
     try {
       saveNotificationSettings(settings); // ensure the check uses the values on screen
+      if (Capacitor.isNativePlatform()) {
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) throw new Error("سجل الدخول لتحديث التذكيرات");
+        const result = await syncNativeReminders(user.id, { askPermission: true });
+        toast.info(result.permission === "granted" ? `تمت جدولة ${result.scheduled} تذكير على الجهاز` : "إشعارات Android غير مفعلة أو لا تملك إذن النظام");
+        return;
+      }
       const r = await processPendingNotifications();
       if (r.disabled) toast.info("الإشعارات غير مفعّلة");
       else toast.success(`تم الفحص — أُرسل ${r.sent}، تخطي ${r.skipped}، فشل ${r.failed}`);
@@ -163,13 +182,12 @@ export function NotificationSettingsSection() {
       <div className="rounded-2xl border bg-amber-50/40 dark:bg-amber-950/10 p-3 text-[11px] text-amber-800 dark:text-amber-200 flex gap-2">
         <Info className="h-3.5 w-3.5 mt-0.5 shrink-0" />
         <span>
-          الإشعارات المحلية (على الجهاز) تعمل فعلياً عبر متصفح الويب. Push/Email/SMS/واتساب جاهزة من
-          ناحية البنية لكنها بلا مزوّد حقيقي بعد — لن يصلك شيء منها حالياً.
+          على Android، تتم جدولة مواعيد الاستحقاق القادمة عند فتح التطبيق أو حفظ الإعدادات، ويستطيع النظام عرضها بعد إغلاقه. التوقيت الدقيق يعتمد على إعدادات الهاتف وتوفير الطاقة. قنوات Push والبريد والرسائل وواتساب غير مفعلة.
         </span>
       </div>
 
       <div className="flex gap-2">
-        <Button onClick={save} className="flex-1">
+        <Button onClick={() => void save()} className="flex-1">
           <Save className="h-4 w-4 ml-1" /> حفظ الإعدادات
         </Button>
         <Button onClick={checkNow} variant="outline" disabled={checking}>
