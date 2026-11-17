@@ -12,12 +12,13 @@ import { ThemeToggle } from "@/components/ThemeToggle";
 import { PageTransition } from "@/components/motion/PageTransition";
 import { AppLockGate } from "@/components/AppLockGate";
 import { cn } from "@/lib/utils";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { processPendingNotifications } from "@/lib/notifications/engine";
 import { Capacitor } from "@capacitor/core";
 import { syncNativeReminders, clearNativeReminders } from "@/lib/notifications/native-scheduler";
 import { trackBetaSession, recordPageVisit, finalizeCurrentPage } from "@/lib/beta/session";
 import { usePrivacy } from "@/hooks/use-privacy";
+import { toast } from "sonner";
 
 function PrivacyToggle() {
   const [on, toggle] = usePrivacy();
@@ -99,6 +100,7 @@ function AppLayout() {
   const navigate = useNavigate();
   const qc = useQueryClient();
   const [open, setOpen] = useState(false);
+  const signingOut = useRef(false);
   const { user } = Route.useRouteContext();
   const { data: profile } = useQuery({
     queryKey: ["profile"],
@@ -113,6 +115,7 @@ function AppLayout() {
   // when notifications are disabled in Settings (see engine.ts).
   useEffect(() => {
     const tick = () => {
+      if (signingOut.current) return;
       if (Capacitor.isNativePlatform()) void syncNativeReminders(user.id).catch(() => {});
       else void processPendingNotifications().catch(() => {});
     };
@@ -124,11 +127,23 @@ function AppLayout() {
   }, [user.id]);
 
   async function signOut() {
-    await qc.cancelQueries();
-    qc.clear();
-    if (Capacitor.isNativePlatform()) await clearNativeReminders().catch(() => {});
-    await supabase.auth.signOut();
-    navigate({ to: "/auth", replace: true });
+    if (signingOut.current) return;
+    signingOut.current = true;
+    try {
+      // Stop new reminders from this layout before waiting for the native
+      // queue to cancel any schedules already in progress.
+      await qc.cancelQueries();
+      if (Capacitor.isNativePlatform()) await clearNativeReminders();
+      const { error } = await supabase.auth.signOut();
+      if (error) throw error;
+      qc.clear();
+      await navigate({ to: "/auth", replace: true });
+    } catch {
+      signingOut.current = false;
+      toast.error("تعذر تسجيل الخروج بالكامل", {
+        description: "تحقق من الاتصال وأعد المحاولة. لم يتم تأكيد إغلاق الجلسة.",
+      });
+    }
   }
 
   const pathname = useRouterState({ select: (s) => s.location.pathname });
