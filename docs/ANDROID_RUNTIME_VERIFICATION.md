@@ -58,3 +58,15 @@ Do not declare `100% works` until all required real-device rows are tested and O
 - The server remains the authoritative validator before any destructive work. UI validation is additional protection, not a replacement.
 - The destructive confirmation previews total row count and major collection counts; a fully empty (but structurally complete) backup receives an explicit warning that the covered financial records will be replaced/cleared.
 - An encrypted file still requires its passphrase and the typed confirmation `استعادة`. Never experiment with restoration on a production account.
+
+## Phase 6: cross-account privacy and reminder-operation ordering (2026-11-17)
+- Android native reminder scheduling and cancellation now share a serialized queue. If the user presses sign-out while a slow database fetch or notification scheduling is in flight, previously started schedules finish **before** logout cancellation; any queued stale sync requested earlier is invalidated.
+- The app shell suppresses further reminder ticks while sign-out is underway. A failure to cancel Android alarms does **not** prevent signing out; it shows a warning that an old alarm may persist. Sign-out must never depend on a notification plugin working.
+- The top-level auth listener cleans the financial TanStack Query cache and requests reminder cancellation for implicit/automatic SIGNED_OUT events as well as user-triggered logout.
+- In-place authentication transitions between different user IDs also clear old financial query results and native reminders, because not every query key is currently scoped by user ID. Same-account authentication/refresh avoids unnecessary eviction.
+- Unit regression tests cover queue ordering, plugin failure recovery and account isolation. The real-device acceptance test must switch between **two disposable test accounts**, confirm account A amounts do not flash on account B's pages, and confirm old notifications are absent from Android system settings after sign-out; avoid exposing real financial data during testing.
+- **Limits:** app PIN remains a UI-only device-level lock. This is not Android Keystore-backed database encryption; full offline-first use is not implemented. Testing the Google OAuth browser/deep-link flow remains deferred.
+
+- Logout and account switching now also query Android OS pending alarms and cancel those tagged `extra.rasd === true` in the app-owned ID range, even when WebView localStorage no longer has their IDs. They do not cancel unrelated alerts. A fresh account sync performs orphan-alarm cleanup if its local plan is empty.
+- A real-device test must verify that these tagged alarms are removed after simulated WebView-storage loss, and verify that unrelated app alarms remain; no test in CI can prove OEM alarm persistence or OS settings behavior.
+- Sign-out waits at most **5 seconds** for the OS notification cleanup attempt, so a hung network refresh cannot trap the user in a signed-in session indefinitely. If the timeout or native plugin fails, sign-out continues with a warning and cleanup remains queued; verify on a real Android device with its internet disabled.

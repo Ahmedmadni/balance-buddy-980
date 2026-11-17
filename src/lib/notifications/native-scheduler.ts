@@ -5,11 +5,17 @@ import { loadNotificationSettings, passesPriorityFilter } from "./config";
 import { plannedReminderTime } from "./due-time";
 import { compareNativeReminderState } from "./native-reconcile";
 import { dailySummaryDecision } from "./daily-summary";
+import { createAsyncSerialQueue } from "@/lib/mobile/async-serial-queue";
+import { nativeReminderIdsToCancel } from "./cancel-ids";
 import { loadReminderPrefs } from "@/lib/events/engine";
 
 interface Planned { user: string; entries: Record<string, string>; lastOverdueKey?: string }
 const KEY = "rasd.native-reminders.v1";
 const MAX_REMINDERS = 50;
+// Serialise sync and sign-out cancellation against the same OS alarm set.
+const runSerialized = createAsyncSerialQueue();
+// Invalidate sync requests still waiting to start when logout is requested.
+let cancellationEpoch = 0;
 
 function loadPlan(): Planned {
   try {
@@ -29,11 +35,19 @@ function nativeId(key: string): number {
 }
 
 async function clearEntries(plan: Planned): Promise<void> {
-  const notifications = Object.keys(plan.entries).map((id) => ({ id: Number(id) }));
-  if (notifications.length) await LocalNotifications.cancel({ notifications });
+  // Android alarms can survive loss of the WebView's localStorage plan.
+  // Discover only notifications carrying our explicit `extra.rasd` marker.
+  // If getPending fails, still attempt cancellation of known plan IDs.
+  let osPending: Array<{ id: number; extra?: unknown }> = [];
+  try {
+    const result = await LocalNotifications.getPending();
+    osPending = result.notifications;
+  } catch { /* known IDs remain a useful fallback */ }
+  const ids = nativeReminderIdsToCancel(plan.entries, osPending);
+  if (ids.length) await LocalNotifications.cancel({ notifications: ids.map((id) => ({ id })) });
 }
 
-export async function clearNativeReminders(): Promise<void> {
+async function clearNativeRemindersUnlocked(): Promise<void> {
   if (!Capacitor.isNativePlatform()) return;
   const plan = loadPlan();
   await clearEntries(plan);
@@ -44,7 +58,7 @@ export async function clearNativeReminders(): Promise<void> {
  * Schedules opted-in upcoming reminders while online so Android can display
  * them after the app closes. No hidden permission prompt on app startup.
  */
-export async function syncNativeReminders(
+async function syncNativeRemindersUnlocked(
   userId: string,
   opts: { askPermission?: boolean } = {},
 ): Promise<{ scheduled: number; permission: string }> {
@@ -53,12 +67,14 @@ export async function syncNativeReminders(
   const prefs = loadReminderPrefs();
   const previous = loadPlan();
 
-  if (previous.user && previous.user !== userId) {
+  if (previous.user !== userId) {
+    // The plan may be empty because WebView storage was cleared even though
+    // Android still owns tagged alarms from a previously signed-in account.
     await clearEntries(previous);
     savePlan({ user: userId, entries: {} });
   }
   if (!settings.enabled || !settings.channels.local || !prefs.enabled) {
-    await clearNativeReminders();
+    await clearNativeRemindersUnlocked();
     return { scheduled: 0, permission: "disabled" };
   }
 
@@ -147,4 +163,30 @@ export async function syncNativeReminders(
     lastOverdueKey: scheduledOverdueKey ?? userPlan.lastOverdueKey,
   });
   return { scheduled: desired.size, permission: "granted" };
+}
+
+/**
+ * The native plugin, persisted plan and remote events must not overlap.
+ * In particular a slow sync may be in flight when the user logs out.
+ * Logout will await that sync, then clear all of its resulting OS alarms.
+ */
+export function syncNativeReminders(
+  userId: string,
+  opts: { askPermission?: boolean } = {},
+): Promise<{ scheduled: number; permission: string }> {
+  if (!Capacitor.isNativePlatform()) return Promise.resolve({ scheduled: 0, permission: "web" });
+  const requestedAtEpoch = cancellationEpoch;
+  return runSerialized(() =>
+    requestedAtEpoch === cancellationEpoch
+      ? syncNativeRemindersUnlocked(userId, opts)
+      : Promise.resolve({ scheduled: 0, permission: "cancelled" }),
+  );
+}
+
+export function clearNativeReminders(): Promise<void> {
+  if (!Capacitor.isNativePlatform()) return Promise.resolve();
+  // A slow sync already executing will finish before this queued clear.
+  // Any earlier sync that has not started is discarded after this increment.
+  cancellationEpoch += 1;
+  return runSerialized(clearNativeRemindersUnlocked);
 }
