@@ -6,6 +6,7 @@ import { plannedReminderTime } from "./due-time";
 import { compareNativeReminderState } from "./native-reconcile";
 import { dailySummaryDecision } from "./daily-summary";
 import { createAsyncSerialQueue } from "@/lib/mobile/async-serial-queue";
+import { nativeReminderIdsToCancel } from "./cancel-ids";
 import { loadReminderPrefs } from "@/lib/events/engine";
 
 interface Planned { user: string; entries: Record<string, string>; lastOverdueKey?: string }
@@ -34,8 +35,16 @@ function nativeId(key: string): number {
 }
 
 async function clearEntries(plan: Planned): Promise<void> {
-  const notifications = Object.keys(plan.entries).map((id) => ({ id: Number(id) }));
-  if (notifications.length) await LocalNotifications.cancel({ notifications });
+  // Android alarms can survive loss of the WebView's localStorage plan.
+  // Discover only notifications carrying our explicit `extra.rasd` marker.
+  // If getPending fails, still attempt cancellation of known plan IDs.
+  let osPending: Array<{ id: number; extra?: unknown }> = [];
+  try {
+    const result = await LocalNotifications.getPending();
+    osPending = result.notifications;
+  } catch { /* known IDs remain a useful fallback */ }
+  const ids = nativeReminderIdsToCancel(plan.entries, osPending);
+  if (ids.length) await LocalNotifications.cancel({ notifications: ids.map((id) => ({ id })) });
 }
 
 async function clearNativeRemindersUnlocked(): Promise<void> {
