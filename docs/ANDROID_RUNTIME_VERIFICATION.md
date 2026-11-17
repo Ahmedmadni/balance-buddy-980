@@ -69,3 +69,4 @@ Do not declare `100% works` until all required real-device rows are tested and O
 
 - Logout and account switching now also query Android OS pending alarms and cancel those tagged `extra.rasd === true` in the app-owned ID range, even when WebView localStorage no longer has their IDs. They do not cancel unrelated alerts. A fresh account sync performs orphan-alarm cleanup if its local plan is empty.
 - A real-device test must verify that these tagged alarms are removed after simulated WebView-storage loss, and verify that unrelated app alarms remain; no test in CI can prove OEM alarm persistence or OS settings behavior.
+- Sign-out waits at most **5 seconds** for the OS notification cleanup attempt, so a hung network refresh cannot trap the user in a signed-in session indefinitely. If the timeout or native plugin fails, sign-out continues with a warning and cleanup remains queued; verify on a real Android device with its internet disabled.
