@@ -23,6 +23,7 @@ import { toast } from "sonner";
 import { App } from "@capacitor/app";
 import { Capacitor } from "@capacitor/core";
 import { AndroidOfflineBanner } from "@/components/AndroidOfflineBanner";
+import { clearNativeReminders } from "@/lib/notifications/native-scheduler";
 
 function NotFoundComponent() {
   return (
@@ -148,7 +149,13 @@ function RootComponent() {
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event) => {
       if (event !== "SIGNED_IN" && event !== "SIGNED_OUT" && event !== "USER_UPDATED") return;
       if (event === "SIGNED_IN") createAuditEntry("login", "تسجيل دخول");
-      if (event === "SIGNED_OUT") createAuditEntry("logout", "تسجيل خروج");
+      if (event === "SIGNED_OUT") {
+        createAuditEntry("logout", "تسجيل خروج");
+        // Automatic/session-expired signouts must clear sensitive financial
+        // queries and Android reminders even if the sign-out UI was bypassed.
+        queryClient.clear();
+        if (Capacitor.isNativePlatform()) void clearNativeReminders().catch(() => {});
+      }
       router.invalidate();
       if (event !== "SIGNED_OUT") queryClient.invalidateQueries();
     });
