@@ -13,6 +13,8 @@ const KEY = "rasd.native-reminders.v1";
 const MAX_REMINDERS = 50;
 // Serialise sync and sign-out cancellation against the same OS alarm set.
 const runSerialized = createAsyncSerialQueue();
+// Invalidate sync requests still waiting to start when logout is requested.
+let cancellationEpoch = 0;
 
 function loadPlan(): Planned {
   try {
@@ -162,10 +164,18 @@ export function syncNativeReminders(
   opts: { askPermission?: boolean } = {},
 ): Promise<{ scheduled: number; permission: string }> {
   if (!Capacitor.isNativePlatform()) return Promise.resolve({ scheduled: 0, permission: "web" });
-  return runSerialized(() => syncNativeRemindersUnlocked(userId, opts));
+  const requestedAtEpoch = cancellationEpoch;
+  return runSerialized(() =>
+    requestedAtEpoch === cancellationEpoch
+      ? syncNativeRemindersUnlocked(userId, opts)
+      : Promise.resolve({ scheduled: 0, permission: "cancelled" }),
+  );
 }
 
 export function clearNativeReminders(): Promise<void> {
   if (!Capacitor.isNativePlatform()) return Promise.resolve();
+  // A slow sync already executing will finish before this queued clear.
+  // Any earlier sync that has not started is discarded after this increment.
+  cancellationEpoch += 1;
   return runSerialized(clearNativeRemindersUnlocked);
 }
