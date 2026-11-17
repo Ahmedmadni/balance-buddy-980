@@ -5,11 +5,14 @@ import { loadNotificationSettings, passesPriorityFilter } from "./config";
 import { plannedReminderTime } from "./due-time";
 import { compareNativeReminderState } from "./native-reconcile";
 import { dailySummaryDecision } from "./daily-summary";
+import { createAsyncSerialQueue } from "@/lib/mobile/async-serial-queue";
 import { loadReminderPrefs } from "@/lib/events/engine";
 
 interface Planned { user: string; entries: Record<string, string>; lastOverdueKey?: string }
 const KEY = "rasd.native-reminders.v1";
 const MAX_REMINDERS = 50;
+// Serialise sync and sign-out cancellation against the same OS alarm set.
+const runSerialized = createAsyncSerialQueue();
 
 function loadPlan(): Planned {
   try {
@@ -33,7 +36,7 @@ async function clearEntries(plan: Planned): Promise<void> {
   if (notifications.length) await LocalNotifications.cancel({ notifications });
 }
 
-export async function clearNativeReminders(): Promise<void> {
+async function clearNativeRemindersUnlocked(): Promise<void> {
   if (!Capacitor.isNativePlatform()) return;
   const plan = loadPlan();
   await clearEntries(plan);
@@ -44,7 +47,7 @@ export async function clearNativeReminders(): Promise<void> {
  * Schedules opted-in upcoming reminders while online so Android can display
  * them after the app closes. No hidden permission prompt on app startup.
  */
-export async function syncNativeReminders(
+async function syncNativeRemindersUnlocked(
   userId: string,
   opts: { askPermission?: boolean } = {},
 ): Promise<{ scheduled: number; permission: string }> {
@@ -58,7 +61,7 @@ export async function syncNativeReminders(
     savePlan({ user: userId, entries: {} });
   }
   if (!settings.enabled || !settings.channels.local || !prefs.enabled) {
-    await clearNativeReminders();
+    await clearNativeRemindersUnlocked();
     return { scheduled: 0, permission: "disabled" };
   }
 
@@ -147,4 +150,22 @@ export async function syncNativeReminders(
     lastOverdueKey: scheduledOverdueKey ?? userPlan.lastOverdueKey,
   });
   return { scheduled: desired.size, permission: "granted" };
+}
+
+/**
+ * The native plugin, persisted plan and remote events must not overlap.
+ * In particular a slow sync may be in flight when the user logs out.
+ * Logout will await that sync, then clear all of its resulting OS alarms.
+ */
+export function syncNativeReminders(
+  userId: string,
+  opts: { askPermission?: boolean } = {},
+): Promise<{ scheduled: number; permission: string }> {
+  if (!Capacitor.isNativePlatform()) return Promise.resolve({ scheduled: 0, permission: "web" });
+  return runSerialized(() => syncNativeRemindersUnlocked(userId, opts));
+}
+
+export function clearNativeReminders(): Promise<void> {
+  if (!Capacitor.isNativePlatform()) return Promise.resolve();
+  return runSerialized(clearNativeRemindersUnlocked);
 }
