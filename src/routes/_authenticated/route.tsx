@@ -133,11 +133,22 @@ function AppLayout() {
       // Stop new reminders from this layout before waiting for the native
       // queue to cancel any schedules already in progress.
       await qc.cancelQueries();
-      if (Capacitor.isNativePlatform()) await clearNativeReminders();
+      // A failed Android OS cancellation must never prevent signing out of
+      // a financial account. The global auth listener retries cleanup.
+      let reminderClearFailed = false;
+      if (Capacitor.isNativePlatform()) {
+        try { await clearNativeReminders(); }
+        catch { reminderClearFailed = true; }
+      }
       const { error } = await supabase.auth.signOut();
       if (error) throw error;
       qc.clear();
       await navigate({ to: "/auth", replace: true });
+      if (reminderClearFailed) {
+        toast.warning("تم تسجيل الخروج، لكن قد تبقى تنبيهات Android سابقة", {
+          description: "يمكنك مراجعة إشعارات رصد في إعدادات الهاتف.",
+        });
+      }
     } catch {
       signingOut.current = false;
       toast.error("تعذر تسجيل الخروج بالكامل", {
