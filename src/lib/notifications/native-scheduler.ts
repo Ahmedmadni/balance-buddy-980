@@ -67,7 +67,9 @@ async function syncNativeRemindersUnlocked(
   const prefs = loadReminderPrefs();
   const previous = loadPlan();
 
-  if (previous.user && previous.user !== userId) {
+  if (previous.user !== userId) {
+    // The plan may be empty because WebView storage was cleared even though
+    // Android still owns tagged alarms from a previously signed-in account.
     await clearEntries(previous);
     savePlan({ user: userId, entries: {} });
   }
