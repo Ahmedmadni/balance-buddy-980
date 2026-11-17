@@ -24,6 +24,7 @@ import { App } from "@capacitor/app";
 import { Capacitor } from "@capacitor/core";
 import { AndroidOfflineBanner } from "@/components/AndroidOfflineBanner";
 import { clearNativeReminders } from "@/lib/notifications/native-scheduler";
+import { shouldClearFinancialCache } from "@/lib/auth/account-boundary";
 
 function NotFoundComponent() {
   return (
@@ -146,18 +147,25 @@ function RootComponent() {
       onSuccess: () => { void router.invalidate(); },
       onFailure: (message) => toast.error("تعذر تسجيل الدخول", { description: message }),
     });
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((event) => {
+    let accountId: string | null = null;
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      if (event === "INITIAL_SESSION") {
+        accountId = session?.user?.id ?? null;
+        return;
+      }
       if (event !== "SIGNED_IN" && event !== "SIGNED_OUT" && event !== "USER_UPDATED") return;
-      if (event === "SIGNED_IN") createAuditEntry("login", "تسجيل دخول");
-      if (event === "SIGNED_OUT") {
-        createAuditEntry("logout", "تسجيل خروج");
-        // Automatic/session-expired signouts must clear sensitive financial
-        // queries and Android reminders even if the sign-out UI was bypassed.
+      const nextAccountId = session?.user?.id ?? null;
+      if (shouldClearFinancialCache(event, accountId, nextAccountId)) {
+        // Query keys are not all user-scoped; cache entries from user A must
+        // not appear for user B in the same Android WebView or browser tab.
         queryClient.clear();
         if (Capacitor.isNativePlatform()) void clearNativeReminders().catch(() => {});
       }
-      router.invalidate();
-      if (event !== "SIGNED_OUT") queryClient.invalidateQueries();
+      if (event === "SIGNED_IN") createAuditEntry("login", "تسجيل دخول");
+      if (event === "SIGNED_OUT") createAuditEntry("logout", "تسجيل خروج");
+      accountId = nextAccountId;
+      void router.invalidate();
+      if (event !== "SIGNED_OUT") void queryClient.invalidateQueries();
     });
     return () => {
       subscription.unsubscribe();
