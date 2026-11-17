@@ -137,8 +137,21 @@ function AppLayout() {
       // a financial account. The global auth listener retries cleanup.
       let reminderClearFailed = false;
       if (Capacitor.isNativePlatform()) {
-        try { await clearNativeReminders(); }
-        catch { reminderClearFailed = true; }
+        // A remote reminder sync may be waiting on a stalled connection.
+        // Attempt OS cleanup, but never hold financial account logout forever.
+        let cancellationTimeout: ReturnType<typeof setTimeout> | undefined;
+        try {
+          await Promise.race([
+            clearNativeReminders(),
+            new Promise<never>((_, reject) => {
+              cancellationTimeout = setTimeout(() => reject(new Error("cancel_timeout")), 5000);
+            }),
+          ]);
+        } catch {
+          reminderClearFailed = true;
+        } finally {
+          if (cancellationTimeout) clearTimeout(cancellationTimeout);
+        }
       }
       const { error } = await supabase.auth.signOut();
       if (error) throw error;
