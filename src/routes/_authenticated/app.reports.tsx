@@ -13,6 +13,8 @@ import { kindMeta, kindSign } from "@/components/PersonTxForm";
 import * as XLSX from "xlsx";
 import { exportFile } from "@/lib/mobile/share-export";
 import { printCurrentReport } from "@/lib/mobile/native-print";
+import { buildReportDateRange } from "@/lib/reports/date-range";
+import { summarizeAssetForReport } from "@/lib/reports/asset-period";
 import { AdSlot } from "@/components/ads/AdSlot";
 import { toast } from "sonner";
 
@@ -42,6 +44,7 @@ function ReportsPage() {
   const [to, setTo] = useState(todayISO());
   const [type, setType] = useState<"expenses" | "people" | "transactions" | "assets">("transactions");
   const [projectId, setProjectId] = useState<string>("all");
+  const dateRange = buildReportDateRange(from, to);
 
   const { data: projects } = useQuery({
     queryKey: ["projects-all"],
@@ -50,11 +53,14 @@ function ReportsPage() {
 
   const { data, refetch, isFetching, isError } = useQuery({
     queryKey: ["report", type, from, to, projectId],
+    enabled: dateRange !== null,
     queryFn: async () => {
+      const period = buildReportDateRange(from, to);
+      if (!period) throw new Error("نطاق تاريخ التقرير غير صالح");
       if (type === "transactions") {
         const rows = await readAllReportRows(async (start, end) => await supabase.from("transactions")
           .select("id,type,direction,amount,currency,happened_at,description,person_name,account_id,counterparty_account_id")
-          .gte("happened_at", from).lte("happened_at", to)
+          .gte("happened_at", period.fromInclusive).lt("happened_at", period.toExclusive)
           .order("happened_at", { ascending: false }).order("id", { ascending: false })
           .range(start, end));
         return { rows };
@@ -71,20 +77,21 @@ function ReportsPage() {
         const [investments, txs] = await Promise.all([
           readAllReportRows(async (start, end) => await supabase.from("investments").select("*")
             .order("id", { ascending: true }).range(start, end)),
+          // A current balance sheet needs all historic CapEx, not only
+          // transactions inside the selected period.
           readAllReportRows(async (start, end) => await supabase.from("investment_transactions").select("*")
-            .gte("happened_at", from).lte("happened_at", to)
             .order("happened_at", { ascending: false }).order("id", { ascending: false })
             .range(start, end)),
         ]);
         const byInv = new Map<string, any[]>();
         for (const t of txs) { const a = byInv.get(t.investment_id) ?? []; a.push(t); byInv.set(t.investment_id, a); }
-        const { computeAssetMetrics } = await import("@/lib/assets/calculator");
-        return { rows: investments.map((inv: any) => ({
-          ...inv, _m: computeAssetMetrics(inv, byInv.get(inv.id) ?? []),
-        })) };
+        return { rows: investments.map((inv: any) => {
+          const summary = summarizeAssetForReport(inv, byInv.get(inv.id) ?? [], period);
+          return { ...inv, _m: summary.snapshot, _period: summary.flows };
+        }) };
       } else {
         const rows = await readAllReportRows(async (start, end) => await supabase.from("person_ledger")
-          .select("*").gte("happened_at", from).lte("happened_at", to)
+          .select("*").gte("happened_at", period.fromInclusive).lt("happened_at", period.toExclusive)
           .order("happened_at", { ascending: false }).order("id", { ascending: false })
           .range(start, end));
         return { rows };
@@ -104,9 +111,12 @@ function ReportsPage() {
       ? rows.map((r: any) => ({ "الشهر": (r.period as string).slice(0, 7), "الفئة": r.expenses?.categories?.name ?? "", "المشروع": r.expenses?.projects?.name ?? "", "المحفظة": r.expenses?.wallets?.name ?? "", "المبلغ": Number(r.amount), "العملة": r.currency, "ملاحظة": r.expenses?.note ?? "" }))
       : type === "assets"
       ? rows.map((r: any) => ({
-        "الأصل": r.name, "العملة": r.currency, "القيمة الدفترية": r._m?.bookValue ?? 0,
-        "القيمة السوقية": r._m?.marketValue ?? 0, "الربح المحقق": r._m?.realizedPnl ?? 0,
-        "الربح غير المحقق": r._m?.unrealizedPnl ?? 0, "إجمالي العائد": r._m?.totalPnl ?? 0,
+        "الأصل": r.name, "العملة": r.currency, "القيمة الدفترية الحالية": r._m?.bookValue ?? 0,
+        "القيمة السوقية": r._m?.marketValue ?? 0, "الربح المحقق التراكمي": r._m?.realizedPnl ?? 0,
+        "الربح غير المحقق الحالي": r._m?.unrealizedPnl ?? 0, "إجمالي العائد التراكمي": r._m?.totalPnl ?? 0,
+        "CapEx خلال الفترة": r._period?.capex ?? 0,
+        "OpEx خلال الفترة": r._period?.opex ?? 0,
+        "الدخل خلال الفترة": r._period?.income ?? 0,
       }))
       : rows.map((r: any) => ({ "التاريخ": r.happened_at, "الشخص": r.contact_name, "النوع": kindMeta(r.kind).label, "المبلغ": Number(r.amount), "العملة": r.currency, "الاستحقاق": r.due_date ?? "", "مسدد": r.settled_at ? "نعم" : "لا", "ملاحظات": r.notes ?? "" }));
     if (sheetData.length === 0) return;
@@ -171,6 +181,11 @@ function ReportsPage() {
           <div><Label>إلى</Label><Input type="date" value={to} onChange={(e) => setTo(e.target.value)} dir="ltr" /></div>
         </div>
 
+        {!dateRange && (
+          <p role="alert" className="text-sm text-destructive">
+            تاريخ البداية أو النهاية غير صالح، أو أن تاريخ البداية بعد تاريخ النهاية. صحح الفترة لعرض تقرير موثوق.
+          </p>
+        )}
         {type === "expenses" && (
           <div>
             <Label>المشروع</Label>
@@ -186,8 +201,8 @@ function ReportsPage() {
 
         <div className="flex gap-2">
           <Button onClick={() => refetch()} variant="outline" className="flex-1">{isFetching ? "جاري..." : "تحديث"}</Button>
-          <Button onClick={() => void printReport()} disabled={isError || isFetching} className="flex-1"><Printer className="h-4 w-4" /> طباعة</Button>
-          <Button onClick={() => void exportExcel()} variant="outline" disabled={isError || isFetching || rows.length === 0}><FileSpreadsheet className="h-4 w-4" /></Button>
+          <Button onClick={() => void printReport()} disabled={!dateRange || isError || isFetching} className="flex-1"><Printer className="h-4 w-4" /> طباعة</Button>
+          <Button onClick={() => void exportExcel()} variant="outline" disabled={!dateRange || isError || isFetching || rows.length === 0}><FileSpreadsheet className="h-4 w-4" /></Button>
         </div>
       </div>
 
@@ -197,6 +212,12 @@ function ReportsPage() {
           <div className="text-sm text-muted-foreground mt-1">من {formatDate(from)} إلى {formatDate(to)}</div>
         </div>
 
+        {type === "assets" && (
+          <p className="text-xs text-muted-foreground mb-3">
+            قيم الأصول والأرباح المعروضة تراكمية بحسب الوضع الحالي، بينما CapEx وOpEx والدخل تخص الفترة المختارة فقط.
+            لا تُعد القيم الحالية ميزانية تاريخية عند نهاية الفترة.
+          </p>
+        )}
         {type === "transactions" ? (
           <>
             <div className="grid grid-cols-3 gap-3 mb-4">
@@ -272,7 +293,7 @@ function ReportsPage() {
             for (const r of rows as any[]) {
               const c = r.currency; const m = r._m;
               const t = (totals[c] ??= { value: 0, capex: 0, opex: 0, income: 0, pnl: 0 });
-              t.value += m.marketValue; t.capex += m.capex; t.opex += m.opex; t.income += m.income; t.pnl += m.totalPnl;
+              t.value += m.marketValue; t.capex += r._period.capex; t.opex += r._period.opex; t.income += r._period.income; t.pnl += m.totalPnl;
             }
             const top = [...(rows as any[])].sort((a, b) => b._m.totalPnl - a._m.totalPnl).slice(0, 10);
             return (
@@ -301,9 +322,9 @@ function ReportsPage() {
                       <tr key={r.id} className="border-b last:border-0">
                         <td className="py-2 font-medium">{r.name}</td>
                         <td className="tabular-nums">{formatMoney(r._m.marketValue, r.currency)}</td>
-                        <td className="tabular-nums text-blue-600">{formatMoney(r._m.capex, r.currency)}</td>
-                        <td className="tabular-nums text-amber-600">{formatMoney(r._m.opex, r.currency)}</td>
-                        <td className="tabular-nums text-success">{formatMoney(r._m.income, r.currency)}</td>
+                        <td className="tabular-nums text-blue-600">{formatMoney(r._period.capex, r.currency)}</td>
+                        <td className="tabular-nums text-amber-600">{formatMoney(r._period.opex, r.currency)}</td>
+                        <td className="tabular-nums text-success">{formatMoney(r._period.income, r.currency)}</td>
                         <td className={`text-left tabular-nums ${r._m.totalPnl >= 0 ? "text-success" : "text-destructive"}`}>{r._m.totalPnl >= 0 ? "+" : "−"}{formatMoney(Math.abs(r._m.totalPnl), r.currency)}</td>
                       </tr>
                     ))}
