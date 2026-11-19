@@ -151,7 +151,7 @@ export function BackupV2Section() {
           if (error) throw error;
           return data.user?.id ?? null;
         },
-        () => supabase.rpc("restore_user_backup", { p_backup: pendingBackup as never }),
+        async () => await supabase.rpc("restore_user_backup", { p_backup: pendingBackup as never }),
       );
 
       if (response === "blocked") {
