@@ -20,7 +20,7 @@ describe("Android Excel/PDF export diagnostic samples", () => {
     expect(blob.type).toBe("application/pdf");
     const bytes = new Uint8Array(await blob.arrayBuffer());
     expect(bytes.length).toBeGreaterThan(800);
-    expect(new TextDecoder().decode(bytes.slice(0, 8))).toStartWith("%PDF-");
+    expect(new TextDecoder().decode(bytes.slice(0, 8)).startsWith("%PDF-")).toBe(true);
     const full = new TextDecoder("latin1").decode(bytes);
     expect(full).toContain("Rasd Android PDF Test");
     expect(full).toContain("Synthetic export only");
