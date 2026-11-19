@@ -6,6 +6,9 @@ import { useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { exportFile } from "@/lib/mobile/share-export";
+import { Capacitor } from "@capacitor/core";
+import { clearNativeReminders, syncNativeReminders } from "@/lib/notifications/native-scheduler";
+import { afterSuccessfulBackupRestore } from "@/lib/backup/post-restore";
 import { decryptBackup, encryptBackup, isEncryptedBackup } from "@/lib/backup/encrypted-backup";
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription,
@@ -133,11 +136,35 @@ export function BackupV2Section() {
       return;
     }
     try {
-      await qc.invalidateQueries({ refetchType: "none" });
-      await qc.refetchQueries({ type: "active" }, { throwOnError: true });
-      toast.success("تمت الاستعادة بنجاح", { description: "تم تحديث جميع البيانات من النسخة الاحتياطية." });
-    } catch {
-      toast.warning("تمت الاستعادة، لكن تعذّر تحديث العرض", { description: "لا تكرر الاستعادة. افتح الصفحة مجددًا عند عودة الاتصال." });
+      // The SQL RPC has already committed. A reminder, network or UI failure
+      // is NOT a restore failure and must never lead to a second import.
+      const after = await afterSuccessfulBackupRestore({
+        native: Capacitor.isNativePlatform(),
+        clearNativeReminders,
+        refreshActiveViews: async () => {
+          await qc.invalidateQueries({ refetchType: "none" });
+          await qc.refetchQueries({ type: "active" }, { throwOnError: true });
+        },
+        syncNativeReminders: async () => {
+          const { data, error } = await supabase.auth.getUser();
+          if (error || !data.user) throw new Error("Active session required");
+          await syncNativeReminders(data.user.id, { askPermission: false });
+        },
+      });
+      if (!after.viewUpdated || !after.remindersCleared || !after.remindersSynced) {
+        const issues = [
+          !after.viewUpdated ? "لم تكتمل إعادة تحميل البيانات المعروضة." : "",
+          (!after.remindersCleared || !after.remindersSynced) ?
+            "لم يتم تأكيد تحديث تنبيهات Android؛ راجع الإشعارات عند عودة الاتصال." : "",
+        ].filter(Boolean).join(" ");
+        toast.warning("تمت استعادة البيانات، لكن يلزم التحقق من بعض وظائف الجهاز", {
+          description: issues + " لا تكرر عملية الاستعادة.",
+        });
+      } else {
+        toast.success("تمت الاستعادة بنجاح", {
+          description: "تم تحديث البيانات ومراجعة جدول التنبيهات المحلي إذا كان مفعّلًا.",
+        });
+      }
     } finally {
       operationLock.current = false;
       setRestoring(false);
