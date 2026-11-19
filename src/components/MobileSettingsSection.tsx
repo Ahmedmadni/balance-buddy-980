@@ -18,6 +18,7 @@ import { createDeviceProviders, type PermissionStatus } from "@/lib/mobile/provi
 import { auditMobileCompatibility } from "@/lib/mobile/compatibility";
 import { runAndroidSelfCheck, type NativeSelfCheckResult } from "@/lib/mobile/native-self-check";
 import { exportFile } from "@/lib/mobile/share-export";
+import { createDiagnosticExcel, createDiagnosticPdf } from "@/lib/mobile/diagnostic-files";
 import { toast } from "sonner";
 
 const PLATFORM_LABEL: Record<ReturnType<typeof getPlatform>, string> = {
@@ -94,6 +95,30 @@ export function MobileSettingsSection() {
     }
   }
 
+  async function tryDiagnosticDocument(format: "xlsx" | "pdf") {
+    setTestingShare(true);
+    try {
+      const content = format === "xlsx"
+        ? await createDiagnosticExcel()
+        : await createDiagnosticPdf();
+      const outcome = await exportFile(
+        content,
+        format === "xlsx" ? "rasd-android-test.xlsx" : "rasd-android-test.pdf",
+      );
+      const label = format === "xlsx" ? "Excel" : "PDF";
+      toast.info(outcome === "share_sheet_opened"
+        ? `تم فتح مشاركة ${label}. اختر «الملفات» أو Drive واحفظه، ثم افتحه للتأكد من المحتوى.`
+        : `بدأ تنزيل ملف ${label} التجريبي. تحقق من فتحه وظهور القيم التجريبية.`);
+    } catch {
+      toast.error(format === "xlsx"
+        ? "تعذر إنشاء ملف Excel أو مشاركته"
+        : "تعذر إنشاء ملف PDF أو مشاركته");
+    } finally {
+      setTestingShare(false);
+    }
+  }
+
+
   const compat = auditMobileCompatibility();
   const unsupportedCount = compat.items.filter((i) => !i.supported).length;
 
@@ -142,6 +167,9 @@ export function MobileSettingsSection() {
               يفحص ملفًا مؤقتًا، وإذن الإشعارات، وتسجيل إضافات الطباعة والمشاركة. لا يصل إلى بياناتك المالية ولا يطلب أذونات جديدة.
             </p>
           </div>
+          <p className="text-[11px] text-muted-foreground">
+            ملفات الاختبار تحتوي على بيانات افتراضية فقط (123.45 SAR). نجاح الحفظ والمشاركة لا يُثبت الطباعة عبر Android PrintManager؛ اختبرها من صفحة التقارير.
+          </p>
           <div className="flex flex-wrap gap-2">
             <Button size="sm" variant="outline" disabled={checkingNative || testingShare} onClick={() => void checkNativeFeatures()}>
               <RefreshCw className={`h-4 w-4 ${checkingNative ? "animate-spin" : ""}`} />
@@ -149,7 +177,15 @@ export function MobileSettingsSection() {
             </Button>
             <Button size="sm" variant="outline" disabled={checkingNative || testingShare} onClick={() => void tryNativeFileShare()}>
               <Share2 className="h-4 w-4" />
-              {testingShare ? "فتح المشاركة..." : "تجربة حفظ ملف"}
+              {testingShare ? "فتح المشاركة..." : "تجربة ملف نصي"}
+            </Button>
+            <Button size="sm" variant="outline" disabled={checkingNative || testingShare} onClick={() => void tryDiagnosticDocument("xlsx")}>
+              <Share2 className="h-4 w-4" />
+              تجربة Excel
+            </Button>
+            <Button size="sm" variant="outline" disabled={checkingNative || testingShare} onClick={() => void tryDiagnosticDocument("pdf")}>
+              <Share2 className="h-4 w-4" />
+              تجربة PDF
             </Button>
           </div>
           {nativeResult && (
