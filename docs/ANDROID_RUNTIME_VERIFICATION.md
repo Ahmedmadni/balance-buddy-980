@@ -93,3 +93,13 @@ Do not declare `100% works` until all required real-device rows are tested and O
 - Browser E2E tests emulate print media and verify that login pages remain printable; when the report class is active, surrounding UI is hidden, table content remains visible, text truncation is removed and background snapshot blur does not enter print output. Unit tests cover print preflight safety.
 - This validates **CSS and bridge integration**, not real OEM Android Save-as-PDF completion. A user must still open Settings → Device, test a synthetic PDF export, and use the report's "طباعة / PDF" action to verify Android PrintManager saves a multipage Arabic report.
 - Google OAuth testing remains intentionally deferred; no financial data were changed.
+
+## Phase 10 — legacy backup v1 retirement (2026-11-19)
+
+- Discontinued **new plaintext v1 financial backup exports and local-cache writes** on web and Android. All new whole-account backup and restore actions go through authenticated server-side v2 RPC and password-protected AES-256-GCM export.
+- Disabled legacy `importUserData` table-by-table `merge`/`replace` writes at the engine level. The previous replace path could delete several tables and then fail on a later insert without a transaction; retrying or silently resuming is unsafe. Only preview-only calls remain non-mutating.
+- Settings → Backup now includes the **read-only v1 archive inspector**: choose an old v1 JSON file (max 50 MB), display only scope, creation date, number of tables/rows and count inconsistencies. It never inserts or deletes records, reads no current user records, and does not save the imported plaintext to localStorage/IndexedDB.
+- A separate user-confirmed action deletes the historical cached v1 backup from both IndexedDB and localStorage. Never auto-delete historical archives, as they may be someone's sole surviving copy. This action does not delete external Downloads/Drive copies or server-side data.
+- Users who only possess a v1 file **cannot restore it through the retired non-atomic UI**. Do not promise automatic conversion to v2: the schemas differ. Retain the file safely until a validated migration path is explicitly developed and tested.
+- Existing v2 encrypted backups are unaffected. The v2 restore is still destructive to current account data; inspect record counts and preserve an independent verified backup before running it. Tests cover legacy metadata-only inspection and hard-disabled v1 export, file writing and partial restoration.
+- Device acceptance: verify no v1 export/restore buttons remain, verify inspecting an old archive does not change the account's data, and confirm clearing local cache only affects old unencrypted in-app copies. No real financial records or Google OAuth were used in CI.
