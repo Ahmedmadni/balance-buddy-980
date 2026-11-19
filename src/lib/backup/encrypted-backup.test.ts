@@ -51,7 +51,7 @@ describe("encrypted financial backups", () => {
 
   test("rejects modified encrypted data without exposing financial plaintext", async () => {
     const envelope = await encryptBackup({ secret: "سري للغاية" }, "independent long phrase for encrypted financial archive");
-    const tampered = { ...envelope, data: envelope.data.slice(0, -4) + "AAAA" };
+    const tampered = { ...envelope, data: (envelope.data[0] === "A" ? "B" : "A") + envelope.data.slice(1) };
     await expect(decryptBackup(tampered, "independent long phrase for encrypted financial archive"))
       .rejects.toThrow("كلمة المرور غير صحيحة أو ملف النسخة تالف");
   });
