@@ -11,6 +11,9 @@ DECLARE
   backup jsonb;
   result jsonb;
   failure_message text;
+  second_owner_id uuid := '16000000-0000-0000-0000-000000000002';
+  second_wallet_id uuid := '36000000-0000-0000-0000-000000000002';
+  second_backup jsonb;
 BEGIN
   INSERT INTO auth.users (
     id, instance_id, aud, role, email, encrypted_password, email_confirmed_at
@@ -120,6 +123,102 @@ BEGIN
   IF NOT EXISTS (SELECT 1 FROM public.wallets WHERE id = wallet_id AND name = 'A06 wallet') THEN
     RAISE EXCEPTION 'A06 rejected payload changed existing data';
   END IF;
+
+  -- A late database NOT NULL violation must reverse the entire RPC,
+  -- including early DELETEs of contacts/wallets and trigger-derived rows.
+  -- jsonb_populate_recordset accepts null, so it reaches the INSERT stage.
+  failure_message := NULL;
+  BEGIN
+    PERFORM public.restore_user_backup(
+      jsonb_set(backup, '{data,wallets,0,name}', 'null'::jsonb)
+    );
+  EXCEPTION WHEN OTHERS THEN
+    failure_message := SQLSTATE;
+  END;
+
+  IF failure_message IS DISTINCT FROM '23502' THEN
+    RAISE EXCEPTION
+      'A06 expected a late NOT NULL failure; got SQLSTATE %',
+      COALESCE(failure_message, '<no error>');
+  END IF;
+
+  IF (SELECT count(*) FROM public.wallets
+      WHERE user_id = owner_id AND id = wallet_id AND name = 'A06 wallet') <> 1
+     OR (SELECT count(*) FROM public.contacts
+         WHERE user_id = owner_id AND id = contact_id) <> 1
+     OR (SELECT count(*) FROM public.wallet_transactions
+         WHERE user_id = owner_id AND id = wallet_tx_id) <> 1
+     OR (SELECT count(*) FROM public.transactions
+         WHERE source_kind = 'wallet_transactions' AND source_id = wallet_tx_id) <> 1
+     OR (SELECT display_name FROM public.profiles WHERE id = owner_id)
+         IS DISTINCT FROM 'A06 original' THEN
+    RAISE EXCEPTION 'A06 late failure did not restore all original records atomically';
+  END IF;
+
+  -- Missing backup collections must never mean "erase this table".
+  failure_message := NULL;
+  BEGIN
+    PERFORM public.restore_user_backup(backup #- '{data,contacts}');
+  EXCEPTION WHEN OTHERS THEN
+    failure_message := SQLERRM;
+  END;
+  IF failure_message IS DISTINCT FROM 'Backup collection missing: contacts'
+     OR (SELECT count(*) FROM public.contacts WHERE user_id = owner_id) <> 1 THEN
+    RAISE EXCEPTION 'A06 missing collection was not rejected before deletion';
+  END IF;
+
+  -- Two distinct synthetic authenticated identities share a disposable DB.
+  -- Export must never include the other account's private rows, and restoring
+  -- one account's backup cannot delete or overwrite the other's wallet.
+  INSERT INTO auth.users (
+    id, instance_id, aud, role, email, encrypted_password, email_confirmed_at
+  ) VALUES (
+    second_owner_id,
+    '00000000-0000-0000-0000-000000000000',
+    'authenticated',
+    'authenticated',
+    'a06-second@example.invalid',
+    '',
+    now()
+  );
+
+  INSERT INTO public.wallets (id, user_id, name, currency, opening_balance)
+  VALUES (second_wallet_id, second_owner_id, 'A06 second wallet', 'SAR', 999);
+
+  -- User A is still the current token; its fresh export excludes user B.
+  IF EXISTS (
+    SELECT 1 FROM jsonb_array_elements(
+      (public.export_user_backup()->'data'->'wallets')
+    ) AS e(value)
+    WHERE e.value->>'id' = second_wallet_id::text
+  ) THEN
+    RAISE EXCEPTION 'A06 user A export leaked user B wallet';
+  END IF;
+
+  PERFORM set_config('request.jwt.claim.sub', second_owner_id::text, true);
+  second_backup := public.export_user_backup();
+  IF EXISTS (
+    SELECT 1 FROM jsonb_array_elements(second_backup->'data'->'wallets') AS e(value)
+    WHERE e.value->>'id' = wallet_id::text
+  ) OR (
+    SELECT count(*) FROM jsonb_array_elements(second_backup->'data'->'wallets')
+  ) <> 1 THEN
+    RAISE EXCEPTION 'A06 user B export leaked user A wallet or lost its own wallet';
+  END IF;
+
+  UPDATE public.wallets
+  SET name = 'A06 second changed'
+  WHERE id = second_wallet_id;
+  result := public.restore_user_backup(second_backup);
+  IF COALESCE((result->>'ok')::boolean, false) IS NOT TRUE
+     OR (SELECT name FROM public.wallets WHERE id = second_wallet_id)
+        IS DISTINCT FROM 'A06 second wallet'
+     OR (SELECT name FROM public.wallets WHERE id = wallet_id)
+        IS DISTINCT FROM 'A06 wallet'
+     OR (SELECT count(*) FROM public.contacts WHERE id = contact_id) <> 1 THEN
+    RAISE EXCEPTION 'A06 account-scoped restore changed another owner or failed round-trip';
+  END IF;
+
 END
 $test$;
 
