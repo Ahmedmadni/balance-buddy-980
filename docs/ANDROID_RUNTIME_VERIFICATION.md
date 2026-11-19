@@ -77,3 +77,9 @@ Do not declare `100% works` until all required real-device rows are tested and O
 - These are current-valued assets (including current sale status and current market value), **not historical as-of snapshots**. The report explicitly labels current cumulative profit versus selected-period flows. Do not infer historical closing balances from the current snapshot.
 - An invalid report period disables exporting/printing rather than producing misleading zero totals. Financial regression tests cover a final-day transaction at 23:59:59, leap-day/month/year boundaries, and prior-period CapEx.
 - Android Excel exports continue to use the native file chooser; PDF/print uses Android PrintManager and remains subject to real-device Save-as-PDF verification. No Google OAuth tests were performed.
+
+## Phase 8 — user-triggered Excel/PDF export acceptance helpers (2026-11-19)
+- Android Settings → Device includes synthetic sample **Excel** and **PDF** export buttons alongside the previous text-file share test.
+- The Excel sample creates a genuine XLSX workbook with Arabic headers, stable numeric values (123.45 and 23.4), and currency text; unit tests reopen the binary and verify its sheet and cell types. The PDF sample creates an A4 PDF using jsPDF with a known English heading and values, and a unit test checks the PDF magic header and content. English test text avoids suggesting built-in jsPDF fonts can render Arabic without custom embedding.
+- Both use the exact same Filesystem cache → Android Share chooser path as financial report exports. The user must choose Files/Drive, save externally and reopen the file; merely opening the chooser is not proof of permanent storage.
+- Samples contain **no real finance data**, account IDs, auth tokens or Supabase calls. They do not verify PDF printing with Android PrintManager, which is a separate manual acceptance test performed using the actual report print action.
