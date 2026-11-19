@@ -83,3 +83,13 @@ Do not declare `100% works` until all required real-device rows are tested and O
 - The Excel sample creates a genuine XLSX workbook with Arabic headers, stable numeric values (123.45 and 23.4), and currency text; unit tests reopen the binary and verify its sheet and cell types. The PDF sample creates an A4 PDF using jsPDF with a known English heading and values, and a unit test checks the PDF magic header and content. English test text avoids suggesting built-in jsPDF fonts can render Arabic without custom embedding.
 - Both use the exact same Filesystem cache → Android Share chooser path as financial report exports. The user must choose Files/Drive, save externally and reopen the file; merely opening the chooser is not proof of permanent storage.
 - Samples contain **no real finance data**, account IDs, auth tokens or Supabase calls. They do not verify PDF printing with Android PrintManager, which is a separate manual acceptance test performed using the actual report print action.
+
+## Phase 9 — print-isolation and PDF readability (2026-11-19)
+
+- Fixed the previously global print-only `body * { visibility: hidden !important; }` rule, which blanked out non-report browser printouts. Report isolation now applies only when the report route has mounted `html.rasd-report-page`; the route removes this class on unmount.
+- For the `#rasd-report-print` element, print CSS now provides an A4-friendly borderless container, repeatable table headers, nontruncated descriptions, readable grid text, row/page-break protection and print table borders.
+- Android's background privacy blur remains on screen and in app-switcher thumbnails, but is explicitly disabled **inside print media on the report route**. This avoids a blurred document if Android PrintManager temporarily puts the WebView Activity in the background.
+- The explicit report-print action refuses to print when the report route/body is missing, and refuses while privacy mode hides monetary amounts. In the latter case the user must disable the privacy toggle before printing; the app does not silently unblur data.
+- Browser E2E tests emulate print media and verify that login pages remain printable; when the report class is active, surrounding UI is hidden, table content remains visible, text truncation is removed and background snapshot blur does not enter print output. Unit tests cover print preflight safety.
+- This validates **CSS and bridge integration**, not real OEM Android Save-as-PDF completion. A user must still open Settings → Device, test a synthetic PDF export, and use the report's "طباعة / PDF" action to verify Android PrintManager saves a multipage Arabic report.
+- Google OAuth testing remains intentionally deferred; no financial data were changed.
