@@ -166,12 +166,9 @@ const IDB_NAME = "rasd-backup";
 const IDB_STORE = "bundles";
 const LS_KEY = "rasd.lastBackup.v1";
 
-export async function saveLastBackup(bundle: BackupBundle) {
-  try {
-    await idbPut("last", bundle);
-  } catch {
-    try { localStorage.setItem(LS_KEY, JSON.stringify(bundle)); } catch { /* quota */ }
-  }
+/** Never persist new unencrypted v1 financial archives in browser storage. */
+export async function saveLastBackup(_bundle: BackupBundle): Promise<void> {
+  throw new Error("تم إيقاف تخزين نسخ v1 غير المشفرة.");
 }
 
 export async function loadLastBackup(): Promise<BackupBundle | null> {
