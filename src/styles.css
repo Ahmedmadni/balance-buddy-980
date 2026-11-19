@@ -214,24 +214,64 @@ body { overflow-wrap: anywhere; }
 }
 
 @media print {
-  /* Keep navigation, financial settings, and form controls off the PDF. */
-  body * { visibility: hidden !important; }
-  #rasd-report-print, #rasd-report-print * { visibility: visible !important; }
-  #rasd-report-print {
+  /*
+   * Financial-report isolation applies only while the reports route is
+   * mounted. Previously `body * { visibility: hidden }` applied everywhere
+   * and could create blank printouts from unrelated pages.
+   */
+  html.rasd-report-page body * { visibility: hidden !important; }
+  html.rasd-report-page #rasd-report-print,
+  html.rasd-report-page #rasd-report-print * { visibility: visible !important; }
+  /* Android PrintManager can put the Activity in the background while it
+   * rasterizes pages. Never bake the Recents-screen privacy blur into the
+   * user's explicitly requested print document. On-screen blur remains. */
+  html.rasd-report-page.rasd-app-inactive body {
+    filter: none !important;
+  }
+  html.rasd-report-page #rasd-report-print {
     position: absolute !important;
     inset: 0 auto auto 0 !important;
     width: 100% !important;
     max-width: 100% !important;
     padding: 0 !important;
     margin: 0 !important;
-    color: #000 !important;
+    direction: rtl !important;
+    color: #111827 !important;
     background: #fff !important;
     border: 0 !important;
+    border-radius: 0 !important;
     box-shadow: none !important;
   }
-  #rasd-report-print table { width: 100%; border-collapse: collapse; }
-  #rasd-report-print thead { display: table-header-group; }
-  #rasd-report-print tr { break-inside: avoid; }
+  html.rasd-report-page #rasd-report-print :is(h2, th, td, p) {
+    color: #111827 !important;
+  }
+  html.rasd-report-page #rasd-report-print table {
+    width: 100% !important;
+    max-width: 100% !important;
+    border-collapse: collapse !important;
+    table-layout: auto !important;
+    font-size: 9pt !important;
+  }
+  html.rasd-report-page #rasd-report-print th,
+  html.rasd-report-page #rasd-report-print td {
+    padding: 2mm 1.5mm !important;
+    vertical-align: top !important;
+    overflow-wrap: anywhere !important;
+    border-bottom: 0.25pt solid #d1d5db !important;
+  }
+  html.rasd-report-page #rasd-report-print thead {
+    display: table-header-group !important;
+  }
+  html.rasd-report-page #rasd-report-print :is(tr, h2) {
+    break-inside: avoid !important;
+    page-break-inside: avoid !important;
+  }
+  html.rasd-report-page #rasd-report-print .truncate {
+    max-width: none !important;
+    overflow: visible !important;
+    text-overflow: clip !important;
+    white-space: normal !important;
+  }
 }
 
 /* Android snapshot privacy when the app is no longer foregrounded. */

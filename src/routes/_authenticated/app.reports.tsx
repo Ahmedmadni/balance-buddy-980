@@ -1,7 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -38,6 +38,13 @@ export const Route = createFileRoute("/_authenticated/app/reports")({
 });
 
 function ReportsPage() {
+  // Scope printable report CSS to this route. Other pages must not become
+  // blank when users print from the browser or Android.
+  useEffect(() => {
+    document.documentElement.classList.add("rasd-report-page");
+    return () => document.documentElement.classList.remove("rasd-report-page");
+  }, []);
+
   const today = new Date();
   const monthStart = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}-01`;
   const [from, setFrom] = useState(monthStart);
@@ -138,7 +145,7 @@ function ReportsPage() {
     try {
       await printCurrentReport(`رصد-${type}-${from}_${to}`);
     } catch (error) {
-      toast.error("تعذر فتح طباعة Android", { description: error instanceof Error ? error.message : "حدث خطأ غير متوقع" });
+      toast.error("تعذر طباعة التقرير أو حفظه PDF", { description: error instanceof Error ? error.message : "حدث خطأ غير متوقع" });
     }
   }
 
@@ -201,7 +208,7 @@ function ReportsPage() {
 
         <div className="flex gap-2">
           <Button onClick={() => refetch()} variant="outline" className="flex-1">{isFetching ? "جاري..." : "تحديث"}</Button>
-          <Button onClick={() => void printReport()} disabled={!dateRange || isError || isFetching} className="flex-1"><Printer className="h-4 w-4" /> طباعة</Button>
+          <Button onClick={() => void printReport()} disabled={!dateRange || isError || isFetching} className="flex-1"><Printer className="h-4 w-4" /> طباعة / PDF</Button>
           <Button onClick={() => void exportExcel()} variant="outline" disabled={!dateRange || isError || isFetching || rows.length === 0}><FileSpreadsheet className="h-4 w-4" /></Button>
         </div>
       </div>
