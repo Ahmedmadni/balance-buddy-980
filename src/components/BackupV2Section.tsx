@@ -142,6 +142,7 @@ export function BackupV2Section() {
         operationLock.current || restoreConfirmation.trim() !== "استعادة") return;
     operationLock.current = true;
     setRestoring(true);
+    let restoreConfirmed = false;
     try {
       const response = await runGuardedBackupRestore(
         previewUserId,
@@ -181,8 +182,11 @@ export function BackupV2Section() {
 
       // The RPC explicitly returned ok=true. The server-side transaction
       // committed; later view/native errors cannot turn this into a failure.
-      createAuditEntry("restore", "استعادة نسخة احتياطية (v2)", { meta: { version: 2 } });
+      restoreConfirmed = true;
       clearPreparedRestore();
+      try {
+        createAuditEntry("restore", "استعادة نسخة احتياطية (v2)", { meta: { version: 2 } });
+      } catch { /* optional local log cannot invalidate an already committed restore */ }
 
       const after = await afterSuccessfulBackupRestore({
         native: Capacitor.isNativePlatform(),
@@ -212,13 +216,14 @@ export function BackupV2Section() {
         });
       }
     } catch {
-      // This path is reserved for unexpected local exceptions, not an RPC
-      // retry: its server-side outcome might still be indeterminate.
+      // A local exception after a confirmed SQL response is not a failed
+      // restore. Never invite retrying the destructive call.
       clearPreparedRestore();
-      setRestoreNeedsReview(true);
-      toast.warning("تعذر إكمال فحوص ما بعد الاستعادة", {
-        description: "لا تكرر عملية الاستعادة. راجع السجلات أولًا وتأكد من الاتصال.",
-      });
+      if (!restoreConfirmed) setRestoreNeedsReview(true);
+      toast.warning(
+        restoreConfirmed ? "تمت الاستعادة، لكن تعذر إكمال تحديث العرض" : "تعذر تأكيد نتيجة الاستعادة",
+        { description: "لا تكرر عملية الاستعادة. تحقق من سجلات الحساب والاتصال أولًا." },
+      );
     } finally {
       operationLock.current = false;
       setRestoring(false);
