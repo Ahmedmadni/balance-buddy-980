@@ -96,14 +96,17 @@ test("تنسيق التقرير المطبوع يخفي بقية الواجهة 
   await page.emulateMedia({ media: "print" });
 
   const status = await page.evaluate(() => ({
-    page: getComputedStyle(document.querySelector("h1") ?? document.querySelector("body")!).visibility,
     report: getComputedStyle(document.querySelector("#rasd-report-print")!).visibility,
     details: getComputedStyle(document.querySelector("#rasd-report-print .truncate")!).whiteSpace,
     tableHeader: getComputedStyle(document.querySelector("#rasd-report-print thead")!).display,
+    authHeading: getComputedStyle([...document.querySelectorAll("h1, h2")]
+      .find((node) => node.textContent?.includes("مرحباً بك"))!).visibility,
   }));
   expect(status.report).toBe("visible");
   expect(status.details).toBe("normal");
   expect(status.tableHeader).toBe("table-header-group");
-  const header = page.getByRole("heading", { name: "مرحباً بك" });
-  expect(await header.evaluate((node) => getComputedStyle(node).visibility)).toBe("hidden");
+  expect(status.authHeading).toBe("hidden");
+  await page.evaluate(() => document.documentElement.classList.add("rasd-app-inactive"));
+  const backgroundBlur = await page.evaluate(() => getComputedStyle(document.body).filter);
+  expect(backgroundBlur).toBe("none");
 });
