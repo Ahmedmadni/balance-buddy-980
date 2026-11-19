@@ -73,3 +73,37 @@ for (const scheme of ["light", "dark"] as const) {
   });
   }
 }
+
+
+test("الطباعة في الصفحات العامة لا تصبح فارغة بسبب قواعد التقارير", async ({ page }) => {
+  await page.goto("/auth");
+  await page.emulateMedia({ media: "print" });
+  const title = page.getByRole("heading", { name: "مرحباً بك" });
+  await expect(title).toBeAttached();
+  const style = await title.evaluate((node) => getComputedStyle(node).visibility);
+  expect(style).toBe("visible");
+});
+
+test("تنسيق التقرير المطبوع يخفي بقية الواجهة ويظهر الجداول العربية كاملة", async ({ page }) => {
+  await page.goto("/auth");
+  await page.evaluate(() => {
+    document.documentElement.classList.add("rasd-report-page");
+    const container = document.createElement("section");
+    container.id = "rasd-report-print";
+    container.innerHTML = '<h2>تقرير تجريبي</h2><table><thead><tr><th>الوصف</th></tr></thead><tbody><tr><td><span class="truncate">قيمة طويلة تظهر بالكامل عند الطباعة</span></td></tr></tbody></table>';
+    document.body.appendChild(container);
+  });
+  await page.emulateMedia({ media: "print" });
+
+  const status = await page.evaluate(() => ({
+    page: getComputedStyle(document.querySelector("h1") ?? document.querySelector("body")!).visibility,
+    report: getComputedStyle(document.querySelector("#rasd-report-print")!).visibility,
+    details: getComputedStyle(document.querySelector("#rasd-report-print .truncate")!).whiteSpace,
+    tableHeader: getComputedStyle(document.querySelector("#rasd-report-print thead")!).display,
+  }));
+  expect(status.report).toBe("visible");
+  expect(status.details).toBe("normal");
+  expect(status.tableHeader).toBe("table-header-group");
+  const header = page.getByRole("heading", { name: "مرحباً بك" });
+  expect(await header.evaluate((node) => getComputedStyle(node).visibility)).toBe("hidden");
+});
