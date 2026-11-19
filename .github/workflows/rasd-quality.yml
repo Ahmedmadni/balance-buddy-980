@@ -19,7 +19,7 @@ jobs:
       - name: Unit regression tests
         run: bun run test:unit
       - name: Android setup script syntax
-        run: node --check scripts/ensure-android.mjs && node --check scripts/android-build.mjs && bash -n scripts/android-emulator-smoke.sh
+        run: node --check scripts/ensure-android.mjs && node --check scripts/android-build.mjs && bash -n scripts/android-emulator-smoke.sh && bash -n scripts/ci-install-with-sharp-fallback.sh
 
   android-debug:
     runs-on: ubuntu-latest
