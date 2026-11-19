@@ -35,7 +35,10 @@ export function isValidPin(pin: string): boolean {
 
 const toHex = (b: ArrayBuffer | Uint8Array) =>
   Array.from(b instanceof Uint8Array ? b : new Uint8Array(b)).map((x) => x.toString(16).padStart(2, "0")).join("");
-const fromHex = (h: string) => new Uint8Array(h.match(/../g)!.map((x) => parseInt(x, 16)));
+const fromHex = (h: string) => {
+  if (!/^(?:[0-9a-f]{2})+$/i.test(h)) throw new Error("بيانات رمز القفل غير صالحة");
+  return new Uint8Array((h.match(/../g) ?? []).map((x) => parseInt(x, 16)));
+};
 
 export async function hashPin(pin: string, saltHex: string): Promise<string> {
   const key = await crypto.subtle.importKey("raw", new TextEncoder().encode(pin), "PBKDF2", false, ["deriveBits"]);
@@ -76,14 +79,21 @@ export function disableLock() {
   localStorage.removeItem(ATTEMPTS_KEY);
 }
 
+let verificationPending = false;
+
 export async function verifyPin(pin: string): Promise<boolean> {
   const c = loadLock();
   if (!c) return true;
-  if (getPinRetryMs() > 0) return false;
-  const valid = (await hashPin(pin, c.salt)) === c.hash;
-  if (valid) localStorage.removeItem(ATTEMPTS_KEY);
-  else recordFailedPin();
-  return valid;
+  if (verificationPending || getPinRetryMs() > 0) return false;
+  verificationPending = true;
+  try {
+    const valid = isValidPin(pin) && (await hashPin(pin, c.salt)) === c.hash;
+    if (valid) localStorage.removeItem(ATTEMPTS_KEY);
+    else recordFailedPin();
+    return valid;
+  } finally {
+    verificationPending = false;
+  }
 }
 
 // ---- Biometrics (Android native only) ----

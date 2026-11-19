@@ -13,12 +13,21 @@ export function AppLockGate({ children }: { children: React.ReactNode }) {
   const [error, setError] = useState("");
   const [retryMs, setRetryMs] = useState(0);
   const [bioOk, setBioOk] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const unlocking = useRef(false);
   const hiddenAt = useRef<number | null>(null);
 
   const tryBio = useCallback(async () => {
     const c = loadLock();
-    if (!c?.biometric) return;
-    if (await authenticateBiometric()) setLocked(false);
+    if (!c?.biometric || unlocking.current) return;
+    unlocking.current = true;
+    setBusy(true);
+    try {
+      if (await authenticateBiometric()) { setLocked(false); setPin(""); setError(""); }
+    } finally {
+      unlocking.current = false;
+      setBusy(false);
+    }
   }, []);
 
   useEffect(() => {
@@ -48,9 +57,20 @@ export function AppLockGate({ children }: { children: React.ReactNode }) {
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (unlocking.current) return;
     if (getPinRetryMs() > 0) { setRetryMs(getPinRetryMs()); return; }
-    if (await verifyPin(pin)) { setLocked(false); setPin(""); setError(""); }
-    else { setRetryMs(getPinRetryMs()); setError("الرمز غير صحيح"); setPin(""); }
+    unlocking.current = true;
+    setBusy(true);
+    try {
+      if (await verifyPin(pin)) { setLocked(false); setPin(""); setError(""); }
+      else { setRetryMs(getPinRetryMs()); setError("الرمز غير صحيح"); setPin(""); }
+    } catch {
+      setPin("");
+      setError("تعذر التحقق من رمز القفل على هذا الجهاز. حاول مرة أخرى.");
+    } finally {
+      unlocking.current = false;
+      setBusy(false);
+    }
   };
 
   if (!ready) return null;
@@ -67,13 +87,13 @@ export function AppLockGate({ children }: { children: React.ReactNode }) {
           type="password" inputMode="numeric" autoFocus maxLength={8} value={pin}
           onChange={(e) => setPin(e.target.value.replace(/\D/g, ""))}
           className="text-center text-2xl tracking-[0.5em]" aria-label="رمز الدخول"
-          disabled={retryMs > 0}
+          disabled={busy || retryMs > 0}
         />
         {error && <p className="text-sm text-destructive">{error}</p>}
         {retryMs > 0 && <p role="status" className="text-sm text-muted-foreground">محاولات كثيرة. يمكنك المحاولة بعد {Math.ceil(retryMs / 1000)} ثانية.</p>}
-        <Button type="submit" className="w-full" disabled={pin.length < 4 || retryMs > 0}>فتح</Button>
+        <Button type="submit" className="w-full" disabled={busy || pin.length < 4 || retryMs > 0}>{busy ? "جارٍ التحقق..." : "فتح"}</Button>
         {bioOk && (
-          <Button type="button" variant="outline" className="w-full" onClick={tryBio}>
+          <Button type="button" variant="outline" className="w-full" onClick={tryBio} disabled={busy}>
             <Fingerprint className="h-4 w-4" /> البصمة أو الوجه
           </Button>
         )}

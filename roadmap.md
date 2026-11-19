@@ -1,5 +1,7 @@
 # Remaining development
 
+- [ ] Audit current routes, local app lock and deletion build errors; fix confirmed defects and run regression/browser checks without financial writes.
+
 - [x] Harden Google sign-in return flow; session boundary regression tests passed.
 - [x] Verify authenticated navigation and backup confirmation without restoring real data.
 - [x] Inspect GitHub failures and run Android packaging; fix obsolete SDK tools selection and missing configuration prerequisites.

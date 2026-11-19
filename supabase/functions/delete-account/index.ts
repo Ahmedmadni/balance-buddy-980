@@ -1,4 +1,7 @@
 import { createClient } from "npm:@supabase/supabase-js@2.108.1";
+import type { Database } from "../../../src/integrations/supabase/types.ts";
+
+type AdminClient = ReturnType<typeof createClient<Database>>;
 
 const CONFIRMATION_TEXT = "حذف حسابي";
 const STORAGE_BUCKET = "attachments";
@@ -102,7 +105,7 @@ async function auditSubject(userId: string): Promise<string> {
 }
 
 async function listStorageFiles(
-  admin: ReturnType<typeof createClient>,
+  admin: AdminClient,
   prefix: string,
 ): Promise<string[]> {
   const files: string[] = [];
@@ -130,7 +133,7 @@ async function listStorageFiles(
 }
 
 async function deleteStorageFiles(
-  admin: ReturnType<typeof createClient>,
+  admin: AdminClient,
   userId: string,
 ): Promise<number> {
   const { data: attachmentRows, error: attachmentError } = await admin
@@ -190,7 +193,7 @@ Deno.serve(async (request) => {
     const authClient = createClient(supabaseUrl, anonKey, {
       auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false },
     });
-    const admin = createClient(supabaseUrl, serviceRoleKey, {
+    const admin = createClient<Database>(supabaseUrl, serviceRoleKey, {
       auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false },
     });
 

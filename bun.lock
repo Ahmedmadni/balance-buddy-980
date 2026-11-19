@@ -9,15 +9,15 @@
         "@capacitor/android": "^8.4.0",
         "@capacitor/app": "^8.1.0",
         "@capacitor/browser": "^8.0.0",
-        "@capacitor/synapse": "^1.0.4",
-        "@capacitor/local-notifications": "^8.0.0",
-        "@capacitor/share": "^8.0.0",
-        "@capacitor/filesystem": "^8.0.0",
         "@capacitor/core": "^8.4.0",
+        "@capacitor/filesystem": "^8.0.0",
         "@capacitor/haptics": "^8.0.2",
         "@capacitor/keyboard": "^8.0.3",
+        "@capacitor/local-notifications": "^8.0.0",
+        "@capacitor/share": "^8.0.0",
         "@capacitor/splash-screen": "^8.0.1",
         "@capacitor/status-bar": "^8.0.2",
+        "@capacitor/synapse": "^1.0.4",
         "@fontsource/cairo": "^5.3.0",
         "@fontsource/ibm-plex-sans-arabic": "^5.3.0",
         "@hookform/resolvers": "^5.2.2",
@@ -80,13 +80,10 @@
         "zod": "^4.6.7",
       },
       "devDependencies": {
-
-
-
-    "@capacitor/assets": "^3.0.5",
+        "@capacitor/assets": "^3.0.5",
         "@capacitor/cli": "8.4.3",
         "@eslint/js": "^9.32.0",
-        "@lovable.dev/vite-tanstack-config": "2.26.5",
+        "@lovable.dev/vite-tanstack-config": "2.27.1",
         "@playwright/test": "^1.63.0",
         "@types/node": "^22.16.5",
         "@types/react": "^19.2.0",
@@ -162,22 +159,15 @@
 
     "@capacitor/app": ["@capacitor/app@8.1.1", "", { "peerDependencies": { "@capacitor/core": ">=8.0.0" } }, "sha512-xM2ZTX5jK60tFtmjsmJv+Cdj1Qsb6NcavkqmdEnCPQBeya9oKhamZJxYOnQNj1ZvcJM7sWfG6BEtSLx42pisbA=="],
 
-    "@capacitor/browser": ["@capacitor/browser@8.0.0", "", { "peerDependencies": { "@capacitor/core": ">=8.0.0" } }, ""],
-
-    "@capacitor/filesystem": ["@capacitor/filesystem@8.0.0", "", { "dependencies": { "@capacitor/synapse": "^1.0.4" }, "peerDependencies": { "@capacitor/core": ">=8.0.0" } }, ""],
-
-    "@capacitor/share": ["@capacitor/share@8.0.0", "", { "peerDependencies": { "@capacitor/core": ">=8.0.0" } }, ""],
-
-    "@capacitor/local-notifications": ["@capacitor/local-notifications@8.0.0", "", { "peerDependencies": { "@capacitor/core": ">=8.0.0" } }, ""],
-
-
-    "@capacitor/synapse": ["@capacitor/synapse@1.0.4", "", {}, ""],
-
     "@capacitor/assets": ["@capacitor/assets@3.0.5", "", { "dependencies": { "@capacitor/cli": "^5.3.0", "@ionic/utils-array": "2.1.6", "@ionic/utils-fs": "3.1.7", "@trapezedev/project": "^7.0.10", "commander": "8.3.0", "debug": "4.3.4", "fs-extra": "10.1.0", "node-fetch": "2.7.0", "node-html-parser": "5.4.2", "sharp": "0.32.6", "tslib": "2.6.2", "yargs": "17.7.2" }, "bin": { "capacitor-assets": "bin/capacitor-assets" } }, "sha512-ohz/OUq61Y1Fc6aVSt0uDrUdeOA7oTH4pkWDbv/8I3UrPjH7oPkzYhShuDRUjekNp9RBi198VSFdt0CetpEOzw=="],
+
+    "@capacitor/browser": ["@capacitor/browser@8.0.0", "", { "peerDependencies": { "@capacitor/core": ">=8.0.0" } }, ""],
 
     "@capacitor/cli": ["@capacitor/cli@8.4.3", "", { "dependencies": { "@ionic/cli-framework-output": "^2.2.8", "@ionic/utils-subprocess": "^3.0.1", "@ionic/utils-terminal": "^2.3.5", "commander": "^12.1.0", "debug": "^4.4.0", "env-paths": "^2.2.0", "fs-extra": "^11.2.0", "kleur": "^4.1.5", "native-run": "^2.0.3", "open": "^8.4.0", "plist": "^3.1.0", "prompts": "^2.4.2", "rimraf": "^6.0.1", "semver": "^7.6.3", "tar": "^7.5.3", "tslib": "^2.8.1", "xml2js": "^0.6.2" }, "bin": { "cap": "bin/capacitor", "capacitor": "bin/capacitor" } }, "sha512-E3J7F6gdZSBMIwB0/WVnHZ5S+UXJPgvdnyqtwryccCGRRkIZ34b5sgYYMa2Ij4agimkUcMoScAk+K/grTtL1Xg=="],
 
     "@capacitor/core": ["@capacitor/core@8.5.2", "", { "dependencies": { "tslib": "^2.1.0" } }, "sha512-agnQbGdhGw/KZFuLf7H9SY2o+oE7upkr/WPQsYaokXP6f9chaE8iVmbKkfN6SVl4w3pmz7oZ3Ur1hbkmy1hx+w=="],
+
+    "@capacitor/filesystem": ["@capacitor/filesystem@8.0.0", "", { "dependencies": { "@capacitor/synapse": "^1.0.4" }, "peerDependencies": { "@capacitor/core": ">=8.0.0" } }, ""],
 
     "@capacitor/haptics": ["@capacitor/haptics@8.0.2", "", { "peerDependencies": { "@capacitor/core": ">=8.0.0" } }, "sha512-c2hZzRR5Fk1tbTvhG1jhh2XBAf3EhnIerMIb2sl7Mt41Gxx1fhBJFDa0/BI1IbY4loVepyyuqNC9820/GZuoWQ=="],
 
@@ -185,9 +175,15 @@
 
     "@capacitor/keyboard": ["@capacitor/keyboard@8.0.5", "", { "peerDependencies": { "@capacitor/core": ">=8.0.0" } }, "sha512-oFXygC4eKYA5l2MdpTR06L2M/4x6e2SLD5yS1T9+UBDKTkzyvhWKEhbYLUaTIBPpLKqlfGudJw1X73S1H9eUzQ=="],
 
+    "@capacitor/local-notifications": ["@capacitor/local-notifications@8.0.0", "", { "peerDependencies": { "@capacitor/core": ">=8.0.0" } }, ""],
+
+    "@capacitor/share": ["@capacitor/share@8.0.0", "", { "peerDependencies": { "@capacitor/core": ">=8.0.0" } }, ""],
+
     "@capacitor/splash-screen": ["@capacitor/splash-screen@8.0.2", "", { "peerDependencies": { "@capacitor/core": ">=8.0.0" } }, "sha512-0C6rYScr13WfAE9nPl4ScOQynmjFv9NT3Th+RZkD4ezYHmER6mcl1/lDYsv7jg3Rj3FOvLrlTlmNkUrr83kZzQ=="],
 
     "@capacitor/status-bar": ["@capacitor/status-bar@8.0.3", "", { "peerDependencies": { "@capacitor/core": ">=8.0.0" } }, "sha512-csSpfNeN49Hx9JaQBSJEIiEbOLtXg3kcc2IpScq2fu5L520h3AWEvsxoH8Srk1jxfRKepaJ4S4sqSC3foI4AgA=="],
+
+    "@capacitor/synapse": ["@capacitor/synapse@1.0.4", "", {}, ""],
 
     "@date-fns/tz": ["@date-fns/tz@1.5.0", "", {}, "sha512-lwYN/vDPeNRULcepoE/LO2Pgx+7/RV+S9ARfbc9lr2DtGkOD7pAiruHvbR1RX3Qyf6ja47EWJDMsNK5vK08DJg=="],
 
@@ -269,7 +265,7 @@
 
     "@lovable.dev/cloud-auth-js": ["@lovable.dev/cloud-auth-js@1.1.2", "", {}, "sha512-xz8ocewsgwkp8giau272/eWWU3XrchCg5uba4yQPPYtevHTXaVU3sD+fO1JjyPBHacVcOcwhmgUiU9TKHt63cg=="],
 
-    "@lovable.dev/vite-tanstack-config": ["@lovable.dev/vite-tanstack-config@2.26.5", "", { "dependencies": { "@tanstack/devtools-vite": "^0.8.1", "lightningcss": "^1.30.0" }, "peerDependencies": { "@tailwindcss/vite": ">=4.0.0", "@tanstack/react-start": ">=1.100.0", "@vitejs/plugin-react": ">=4.0.0", "nitro": ">=3.0.260603-beta", "vite": ">=5.0.0 <9.0.0", "vite-tsconfig-paths": ">=6.0.0" }, "optionalPeers": ["nitro"] }, "sha512-nRaztSS5BDM/d6oW/h2ev9l7RcjULxvWZtmrAwvI7rVQ9dPfNCBjNGmtiy8/THyYfFlcq+R2oLb4yaUBfneB6w=="],
+    "@lovable.dev/vite-tanstack-config": ["@lovable.dev/vite-tanstack-config@2.27.1", "", { "dependencies": { "@tanstack/devtools-vite": "^0.8.1", "lightningcss": "^1.30.0" }, "peerDependencies": { "@tailwindcss/vite": ">=4.0.0", "@tanstack/react-start": ">=1.100.0", "@vitejs/plugin-react": ">=4.0.0", "nitro": ">=3.0.260603-beta", "vite": ">=5.0.0 <9.0.0", "vite-tsconfig-paths": ">=6.0.0" }, "optionalPeers": ["nitro"] }, "sha512-200v7wa1/YeE5mrI+Q4dFNcYkCZQxp6o1jKzUVQQBXyZ3BHLPJ0+ghVSmneFGmpKAAGWpCmDLklTpoM6PZ6utw=="],
 
     "@napi-rs/wasm-runtime": ["@napi-rs/wasm-runtime@1.1.5", "", { "dependencies": { "@tybys/wasm-util": "^0.10.2" }, "peerDependencies": { "@emnapi/core": "^1.7.1", "@emnapi/runtime": "^1.7.1" } }, "sha512-AWPoBRJ9tsnVhor4sjO7rkni+7p+2IAEFj6cx06UgP10jkQHqay/36uRV/bFkgrh18D9vb4cr8Q0Pthskgzy+Q=="],
 
