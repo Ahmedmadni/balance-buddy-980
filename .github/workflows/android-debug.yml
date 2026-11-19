@@ -15,6 +15,9 @@ jobs:
       CAP_SERVER_URL: https://balance-buddy-980.lovable.app
     steps:
       - uses: actions/checkout@v5
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
       - uses: oven-sh/setup-bun@v2
         with:
           bun-version: 1.4.2
@@ -28,7 +31,8 @@ jobs:
       - name: Check hosted application availability
         run: |
           curl --fail --silent --show-error --location --output /dev/null "$CAP_SERVER_URL/auth"
-      - run: bun install --frozen-lockfile
+      - name: Install locked dependencies with Sharp fallback
+        run: bash scripts/ci-install-with-sharp-fallback.sh
       - run: bun run typecheck
       - run: bun run test:unit
       - run: bun run audit:prod

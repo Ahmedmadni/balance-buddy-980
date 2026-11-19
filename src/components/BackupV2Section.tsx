@@ -1,7 +1,7 @@
 // Backup v2 — server-side export/restore via Supabase RPCs.
 // No direct table writes; the DB functions handle everything transactionally.
 
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -9,6 +9,7 @@ import { exportFile } from "@/lib/mobile/share-export";
 import { Capacitor } from "@capacitor/core";
 import { clearNativeReminders, syncNativeReminders } from "@/lib/notifications/native-scheduler";
 import { afterSuccessfulBackupRestore } from "@/lib/backup/post-restore";
+import { runGuardedBackupRestore } from "@/lib/backup/restore-request";
 import { decryptBackup, encryptBackup, isEncryptedBackup } from "@/lib/backup/encrypted-backup";
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription,
@@ -33,11 +34,32 @@ export function BackupV2Section() {
   const [restoreConfirmation, setRestoreConfirmation] = useState("");
   const [restoring, setRestoring] = useState(false);
   const [pendingBackup, setPendingBackup] = useState<BackupV2 | null>(null);
+  const [previewUserId, setPreviewUserId] = useState<string | null>(null);
+  const [restoreNeedsReview, setRestoreNeedsReview] = useState(false);
   const [confirmOpen, setConfirmOpen] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
   const operationLock = useRef(false);
 
   const busy = exporting || restoring;
+
+  // Discard decrypted preview data if the account signs out or switches.
+  // A normal token refresh for the SAME user must not interrupt the dialog.
+  useEffect(() => {
+    if (!previewUserId) return;
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      const changedAccount = event === "SIGNED_OUT" ||
+        (["SIGNED_IN", "TOKEN_REFRESHED", "USER_UPDATED"].includes(event) &&
+         session?.user?.id !== previewUserId);
+      if (!changedAccount) return;
+      setPendingBackup(null);
+      setPreviewUserId(null);
+      setRestorePassword("");
+      setRestoreConfirmation("");
+      setLegacyUnencrypted(false);
+      setConfirmOpen(false);
+    });
+    return () => subscription.unsubscribe();
+  }, [previewUserId]);
 
   async function doExport() {
     if (operationLock.current) return;
@@ -75,7 +97,7 @@ export function BackupV2Section() {
   }
 
   async function onFile(f: File) {
-    if (operationLock.current) return;
+    if (operationLock.current || restoreNeedsReview) return;
     // Keep a corrupt/hostile file from allocating excessive memory in WebView.
     if (f.size > 50 * 1024 * 1024) {
       toast.error("الملف يتجاوز الحد الآمن للمعالجة (50 ميجابايت)");
@@ -106,6 +128,14 @@ export function BackupV2Section() {
         toast.error("نسخة غير مدعومة", { description: "الملف ليس نسخة احتياطية صالحة من رصد (الإصدار 2)." });
         return;
       }
+      // Bind the preview to the authenticated account *before* user consent.
+      // The account must be checked again immediately before the destructive RPC.
+      const { data: authData, error: authError } = await supabase.auth.getUser();
+      if (authError || !authData.user) {
+        toast.error("لا يمكن التحقق من الحساب الحالي. أعد تسجيل الدخول ثم اختر الملف.");
+        return;
+      }
+      setPreviewUserId(authData.user.id);
       setLegacyUnencrypted(!encrypted);
       setPendingBackup(backup);
       setRestoreConfirmation("");
@@ -117,27 +147,66 @@ export function BackupV2Section() {
     }
   }
 
+  function clearPreparedRestore() {
+    setConfirmOpen(false);
+    setPendingBackup(null);
+    setPreviewUserId(null);
+    setRestorePassword("");
+    setLegacyUnencrypted(false);
+    setRestoreConfirmation("");
+  }
+
   async function doRestore() {
-    if (!pendingBackup || operationLock.current || restoreConfirmation.trim() !== "استعادة") return;
+    if (!pendingBackup || !previewUserId || restoreNeedsReview ||
+        operationLock.current || restoreConfirmation.trim() !== "استعادة") return;
     operationLock.current = true;
     setRestoring(true);
+    let restoreConfirmed = false;
     try {
-      const { error } = await supabase.rpc("restore_user_backup", { p_backup: pendingBackup as never });
-      if (error) throw error;
-      createAuditEntry("restore", "استعادة نسخة احتياطية (v2)", { meta: { version: 2 } });
-      setConfirmOpen(false);
-      setPendingBackup(null);
-      setRestorePassword("");
-      setRestoreConfirmation("");
-    } catch {
-      toast.error("فشلت الاستعادة", { description: "لم تكتمل الاستعادة. تحقق من اتصالك وحالة بياناتك قبل المحاولة مجددًا." });
-      operationLock.current = false;
-      setRestoring(false);
-      return;
-    }
-    try {
-      // The SQL RPC has already committed. A reminder, network or UI failure
-      // is NOT a restore failure and must never lead to a second import.
+      const response = await runGuardedBackupRestore(
+        previewUserId,
+        async () => {
+          const { data, error } = await supabase.auth.getUser();
+          if (error) throw error;
+          return data.user?.id ?? null;
+        },
+        async () => await supabase.rpc("restore_user_backup", { p_backup: pendingBackup as never }),
+      );
+
+      if (response === "blocked") {
+        clearPreparedRestore();
+        toast.error("لم يتم إرسال الاستعادة", {
+          description: "تعذر التحقق من الحساب أو تغيّر الحساب منذ معاينة الملف. سجّل الدخول مجددًا وأعد اختيار الملف.",
+        });
+        return;
+      }
+      if (response === "rejected") {
+        clearPreparedRestore();
+        toast.error("رفض الخادم ملف الاستعادة", {
+          description: "ألغى الخادم العملية. تحقق من صلاحية النسخة والمخطط قبل اختيارها مجددًا.",
+        });
+        return;
+      }
+      if (response === "unconfirmed") {
+        // A timeout/fetch error or a missing success marker is not evidence
+        // that PostgreSQL rolled back. Drop the payload and block another
+        // destructive request from this settings session until reviewed.
+        clearPreparedRestore();
+        setRestoreNeedsReview(true);
+        toast.warning("تعذر تأكيد نتيجة الاستعادة", {
+          description: "قد تكون البيانات استعيدت فعليًا. لا تكرر الاستعادة؛ راجع أرصدة وسجلات الحساب عند عودة الاتصال.",
+        });
+        return;
+      }
+
+      // The RPC explicitly returned ok=true. The server-side transaction
+      // committed; later view/native errors cannot turn this into a failure.
+      restoreConfirmed = true;
+      clearPreparedRestore();
+      try {
+        createAuditEntry("restore", "استعادة نسخة احتياطية (v2)", { meta: { version: 2 } });
+      } catch { /* optional local log cannot invalidate an already committed restore */ }
+
       const after = await afterSuccessfulBackupRestore({
         native: Capacitor.isNativePlatform(),
         clearNativeReminders,
@@ -165,6 +234,15 @@ export function BackupV2Section() {
           description: "تم تحديث البيانات ومراجعة جدول التنبيهات المحلي إذا كان مفعّلًا.",
         });
       }
+    } catch {
+      // A local exception after a confirmed SQL response is not a failed
+      // restore. Never invite retrying the destructive call.
+      clearPreparedRestore();
+      if (!restoreConfirmed) setRestoreNeedsReview(true);
+      toast.warning(
+        restoreConfirmed ? "تمت الاستعادة، لكن تعذر إكمال تحديث العرض" : "تعذر تأكيد نتيجة الاستعادة",
+        { description: "لا تكرر عملية الاستعادة. تحقق من سجلات الحساب والاتصال أولًا." },
+      );
     } finally {
       operationLock.current = false;
       setRestoring(false);
@@ -186,6 +264,18 @@ export function BackupV2Section() {
           </p>
         </div>
       </div>
+
+      {restoreNeedsReview && (
+        <Alert variant="destructive" role="alert">
+          <ShieldAlert className="h-4 w-4" />
+          <AlertDescription className="text-xs leading-relaxed">
+            نتيجة طلب الاستعادة السابق غير مؤكدة بسبب مشكلة اتصال أو استجابة.
+            لا تكرر الاستعادة الآن. افتح المحافظ والعمليات وراجع سجلاتك بعد عودة
+            الاتصال، ثم أنشئ نسخة احتياطية جديدة بعد التأكد من سلامة البيانات.
+            تم تعطيل استعادة نسخة أخرى في جلسة الإعدادات الحالية كإجراء احترازي.
+          </AlertDescription>
+        </Alert>
+      )}
 
       <Alert>
         <FileWarning className="h-4 w-4" />
@@ -209,7 +299,7 @@ export function BackupV2Section() {
           {exporting ? <RefreshCw className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
           تنزيل نسخة احتياطية
         </Button>
-        <Button variant="outline" onClick={() => fileRef.current?.click()} disabled={busy}>
+        <Button variant="outline" onClick={() => fileRef.current?.click()} disabled={busy || restoreNeedsReview}>
           {restoring ? <RefreshCw className="h-4 w-4 animate-spin" /> : <Upload className="h-4 w-4" />}
           استعادة نسخة احتياطية
         </Button>
@@ -231,7 +321,7 @@ export function BackupV2Section() {
       <Dialog
         open={confirmOpen}
         onOpenChange={(v) => {
-          if (!v && !restoring) { setConfirmOpen(false); setPendingBackup(null); setRestoreConfirmation(""); }
+          if (!v && !restoring) clearPreparedRestore();
         }}
       >
         <DialogContent className="max-w-md">
@@ -290,10 +380,10 @@ export function BackupV2Section() {
             />
           </div>
           <DialogFooter className="gap-2">
-            <Button variant="outline" onClick={() => { setConfirmOpen(false); setPendingBackup(null); setRestoreConfirmation(""); }} disabled={restoring}>
+            <Button variant="outline" onClick={clearPreparedRestore} disabled={restoring}>
               إلغاء
             </Button>
-            <Button variant="destructive" onClick={doRestore} disabled={restoring || restoreConfirmation.trim() !== "استعادة"}>
+            <Button variant="destructive" onClick={doRestore} disabled={restoring || restoreNeedsReview || !previewUserId || restoreConfirmation.trim() !== "استعادة"}>
               {restoring ? <RefreshCw className="h-4 w-4 animate-spin" /> : <CheckCircle2 className="h-4 w-4" />}
               {restoring ? "جارٍ الاستعادة…" : "تأكيد الاستبدال والاستعادة"}
             </Button>
