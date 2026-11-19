@@ -1,7 +1,7 @@
 // Backup v2 — server-side export/restore via Supabase RPCs.
 // No direct table writes; the DB functions handle everything transactionally.
 
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -41,6 +41,25 @@ export function BackupV2Section() {
   const operationLock = useRef(false);
 
   const busy = exporting || restoring;
+
+  // Discard decrypted preview data if the account signs out or switches.
+  // A normal token refresh for the SAME user must not interrupt the dialog.
+  useEffect(() => {
+    if (!previewUserId) return;
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      const changedAccount = event === "SIGNED_OUT" ||
+        (["SIGNED_IN", "TOKEN_REFRESHED", "USER_UPDATED"].includes(event) &&
+         session?.user?.id !== previewUserId);
+      if (!changedAccount) return;
+      setPendingBackup(null);
+      setPreviewUserId(null);
+      setRestorePassword("");
+      setRestoreConfirmation("");
+      setLegacyUnencrypted(false);
+      setConfirmOpen(false);
+    });
+    return () => subscription.unsubscribe();
+  }, [previewUserId]);
 
   async function doExport() {
     if (operationLock.current) return;
