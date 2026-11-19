@@ -222,6 +222,12 @@ body { overflow-wrap: anywhere; }
   html.rasd-report-page body * { visibility: hidden !important; }
   html.rasd-report-page #rasd-report-print,
   html.rasd-report-page #rasd-report-print * { visibility: visible !important; }
+  /* Android PrintManager can put the Activity in the background while it
+   * rasterizes pages. Never bake the Recents-screen privacy blur into the
+   * user's explicitly requested print document. On-screen blur remains. */
+  html.rasd-report-page.rasd-app-inactive body {
+    filter: none !important;
+  }
   html.rasd-report-page #rasd-report-print {
     position: absolute !important;
     inset: 0 auto auto 0 !important;
