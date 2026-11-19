@@ -145,7 +145,7 @@ function ReportsPage() {
     try {
       await printCurrentReport(`رصد-${type}-${from}_${to}`);
     } catch (error) {
-      toast.error("تعذر فتح طباعة Android", { description: error instanceof Error ? error.message : "حدث خطأ غير متوقع" });
+      toast.error("تعذر طباعة التقرير أو حفظه PDF", { description: error instanceof Error ? error.message : "حدث خطأ غير متوقع" });
     }
   }
 
