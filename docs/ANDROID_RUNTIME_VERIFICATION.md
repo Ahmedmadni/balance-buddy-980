@@ -121,3 +121,13 @@ Do not declare `100% works` until all required real-device rows are tested and O
 - On unconfirmed result, discard the decrypted pending payload, close the confirmation dialog and block additional restore attempts in the current settings view. Display prominent guidance to inspect balances and transactions after reconnecting and **not repeat** the restore without verification. This guard persists while that settings view is mounted; leaving/reloading and manually starting a new attempt is possible and should not be described as globally prevented.
 - The optional audit log and Android post-restore hooks must not downgrade an explicitly committed SQL result into “failed.” Tests cover the SQL success marker, explicit server rejection, ambiguous HTTP/network outcomes, wrong account, unavailable session and exactly-once invocation.
 - No production financial records or actual Google login were used. Real-device acceptance still requires offline/online restore UI trials with a **disposable** test account, verifying both the unconfirmed warning and account-switch safeguards.
+
+
+## Phase 13 — durable restore safety journal on Android / web (2026-11-22)
+
+- The client writes an account-scoped `pending` journal entry **before** sending any destructive v2 restore RPC. The entry contains only the operation state and user ID in its storage key; no backup contents, financial amounts or passwords are persisted.
+- A missing server response changes that entry to `unconfirmed`. If the WebView/app crashes before the response, `pending` remains. Both states block new restores after Settings remount, WebView reload, and normal Android process restart in the same app/browser storage. A storage-read/write failure also blocks the operation (fail closed).
+- Explicit SQL success or confirmed rejection clears the journal; auxiliary UI/notification failures never turn success into an unconfirmed SQL transaction.
+- To remove an unresolved hold, the user must independently verify the account after connectivity recovers, type `راجعت البيانات`, and pass a fresh authentication check. This is **manual acknowledgment**, not cryptographic proof that the original SQL request completed.
+- The journal is scoped per account. Browser storage may be deleted by device maintenance, and this **does not enforce idempotency across devices or concurrent tabs**. A server-side operation ID and status query are still required for global exactly-once safety.
+- Synthetic unit tests cover restart survival, reservation-before-send, in-flight crash, account separation, failed storage, definite outcomes, and explicit acknowledgment. No financial production data or Google OAuth is used.
