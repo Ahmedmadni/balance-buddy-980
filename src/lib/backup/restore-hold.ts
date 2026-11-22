@@ -70,3 +70,18 @@ export function acknowledgeRestoreHold(storage: RestoreHoldStorage, userId: stri
     return false;
   }
 }
+
+/** Accessing window.localStorage itself can throw in restricted WebViews. */
+const unavailableStorage: RestoreHoldStorage = {
+  getItem: () => { throw new Error("restore journal unavailable"); },
+  setItem: () => { throw new Error("restore journal unavailable"); },
+  removeItem: () => { throw new Error("restore journal unavailable"); },
+};
+
+export function getRestoreHoldStorage(): RestoreHoldStorage {
+  try {
+    return typeof window !== "undefined" ? window.localStorage : unavailableStorage;
+  } catch {
+    return unavailableStorage;
+  }
+}
