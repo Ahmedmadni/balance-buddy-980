@@ -45,6 +45,7 @@ export function BackupV2Section() {
   const [confirmOpen, setConfirmOpen] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
   const operationLock = useRef(false);
+  const reviewAccountIdRef = useRef<string | null>(null);
 
   const busy = exporting || restoring;
 
@@ -54,6 +55,7 @@ export function BackupV2Section() {
     let mounted = true;
     const applyUser = (userId: string | null) => {
       if (!mounted) return;
+      reviewAccountIdRef.current = userId;
       setReviewAccountId(userId);
       setRestoreHold(userId ? readRestoreHold(getRestoreHoldStorage(), userId) : null);
     };
@@ -213,14 +215,16 @@ export function BackupV2Section() {
           beforeSend: () => reserveRestoreHold(getRestoreHoldStorage(), previewUserId),
           onOutcome: (outcome) => {
             settleRestoreHold(getRestoreHoldStorage(), previewUserId, outcome);
-            setRestoreHold(readRestoreHold(getRestoreHoldStorage(), previewUserId));
+            if (reviewAccountIdRef.current === previewUserId) {
+              setRestoreHold(readRestoreHold(getRestoreHoldStorage(), previewUserId));
+            }
           },
         },
       );
 
       if (response === "blocked") {
         const hold = readRestoreHold(getRestoreHoldStorage(), previewUserId);
-        setRestoreHold(hold);
+        if (reviewAccountIdRef.current === previewUserId) setRestoreHold(hold);
         clearPreparedRestore();
         toast.error("لم يتم إرسال الاستعادة", {
           description: hold
@@ -241,7 +245,9 @@ export function BackupV2Section() {
         // that PostgreSQL rolled back. Drop the payload and block another
         // destructive request from this settings session until reviewed.
         clearPreparedRestore();
-        setRestoreHold(readRestoreHold(getRestoreHoldStorage(), previewUserId));
+        if (reviewAccountIdRef.current === previewUserId) {
+          setRestoreHold(readRestoreHold(getRestoreHoldStorage(), previewUserId));
+        }
         toast.warning("تعذر تأكيد نتيجة الاستعادة", {
           description: "قد تكون البيانات استعيدت فعليًا. لا تكرر الاستعادة؛ راجع أرصدة وسجلات الحساب عند عودة الاتصال.",
         });
@@ -289,7 +295,9 @@ export function BackupV2Section() {
       clearPreparedRestore();
       if (!restoreConfirmed && previewUserId) {
         settleRestoreHold(getRestoreHoldStorage(), previewUserId, "unconfirmed");
-        setRestoreHold(readRestoreHold(getRestoreHoldStorage(), previewUserId));
+        if (reviewAccountIdRef.current === previewUserId) {
+          setRestoreHold(readRestoreHold(getRestoreHoldStorage(), previewUserId));
+        }
       }
       toast.warning(
         restoreConfirmed ? "تمت الاستعادة، لكن تعذر إكمال تحديث العرض" : "تعذر تأكيد نتيجة الاستعادة",
