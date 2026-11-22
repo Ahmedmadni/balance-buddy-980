@@ -11,7 +11,7 @@ import { clearNativeReminders, syncNativeReminders } from "@/lib/notifications/n
 import { afterSuccessfulBackupRestore } from "@/lib/backup/post-restore";
 import { runGuardedBackupRestore } from "@/lib/backup/restore-request";
 import {
-  RESTORE_HOLD_PREFIX, acknowledgeRestoreHold, readRestoreHold,
+  RESTORE_HOLD_PREFIX, getRestoreHoldStorage, acknowledgeRestoreHold, readRestoreHold,
   reserveRestoreHold, settleRestoreHold, type RestoreHoldState,
 } from "@/lib/backup/restore-hold";
 import { decryptBackup, encryptBackup, isEncryptedBackup } from "@/lib/backup/encrypted-backup";
@@ -55,7 +55,7 @@ export function BackupV2Section() {
     const applyUser = (userId: string | null) => {
       if (!mounted) return;
       setReviewAccountId(userId);
-      setRestoreHold(userId ? readRestoreHold(window.localStorage, userId) : null);
+      setRestoreHold(userId ? readRestoreHold(getRestoreHoldStorage(), userId) : null);
     };
     void supabase.auth.getUser().then(({ data, error }) => {
       if (!error) applyUser(data.user?.id ?? null);
@@ -210,16 +210,16 @@ export function BackupV2Section() {
         {
           // Persist before sending: a crash or lost response must not permit a
           // second destructive call after Android restarts the WebView.
-          beforeSend: () => reserveRestoreHold(window.localStorage, previewUserId),
+          beforeSend: () => reserveRestoreHold(getRestoreHoldStorage(), previewUserId),
           onOutcome: (outcome) => {
-            settleRestoreHold(window.localStorage, previewUserId, outcome);
-            setRestoreHold(readRestoreHold(window.localStorage, previewUserId));
+            settleRestoreHold(getRestoreHoldStorage(), previewUserId, outcome);
+            setRestoreHold(readRestoreHold(getRestoreHoldStorage(), previewUserId));
           },
         },
       );
 
       if (response === "blocked") {
-        const hold = readRestoreHold(window.localStorage, previewUserId);
+        const hold = readRestoreHold(getRestoreHoldStorage(), previewUserId);
         setRestoreHold(hold);
         clearPreparedRestore();
         toast.error("لم يتم إرسال الاستعادة", {
@@ -241,7 +241,7 @@ export function BackupV2Section() {
         // that PostgreSQL rolled back. Drop the payload and block another
         // destructive request from this settings session until reviewed.
         clearPreparedRestore();
-        setRestoreHold(readRestoreHold(window.localStorage, previewUserId));
+        setRestoreHold(readRestoreHold(getRestoreHoldStorage(), previewUserId));
         toast.warning("تعذر تأكيد نتيجة الاستعادة", {
           description: "قد تكون البيانات استعيدت فعليًا. لا تكرر الاستعادة؛ راجع أرصدة وسجلات الحساب عند عودة الاتصال.",
         });
@@ -288,8 +288,8 @@ export function BackupV2Section() {
       // restore. Never invite retrying the destructive call.
       clearPreparedRestore();
       if (!restoreConfirmed && previewUserId) {
-        settleRestoreHold(window.localStorage, previewUserId, "unconfirmed");
-        setRestoreHold(readRestoreHold(window.localStorage, previewUserId));
+        settleRestoreHold(getRestoreHoldStorage(), previewUserId, "unconfirmed");
+        setRestoreHold(readRestoreHold(getRestoreHoldStorage(), previewUserId));
       }
       toast.warning(
         restoreConfirmed ? "تمت الاستعادة، لكن تعذر إكمال تحديث العرض" : "تعذر تأكيد نتيجة الاستعادة",
@@ -308,11 +308,11 @@ export function BackupV2Section() {
       toast.error("تعذر تأكيد الحساب الحالي. أعد تسجيل الدخول.");
       return;
     }
-    if (!acknowledgeRestoreHold(window.localStorage, reviewAccountId)) {
+    if (!acknowledgeRestoreHold(getRestoreHoldStorage(), reviewAccountId)) {
       toast.error("تعذر رفع حظر الأمان. تحقق من صلاحية التخزين المحلي.");
       return;
     }
-    setRestoreHold(readRestoreHold(window.localStorage, reviewAccountId));
+    setRestoreHold(readRestoreHold(getRestoreHoldStorage(), reviewAccountId));
     setReviewConfirmation("");
     toast.info("تم رفع حظر الاستعادة بعد تأكيدك مراجعة بيانات الحساب.");
   }
