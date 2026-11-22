@@ -3,6 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { formatMoney, todayISO } from "@/lib/format";
 import { ArrowDownRight, ArrowUpRight, Wallet, TrendingUp, BellRing, Plus, Receipt, PieChart as PieChartIcon, Eye, EyeOff } from "lucide-react";
+import { Button } from "@/components/ui/button";
 import { usePrivacy } from "@/hooks/use-privacy";
 
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from "recharts";
@@ -19,7 +20,7 @@ import { computeAssetMetrics } from "@/lib/assets/calculator";
 import { isExpenseWalletTx } from "@/lib/transactions/classify";
 
 export const Route = createFileRoute("/_authenticated/app/")({
-  head: () => ({ meta: [{ title: "اللوحة الرئيسية — رصد" }] }),
+  head: () => ({ meta: [{ title: "اللوحة الرئيسية — رصد" }, { name: "description", content: "ملخص السيولة والديون والأصول والمصروفات في رصد." }, { property: "og:title", content: "اللوحة الرئيسية — رصد" }, { property: "og:description", content: "ملخص السيولة والديون والأصول والمصروفات في رصد." }, { property: "og:type", content: "website" }, { name: "twitter:card", content: "summary" }] }),
   component: Dashboard,
 });
 
@@ -29,7 +30,7 @@ function Dashboard() {
     queryFn: async () => {
       const [ledgerRes, expensesRes, walletsRes, txRes, allocRes, invRes, invTxRes] = await Promise.all([
         supabase.from("person_ledger").select("contact_id,contact_name,kind,amount,currency,due_date,reminder_enabled,settled_at"),
-        supabase.from("expenses").select("wallet_id,amount,currency,spent_at,categories(name,color)"),
+        supabase.from("expenses").select("wallet_id,amount,currency,spent_at,categories!expenses_user_category_fkey(name,color)"),
         supabase.from("wallets").select("id,name,opening_balance,currency,color,type"),
         supabase.from("wallet_transactions").select("wallet_id,kind,amount,currency,happened_at,source_kind"),
         supabase.from("expense_allocations").select("amount,currency,period"),
@@ -51,7 +52,7 @@ function Dashboard() {
   });
 
   if (isLoading) return <SkeletonGrid />;
-  if (isError || !data) return <div role="alert" className="rounded-2xl border border-destructive/30 bg-card p-5 text-center space-y-3"><p className="font-semibold">تعذر تحميل بياناتك المالية</p><p className="text-sm text-muted-foreground">لن نعرض أرقاما ناقصة أو أرصدة صفرية عند تعذر الاتصال.</p><button type="button" onClick={() => void refetch()} className="min-h-11 rounded-xl bg-primary px-5 text-primary-foreground">إعادة المحاولة</button></div>;
+  if (isError || !data) return <div role="alert" className="rounded-2xl border border-destructive/30 bg-card p-5 text-center space-y-3"><p className="font-semibold">تعذر تحميل بياناتك المالية</p><p className="text-sm text-muted-foreground">لن نعرض أرقاما ناقصة أو أرصدة صفرية عند تعذر الاتصال.</p><Button onClick={() => void refetch()}>إعادة المحاولة</Button></div>;
   const d = data;
   const today = todayISO();
   const currentMonth = today.slice(0, 7);

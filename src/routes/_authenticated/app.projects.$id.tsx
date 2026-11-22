@@ -8,7 +8,7 @@ import { formatMoney, formatDate } from "@/lib/format";
 import { toast } from "sonner";
 
 export const Route = createFileRoute("/_authenticated/app/projects/$id")({
-  head: () => ({ meta: [{ title: "تفاصيل المشروع — رصد" }] }),
+  head: () => ({ meta: [{ title: "تفاصيل المشروع — رصد" }, { name: "description", content: "متابعة ميزانية المشروع ومصروفاته في رصد." }, { property: "og:title", content: "تفاصيل المشروع — رصد" }, { property: "og:description", content: "متابعة ميزانية المشروع ومصروفاته في رصد." }, { property: "og:type", content: "website" }, { name: "twitter:card", content: "summary" }] }),
   component: ProjectDetail,
 });
 
@@ -22,7 +22,7 @@ function ProjectDetail() {
     queryFn: async () => {
       const [pRes, eRes] = await Promise.all([
         supabase.from("projects").select("*").eq("id", id).single(),
-        supabase.from("expenses").select("*, categories(name,color)").eq("project_id", id).order("spent_at", { ascending: false }),
+        supabase.from("expenses").select("*, categories!expenses_user_category_fkey(name,color)").eq("project_id", id).order("spent_at", { ascending: false }),
       ]);
       if (pRes.error) throw pRes.error;
       return { project: pRes.data, expenses: eRes.data ?? [] };

@@ -17,7 +17,7 @@ import { ContactPicker } from "@/components/ContactPicker";
 
 
 export const Route = createFileRoute("/_authenticated/app/expenses")({
-  head: () => ({ meta: [{ title: "المصاريف — رصد" }] }),
+  head: () => ({ meta: [{ title: "المصاريف — رصد" }, { name: "description", content: "متابعة المصروفات وتصنيفاتها ومحافظها في رصد." }, { property: "og:title", content: "المصاريف — رصد" }, { property: "og:description", content: "متابعة المصروفات وتصنيفاتها ومحافظها في رصد." }, { property: "og:type", content: "website" }, { name: "twitter:card", content: "summary" }] }),
   component: ExpensesPage,
 });
 
@@ -38,7 +38,7 @@ function ExpensesPage() {
     queryKey: ["expenses-list"],
     queryFn: async () => {
       const [eRes, cRes, pRes, wRes, opexRes, invRes] = await Promise.all([
-        supabase.from("expenses").select("*, categories(name,color), projects(name,color), wallets(name,color)").order("spent_at", { ascending: false }).limit(200),
+        supabase.from("expenses").select("*, categories!expenses_user_category_fkey(name,color), projects!expenses_user_project_fkey(name,color), wallets!expenses_user_wallet_fkey(name,color)").order("spent_at", { ascending: false }).limit(200),
         supabase.from("categories").select("*").order("name"),
         supabase.from("projects").select("*").eq("status", "active").order("name"),
         supabase.from("wallets").select("*").order("created_at"),

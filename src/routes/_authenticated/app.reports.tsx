@@ -33,7 +33,7 @@ async function readAllReportRows(
 }
 
 export const Route = createFileRoute("/_authenticated/app/reports")({
-  head: () => ({ meta: [{ title: "التقارير — رصد" }] }),
+  head: () => ({ meta: [{ title: "التقارير — رصد" }, { name: "description", content: "التقارير المالية للمصروفات والديون والأصول في رصد." }, { property: "og:title", content: "التقارير — رصد" }, { property: "og:description", content: "التقارير المالية للمصروفات والديون والأصول في رصد." }, { property: "og:type", content: "website" }, { name: "twitter:card", content: "summary" }] }),
   component: ReportsPage,
 });
 
@@ -73,7 +73,7 @@ function ReportsPage() {
         return { rows };
       } else if (type === "expenses") {
         let rows = await readAllReportRows(async (start, end) => await supabase.from("expense_allocations")
-          .select("id,amount,currency,period,expenses(id,note,category_id,project_id,wallet_id,categories(name),projects(name),wallets(name))")
+          .select("id,amount,currency,period,expenses!expense_allocations_user_expense_fkey(id,note,category_id,project_id,wallet_id,categories!expenses_user_category_fkey(name),projects!expenses_user_project_fkey(name),wallets!expenses_user_wallet_fkey(name))")
           .gte("period", from.slice(0, 7) + "-01")
           .lte("period", to.slice(0, 7) + "-01")
           .order("period", { ascending: false }).order("id", { ascending: false })

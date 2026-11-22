@@ -10,6 +10,10 @@ import { Capacitor } from "@capacitor/core";
 import { clearNativeReminders, syncNativeReminders } from "@/lib/notifications/native-scheduler";
 import { afterSuccessfulBackupRestore } from "@/lib/backup/post-restore";
 import { runGuardedBackupRestore } from "@/lib/backup/restore-request";
+import {
+  RESTORE_HOLD_PREFIX, acknowledgeRestoreHold, readRestoreHold,
+  reserveRestoreHold, settleRestoreHold, type RestoreHoldState,
+} from "@/lib/backup/restore-hold";
 import { decryptBackup, encryptBackup, isEncryptedBackup } from "@/lib/backup/encrypted-backup";
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription,
@@ -35,12 +39,44 @@ export function BackupV2Section() {
   const [restoring, setRestoring] = useState(false);
   const [pendingBackup, setPendingBackup] = useState<BackupV2 | null>(null);
   const [previewUserId, setPreviewUserId] = useState<string | null>(null);
-  const [restoreNeedsReview, setRestoreNeedsReview] = useState(false);
+  const [restoreHold, setRestoreHold] = useState<RestoreHoldState>(null);
+  const [reviewAccountId, setReviewAccountId] = useState<string | null>(null);
+  const [reviewConfirmation, setReviewConfirmation] = useState("");
   const [confirmOpen, setConfirmOpen] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
   const operationLock = useRef(false);
 
   const busy = exporting || restoring;
+
+  // Read the journal on every mount and account change. Android WebView
+  // restarts must not silently discard an uncertain/in-flight restore hold.
+  useEffect(() => {
+    let mounted = true;
+    const applyUser = (userId: string | null) => {
+      if (!mounted) return;
+      setReviewAccountId(userId);
+      setRestoreHold(userId ? readRestoreHold(window.localStorage, userId) : null);
+    };
+    void supabase.auth.getUser().then(({ data, error }) => {
+      if (!error) applyUser(data.user?.id ?? null);
+    }).catch(() => {});
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      applyUser(session?.user?.id ?? null);
+    });
+    const onStorage = (event: StorageEvent) => {
+      if (event.key === null || event.key.startsWith(RESTORE_HOLD_PREFIX)) {
+        void supabase.auth.getUser().then(({ data, error }) => {
+          if (!error) applyUser(data.user?.id ?? null);
+        }).catch(() => {});
+      }
+    };
+    window.addEventListener("storage", onStorage);
+    return () => {
+      mounted = false;
+      subscription.unsubscribe();
+      window.removeEventListener("storage", onStorage);
+    };
+  }, []);
 
   // Discard decrypted preview data if the account signs out or switches.
   // A normal token refresh for the SAME user must not interrupt the dialog.
@@ -97,7 +133,7 @@ export function BackupV2Section() {
   }
 
   async function onFile(f: File) {
-    if (operationLock.current || restoreNeedsReview) return;
+    if (operationLock.current || restoreHold !== null) return;
     // Keep a corrupt/hostile file from allocating excessive memory in WebView.
     if (f.size > 50 * 1024 * 1024) {
       toast.error("الملف يتجاوز الحد الآمن للمعالجة (50 ميجابايت)");
@@ -157,7 +193,7 @@ export function BackupV2Section() {
   }
 
   async function doRestore() {
-    if (!pendingBackup || !previewUserId || restoreNeedsReview ||
+    if (!pendingBackup || !previewUserId || restoreHold !== null ||
         operationLock.current || restoreConfirmation.trim() !== "استعادة") return;
     operationLock.current = true;
     setRestoring(true);
@@ -171,12 +207,25 @@ export function BackupV2Section() {
           return data.user?.id ?? null;
         },
         async () => await supabase.rpc("restore_user_backup", { p_backup: pendingBackup as never }),
+        {
+          // Persist before sending: a crash or lost response must not permit a
+          // second destructive call after Android restarts the WebView.
+          beforeSend: () => reserveRestoreHold(window.localStorage, previewUserId),
+          onOutcome: (outcome) => {
+            settleRestoreHold(window.localStorage, previewUserId, outcome);
+            setRestoreHold(readRestoreHold(window.localStorage, previewUserId));
+          },
+        },
       );
 
       if (response === "blocked") {
+        const hold = readRestoreHold(window.localStorage, previewUserId);
+        setRestoreHold(hold);
         clearPreparedRestore();
         toast.error("لم يتم إرسال الاستعادة", {
-          description: "تعذر التحقق من الحساب أو تغيّر الحساب منذ معاينة الملف. سجّل الدخول مجددًا وأعد اختيار الملف.",
+          description: hold
+            ? "هناك استعادة سابقة تحتاج مراجعة، أو تعذر حفظ حالة الأمان. لا تكرر الاستعادة قبل التحقق."
+            : "تعذر التحقق من الحساب أو تغيّر الحساب منذ معاينة الملف. سجّل الدخول مجددًا وأعد اختيار الملف.",
         });
         return;
       }
@@ -192,7 +241,7 @@ export function BackupV2Section() {
         // that PostgreSQL rolled back. Drop the payload and block another
         // destructive request from this settings session until reviewed.
         clearPreparedRestore();
-        setRestoreNeedsReview(true);
+        setRestoreHold(readRestoreHold(window.localStorage, previewUserId));
         toast.warning("تعذر تأكيد نتيجة الاستعادة", {
           description: "قد تكون البيانات استعيدت فعليًا. لا تكرر الاستعادة؛ راجع أرصدة وسجلات الحساب عند عودة الاتصال.",
         });
@@ -238,7 +287,10 @@ export function BackupV2Section() {
       // A local exception after a confirmed SQL response is not a failed
       // restore. Never invite retrying the destructive call.
       clearPreparedRestore();
-      if (!restoreConfirmed) setRestoreNeedsReview(true);
+      if (!restoreConfirmed && previewUserId) {
+        settleRestoreHold(window.localStorage, previewUserId, "unconfirmed");
+        setRestoreHold(readRestoreHold(window.localStorage, previewUserId));
+      }
       toast.warning(
         restoreConfirmed ? "تمت الاستعادة، لكن تعذر إكمال تحديث العرض" : "تعذر تأكيد نتيجة الاستعادة",
         { description: "لا تكرر عملية الاستعادة. تحقق من سجلات الحساب والاتصال أولًا." },
@@ -247,6 +299,22 @@ export function BackupV2Section() {
       operationLock.current = false;
       setRestoring(false);
     }
+  }
+
+  async function acknowledgeReviewedRestore() {
+    if (busy || !reviewAccountId || reviewConfirmation.trim() !== "راجعت البيانات") return;
+    const { data, error } = await supabase.auth.getUser();
+    if (error || data.user?.id !== reviewAccountId) {
+      toast.error("تعذر تأكيد الحساب الحالي. أعد تسجيل الدخول.");
+      return;
+    }
+    if (!acknowledgeRestoreHold(window.localStorage, reviewAccountId)) {
+      toast.error("تعذر رفع حظر الأمان. تحقق من صلاحية التخزين المحلي.");
+      return;
+    }
+    setRestoreHold(readRestoreHold(window.localStorage, reviewAccountId));
+    setReviewConfirmation("");
+    toast.info("تم رفع حظر الاستعادة بعد تأكيدك مراجعة بيانات الحساب.");
   }
 
   return (
@@ -265,14 +333,31 @@ export function BackupV2Section() {
         </div>
       </div>
 
-      {restoreNeedsReview && (
+      {restoreHold !== null && (
         <Alert variant="destructive" role="alert">
           <ShieldAlert className="h-4 w-4" />
-          <AlertDescription className="text-xs leading-relaxed">
-            نتيجة طلب الاستعادة السابق غير مؤكدة بسبب مشكلة اتصال أو استجابة.
-            لا تكرر الاستعادة الآن. افتح المحافظ والعمليات وراجع سجلاتك بعد عودة
-            الاتصال، ثم أنشئ نسخة احتياطية جديدة بعد التأكد من سلامة البيانات.
-            تم تعطيل استعادة نسخة أخرى في جلسة الإعدادات الحالية كإجراء احترازي.
+          <AlertDescription className="text-xs leading-relaxed space-y-2">
+            {restoreHold === "unavailable" ? (
+              <p>تعذر الوصول إلى سجل أمان الاستعادة المحلي أو تعذر قراءته؛ الاستعادة معطلة احترازيًا حتى يعمل تخزين المتصفح.</p>
+            ) : (
+              <>
+                <p>
+                  {restoreHold === "pending"
+                    ? "هناك طلب استعادة بدأ ولم تصل نتيجة نهائية إلى هذا الجهاز، وربما أكمله الخادم."
+                    : "نتيجة طلب استعادة سابق غير مؤكدة."}
+                  {" "}لا تكرر الاستعادة. بعد استقرار الاتصال، راجع المحافظ والعمليات والأرصدة والسجلات بعناية.
+                  يظل الحظر فعالًا حتى بعد إعادة تحميل التطبيق أو إعادة فتحه على هذا الجهاز.
+                </p>
+                <p>إذا تحققت بنفسك من حالة الحساب وأن الطلب السابق لم يعد قيد التنفيذ، اكتب «راجعت البيانات» لرفع الحظر. لا تضغط هذا الإجراء لمجرد عودة الإنترنت.</p>
+                <Input aria-label="تأكيد مراجعة الحساب" placeholder="راجعت البيانات"
+                  value={reviewConfirmation} onChange={(e) => setReviewConfirmation(e.target.value)}
+                  disabled={busy} />
+                <Button size="sm" variant="outline" onClick={acknowledgeReviewedRestore}
+                  disabled={busy || !reviewAccountId || reviewConfirmation.trim() !== "راجعت البيانات"}>
+                  تأكيد المراجعة ورفع الحظر
+                </Button>
+              </>
+            )}
           </AlertDescription>
         </Alert>
       )}
@@ -299,7 +384,7 @@ export function BackupV2Section() {
           {exporting ? <RefreshCw className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
           تنزيل نسخة احتياطية
         </Button>
-        <Button variant="outline" onClick={() => fileRef.current?.click()} disabled={busy || restoreNeedsReview}>
+        <Button variant="outline" onClick={() => fileRef.current?.click()} disabled={busy || restoreHold !== null}>
           {restoring ? <RefreshCw className="h-4 w-4 animate-spin" /> : <Upload className="h-4 w-4" />}
           استعادة نسخة احتياطية
         </Button>
@@ -383,7 +468,7 @@ export function BackupV2Section() {
             <Button variant="outline" onClick={clearPreparedRestore} disabled={restoring}>
               إلغاء
             </Button>
-            <Button variant="destructive" onClick={doRestore} disabled={restoring || restoreNeedsReview || !previewUserId || restoreConfirmation.trim() !== "استعادة"}>
+            <Button variant="destructive" onClick={doRestore} disabled={restoring || restoreHold !== null || !previewUserId || restoreConfirmation.trim() !== "استعادة"}>
               {restoring ? <RefreshCw className="h-4 w-4 animate-spin" /> : <CheckCircle2 className="h-4 w-4" />}
               {restoring ? "جارٍ الاستعادة…" : "تأكيد الاستبدال والاستعادة"}
             </Button>

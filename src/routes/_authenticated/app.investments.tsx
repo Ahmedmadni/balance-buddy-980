@@ -26,7 +26,7 @@ import { isDepreciable, defaultsFor } from "@/lib/assets/depreciation-defaults";
 
 
 export const Route = createFileRoute("/_authenticated/app/investments")({
-  head: () => ({ meta: [{ title: "الأصول والاستثمارات — رصد" }] }),
+  head: () => ({ meta: [{ title: "الأصول والاستثمارات — رصد" }, { name: "description", content: "متابعة الأصول والاستثمارات وقيمها وعملياتها في رصد." }, { property: "og:title", content: "الأصول والاستثمارات — رصد" }, { property: "og:description", content: "متابعة الأصول والاستثمارات وقيمها وعملياتها في رصد." }, { property: "og:type", content: "website" }, { name: "twitter:card", content: "summary" }] }),
   component: InvestmentsPage,
 });
 
@@ -91,7 +91,7 @@ function InvestmentsPage() {
     queryKey: ["investments-list"],
     queryFn: async () => {
       const [iRes, tRes, wRes, dRes] = await Promise.all([
-        supabase.from("investments").select("*, wallets(name,color,currency)").is("parent_investment_id", null).order("created_at", { ascending: false }),
+        supabase.from("investments").select("*, wallets!investments_user_wallet_fkey(name,color,currency)").is("parent_investment_id", null).order("created_at", { ascending: false }),
         supabase.from("investment_transactions").select("*").order("happened_at", { ascending: false }),
         supabase.from("wallets").select("*").order("created_at"),
         supabase.from("depreciation_profiles").select("*").eq("is_active", true),

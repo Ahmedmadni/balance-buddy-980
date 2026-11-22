@@ -11,6 +11,13 @@ export interface RestoreRpcResponse {
   status?: number | null;
 }
 
+export interface RestoreRequestHooks {
+  /** Must atomically enough for a single WebView reserve a journal before RPC. */
+  beforeSend?: () => boolean;
+  /** Journal errors must never reclassify an acknowledged SQL success. */
+  onOutcome?: (outcome: "committed" | "rejected" | "unconfirmed") => void;
+}
+
 export function classifyRestoreResponse(response: RestoreRpcResponse): Exclude<RestoreRequestOutcome, "blocked"> {
   if (!response.error) {
     const data = response.data;
@@ -35,6 +42,7 @@ export async function runGuardedBackupRestore(
   previewUserId: string | null,
   getCurrentUserId: () => Promise<string | null>,
   sendRestore: () => Promise<RestoreRpcResponse>,
+  hooks?: RestoreRequestHooks,
 ): Promise<RestoreRequestOutcome> {
   if (!previewUserId) return "blocked";
   let actualUserId: string | null;
@@ -46,9 +54,22 @@ export async function runGuardedBackupRestore(
   }
   if (!actualUserId || actualUserId !== previewUserId) return "blocked";
   try {
-    return classifyRestoreResponse(await sendRestore());
+    if (hooks?.beforeSend && !hooks.beforeSend()) return "blocked";
+  } catch {
+    // Never send a destructive request if the local journal cannot be written.
+    return "blocked";
+  }
+  let outcome: "committed" | "rejected" | "unconfirmed";
+  try {
+    outcome = classifyRestoreResponse(await sendRestore());
   } catch {
     // A transport exception does not prove that the server did not commit.
-    return "unconfirmed";
+    outcome = "unconfirmed";
   }
+  try {
+    hooks?.onOutcome?.(outcome);
+  } catch {
+    // Audit/journal failures cannot undo an explicit SQL acknowledgement.
+  }
+  return outcome;
 }

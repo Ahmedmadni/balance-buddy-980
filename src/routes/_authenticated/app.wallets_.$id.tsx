@@ -16,7 +16,7 @@ import { typeMeta } from "@/routes/_authenticated/app.wallets";
 import { toast } from "sonner";
 
 export const Route = createFileRoute("/_authenticated/app/wallets_/$id")({
-  head: () => ({ meta: [{ title: "كشف الحساب — رصد" }] }),
+  head: () => ({ meta: [{ title: "كشف الحساب — رصد" }, { name: "description", content: "كشف عمليات المحفظة ورصيدها في رصد." }, { property: "og:title", content: "كشف الحساب — رصد" }, { property: "og:description", content: "كشف عمليات المحفظة ورصيدها في رصد." }, { property: "og:type", content: "website" }, { name: "twitter:card", content: "summary" }] }),
   component: WalletDetail,
 });
 
@@ -35,7 +35,7 @@ function WalletDetail() {
       const [wRes, tRes, eRes, allW, catsRes] = await Promise.all([
         supabase.from("wallets").select("*").eq("id", id).maybeSingle(),
         supabase.from("wallet_transactions").select("*").eq("wallet_id", id).order("happened_at", { ascending: false }),
-        supabase.from("expenses").select("id,amount,currency,spent_at,note,categories(name,color)").eq("wallet_id", id).order("spent_at", { ascending: false }),
+        supabase.from("expenses").select("id,amount,currency,spent_at,note,categories!expenses_user_category_fkey(name,color)").eq("wallet_id", id).order("spent_at", { ascending: false }),
         supabase.from("wallets").select("id,name,currency,color"),
         supabase.from("wallet_tx_categories" as any).select("id,name"),
       ]);
