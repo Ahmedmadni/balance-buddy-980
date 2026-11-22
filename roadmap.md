@@ -1,5 +1,7 @@
 # Remaining development
 
+- [ ] Recheck latest tests/security and fix ambiguous financial read relationships; verify dashboard, expenses, wallet statements, projects and reports without financial writes.
+
 - [ ] Audit current routes, local app lock and deletion build errors; fix confirmed defects and run regression/browser checks without financial writes.
 
 - [x] Harden Google sign-in return flow; session boundary regression tests passed.
