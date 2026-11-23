@@ -2,12 +2,12 @@ import { App } from "@capacitor/app";
 import { Browser } from "@capacitor/browser";
 import { Capacitor } from "@capacitor/core";
 import { supabase } from "@/integrations/supabase/client";
-import { parseNativeAuthCallback, NATIVE_AUTH_CALLBACK } from "./native-callback-url";
+import { NATIVE_AUTH_CALLBACK } from "./native-callback-url";
+import { processNativeGoogleCallback } from "./native-google-handoff";
 import {
   clearPendingGoogleOAuth,
   nativeGoogleProviderReady,
   recordPendingGoogleOAuth,
-  takePendingGoogleOAuth,
   validNativeGoogleAuthorizeUrl,
 } from "./native-google-state";
 
@@ -82,44 +82,19 @@ export async function listenForNativeOAuth(opts: {
   let disposed = false;
   let processing = false;
   const receive = async (raw: string) => {
-    const payload = parseNativeAuthCallback(raw);
-    if (!payload || processing || disposed) return;
+    if (processing || disposed) return;
     processing = true;
     try {
-      // This guard is one-time and time-limited, in addition to Supabase PKCE.
-      // Unsolicited app:// links must never replace an existing user's session.
-      if (!takePendingGoogleOAuth(localStorage)) {
-        opts.onFailure("رابط العودة غير مرتبط بمحاولة دخول حديثة من داخل رصد. افتح التطبيق وابدأ تسجيل Google من جديد.");
-        return;
-      }
-      if (payload.kind === "error") {
-        opts.onFailure(payload.message);
-        return;
-      }
-      const current = await supabase.auth.getUser();
-      if (!current.error && current.data.user) {
-        opts.onFailure("يوجد حساب مسجّل بالفعل. لن يُستبدل الحساب الحالي تلقائيًا.");
-        return;
-      }
-      // PKCE verifier belongs to the SAME WebView that started OAuth, not
-      // the external browser. A mismatched/replayed code cannot create a session.
-      const { data, error } = await supabase.auth.exchangeCodeForSession(payload.code);
-      if (error || !data.session?.access_token || !data.user?.id) {
-        opts.onFailure("تعذر إكمال العودة الآمنة من Google. تحقق من إعداد OAuth ورابط العودة ثم أعد المحاولة.");
-        return;
-      }
-      const checked = await supabase.auth.getUser();
-      if (checked.error || checked.data.user?.id !== data.user.id) {
-        // Never navigate into finance records with an unverified account.
-        opts.onFailure("تم رفض جلسة Google لأنها لم تتطابق مع هوية المستخدم المؤكدة.");
-        return;
-      }
-      opts.onSuccess();
-    } catch {
-      opts.onFailure("تعذر التحقق من جلسة Google على الجهاز. أعد بدء تسجيل الدخول.");
+      const outcome = await processNativeGoogleCallback(raw, localStorage, {
+        getUser: () => supabase.auth.getUser(),
+        exchangeCodeForSession: (code) => supabase.auth.exchangeCodeForSession(code),
+      });
+      if (disposed) return;
+      if (outcome.kind === "success") opts.onSuccess();
+      else if (outcome.kind === "error") opts.onFailure(outcome.message);
     } finally {
       processing = false;
-      try { await Browser.close(); } catch { /* external browser already closed */ }
+      try { await Browser.close(); } catch { /* browser already closed */ }
     }
   };
   const listener = await App.addListener("appUrlOpen", ({ url }) => { void receive(url); });
