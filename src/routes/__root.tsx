@@ -25,6 +25,7 @@ import { Capacitor } from "@capacitor/core";
 import { AndroidOfflineBanner } from "@/components/AndroidOfflineBanner";
 import { clearNativeReminders } from "@/lib/notifications/native-scheduler";
 import { shouldClearFinancialCache } from "@/lib/auth/account-boundary";
+import { androidBadgeReloadUrl } from "@/lib/mobile/android-badge-url";
 
 function NotFoundComponent() {
   return (
@@ -42,6 +43,11 @@ function ErrorComponent({ error, reset }: { error: unknown; reset: () => void })
   console.error(error);
   const router = useRouter();
   useEffect(() => {
+    const badgeReload = androidBadgeReloadUrl(window.location.href, Capacitor.isNativePlatform() && Capacitor.getPlatform() === "android");
+    if (badgeReload) {
+      window.location.replace(badgeReload);
+      return;
+    }
     const safeError = error instanceof Error ? error : new Error(String(error));
     reportLovableError(safeError, { boundary: "tanstack_root_error_component" });
   }, [error]);
@@ -144,7 +150,6 @@ function RootComponent() {
         ])
       : Promise.resolve([]);
     const nativeAuth = listenForNativeOAuth({
-      onSuccess: () => { void router.invalidate(); },
       onFailure: (message) => toast.error("تعذر تسجيل الدخول", { description: message }),
     });
     let accountId: string | null = null;

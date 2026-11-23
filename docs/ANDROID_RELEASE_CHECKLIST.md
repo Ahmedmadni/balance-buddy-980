@@ -3,16 +3,16 @@
 ## Architecture
 - Package: `app.lovable.rasd`
 - Production: `https://balance-buddy-980.lovable.app` (Capacitor-hosted WebView)
-- Android OAuth: Supabase Google PKCE in a system Custom Tab, callback `app.lovable.rasd://auth/callback`.
+- Android OAuth: **blocked safely**, not operational. The former direct provider flow returned HTTP 400 on the phone and has been removed. No native browser/session handoff is currently claimed.
 - Web OAuth: existing Lovable managed browser flow, unchanged.
 
 ## One-time authentication configuration (required)
-1. Ensure **Google** is enabled for the Supabase Auth project underlying this app. A Lovable *broker-only* Google setup is not sufficient for the native Supabase OAuth path; configure compatible Google OAuth credentials/provider if needed.
-2. Add exactly `app.lovable.rasd://auth/callback` to Auth → URL Configuration → Redirect URLs in the backend.
-3. Keep the website's HTTPS URL in the same allow list so web login remains operational.
-4. Do **not** add the custom scheme to Google's OAuth **Authorized redirect URIs**: Google redirects to the Supabase callback, while Supabase then redirects to the Android scheme.
-5. Never embed provider secrets or service-role keys into Android JS.
-6. Verify signing key and Android package name before distribution.
+1. Managed Google web login remains on Lovable's broker. Do not create another account or change the account identity/email to work around native login.
+2. Lovable Cloud allows app schemes under **More → Users → Auth settings → Advanced → Redirect URLs**. Inspection on 2026-11-23 found only HTTPS URLs, not `app.lovable.rasd://auth/callback`. Adding that URL alone does **not** supply a supported native broker bridge or a PKCE transaction.
+3. The old direct provider route requires Google's own OAuth client ID and client secret, absent according to the phone's `missing OAuth secret` response. If an owner elects to supply their own credentials, enter them only under **More → Users → Auth settings → Sign In Methods → Google**, using the provider callback displayed there in Google Cloud Console. Do not paste credentials in chat or commit them. This configuration is NOT a verified or enabled native fix, and the blocked flow is not automatically re-enabled by it.
+4. Keep the existing public HTTPS return URL for web login. A documented native code/verifier/state handoff and real-device verification are still required before enabling Android Google.
+5. Never put access/refresh tokens in custom-scheme links, logs, exported files or application source. The dormant intent filter is not an HTTPS verified App Link and another application can claim the same scheme. All native callbacks in this build are rejected without exchanging codes or replacing sessions.
+6. Verify signing key and Android package name before distribution. Do not spoof `LovableApp/` or `LovableAppScheme/` user agents: that is the editor app's iframe bridge, not this hosted Capacitor application.
 
 ## Build a testable Android APK
 ```bash
@@ -27,8 +27,8 @@ bun run android:apk
 ```
 
 ## Must-pass device tests
-- Sign in with Google on a fresh install; after consent, Chrome Custom Tab returns to app and dashboard, with a valid Supabase session.
-- Cold start and warm start both accept the callback once. Cancel and deny Google consent without trapping the user.
+- Current safe fallback: tapping Google in Android stays on the auth screen with a clear Arabic message, makes no OAuth/provider request and never opens a raw JSON error page. An existing valid session must still restore without creating another account.
+- Before native login can be declared working: on a real phone, complete Google consent, prove a code bound to the initiating container's verifier/state returns to the same container and existing account, and test cancellation, duplicate callbacks, cold/warm starts and process death. These tests have NOT been performed.
 - Force-stop and relaunch: valid session restores; signing out returns to /auth and clears protected UI.
 - Test navigation and accessibility at 320px, 360px, 393px, 430px and tablet widths in Arabic RTL, both light and dark.
 - Verify report export and full backup download using Android Downloads / Files; do not accept a toast as proof of file creation.
@@ -40,6 +40,13 @@ bun run android:apk
 - Backend OAuth provider/redirect configuration is not version-controlled here.
 - No actual on-device Google login or signed APK smoke test is attested by source review.
 - The published remote WebView requires network connectivity; do not market this build as fully offline.
+
+## Phone report correction — 2026-11-23
+- Reviewed installed `@lovable.dev/cloud-auth-js` 1.1.2 and registry latest 1.3.0 (downloaded for inspection only; no dependency change). Public API: `signInWithOAuth`, `redirect_uri`, `extraParams`, `oauthBrokerUrl`, `supportedOAuthOrigins`. Neither exposes a public Capacitor system-browser PKCE handoff. The `LovableApp/` iframe branch is specific to Lovable's own app; changing user agents or forwarding bearer tokens is not an acceptable substitute.
+- Official references: https://docs.lovable.dev/features/google-auth and https://docs.lovable.dev/features/authentication. Backend custom-scheme redirect support is not proof of managed-broker native support.
+- Badge: official Hide Lovable Badge was **false**; the mutation tool refused hiding because it requires editor access on Pro or higher. That official setting is project-wide, not Android-only. No setting was changed.
+- Live Chromium at 390×844 on the published `/auth` displayed the injected `lovable-badge`; `/auth?forceHideBadge=true` contained no badge. This flag is observed working, **not documented as a stable contract**. Android launch URLs now include it; native Android hard reloads reapply it to the same HTTPS page without forwarding OAuth material. Web visitors and CSS/DOM are unchanged. Recheck after hosting changes; official alternative: an eligible editor enables Project Settings → Publishing → Hide Lovable Badge (affects the published website as well).
+- Publishing the changed hosted application is needed for the error/return safeguards. A fresh APK/AAB is needed for the changed launch URL; the APK already installed on a phone does not acquire a new native configuration from a Git commit.
 
 ## Android phase 2: non-login changes (2026-11-16)
 - **Export**: Reports and recommended backup v2 use `@capacitor/filesystem` (Cache) and `@capacitor/share`. This opens the Android share sheet. A file is not safely backed up until the user explicitly saves it in Files/Drive and verifies it there.

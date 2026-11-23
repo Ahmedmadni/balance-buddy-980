@@ -8,12 +8,15 @@ export type NativeCallback =
 export function parseNativeAuthCallback(raw: string): NativeCallback | null {
   let url: URL;
   try { url = new URL(raw); } catch { return null; }
-  if (url.protocol !== "app.lovable.rasd:" || url.hostname !== "auth" || url.pathname !== "/callback") return null;
+  if (url.protocol !== "app.lovable.rasd:" || url.hostname !== "auth" || url.pathname !== "/callback" || url.username || url.password || url.port) return null;
   const query = url.searchParams;
   const fragment = new URLSearchParams(url.hash.replace(/^#/, ""));
-  const error = query.get("error_description") || fragment.get("error_description") || query.get("error") || fragment.get("error");
-  if (error) return { kind: "error", message: error.slice(0, 300) };
+  if (["access_token", "refresh_token", "id_token"].some(key => query.has(key) || fragment.has(key))) {
+    return { kind: "error", message: "رابط العودة غير آمن؛ لم يتم قبول بيانات الجلسة." };
+  }
+  const error = query.has("error_description") || fragment.has("error_description") || query.has("error") || fragment.has("error");
+  if (error) return { kind: "error", message: "لم يكتمل تسجيل الدخول." };
   const code = query.get("code");
-  if (code) return { kind: "code", code };
+  if (code && query.getAll("code").length === 1 && !url.hash) return { kind: "code", code };
   return { kind: "error", message: "لم تصل بيانات تسجيل الدخول من المتصفح" };
 }

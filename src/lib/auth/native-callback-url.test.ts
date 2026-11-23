@@ -17,4 +17,19 @@ describe("Android OAuth callback validation", () => {
   test("handles a canceled provider callback", () => {
     expect(parseNativeAuthCallback(NATIVE_AUTH_CALLBACK + "?error=access_denied")?.kind).toBe("error");
   });
+  test("rejects mixed code/token payloads without returning bearer credentials", () => {
+    for (const suffix of ["?code=abc&access_token=private-fixture", "?code=abc#refresh_token=private-fixture", "?id_token=private-fixture"]) {
+      const result = parseNativeAuthCallback(NATIVE_AUTH_CALLBACK + suffix);
+      expect(result?.kind).toBe("error");
+      expect(JSON.stringify(result)).not.toContain("private-fixture");
+    }
+  });
+  test("provider error details are not returned to the UI", () => {
+    expect(parseNativeAuthCallback(NATIVE_AUTH_CALLBACK + "?error_description=private-fixture")).toEqual({kind: "error", message: "لم يكتمل تسجيل الدخول."});
+  });
+  test("ambiguous codes and credential-bearing callbacks are not accepted", () => {
+    expect(parseNativeAuthCallback(NATIVE_AUTH_CALLBACK + "?code=a&code=b")?.kind).toBe("error");
+    expect(parseNativeAuthCallback("app.lovable.rasd://user:pass@auth/callback?code=a")).toBeNull();
+    expect(parseNativeAuthCallback("app.lovable.rasd://auth:42/callback?code=a")).toBeNull();
+  });
 });

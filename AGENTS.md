@@ -1,5 +1,8 @@
 # Architecture rules
 
+- Fail closed for native managed Google login until a documented Capacitor session handoff is available; the broker's private LovableApp iframe bridge cannot be substituted for PKCE.
+- Scope the observed hosting badge query flag to native Android launch/reload URLs, not CSS or web visitors; the official project setting remains the supported alternative.
+
 - Complete managed social login on the public auth page and navigate into the guarded app only after a session is available; OAuth returns can precede session hydration.
 - Keep Backup v2 file validation in a browser-safe pure module and perform data operations only through the existing export/restore RPCs; invalid files must never reach restore.
 - Treat Android as a hosted HTTPS client of the SSR application until a local-shell architecture is explicitly implemented; do not remove its production server URL or claim full offline startup.

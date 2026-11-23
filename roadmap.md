@@ -1,5 +1,7 @@
 # Remaining development
 
+- [ ] Android Google/badge phone report (2026-11-23): remove unsupported native provider flow, test safe errors/session boundaries, verify Android-only badge URL and commit; real native Google login awaits supported handoff/configuration and device verification.
+
 - [ ] Recheck latest tests/security and fix ambiguous financial read relationships; verify dashboard, expenses, wallet statements, projects and reports without financial writes.
 
 - [ ] Audit current routes, local app lock and deletion build errors; fix confirmed defects and run regression/browser checks without financial writes.
