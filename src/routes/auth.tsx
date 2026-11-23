@@ -3,7 +3,8 @@ import { useEffect, useRef, useState } from "react";
 import { authReturnUrl } from "@/lib/auth/session-navigation";
 import { supabase } from "@/integrations/supabase/client";
 import { isNative } from "@/lib/mobile/platform";
-import { runGoogleSignIn } from "@/lib/auth/google-sign-in-flow";
+import { NATIVE_GOOGLE_UNAVAILABLE, runGoogleSignIn } from "@/lib/auth/google-sign-in-flow";
+import { Browser } from "@capacitor/browser";
 import { lovable } from "@/integrations/lovable/index";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
@@ -52,6 +53,16 @@ function AuthPage() {
     return () => { active = false; listener.subscription.unsubscribe(); };
   }, [navigate]);
 
+  async function openWebLogin() {
+    try {
+      // A safe, external browser session lets existing users access their
+      // original account without copying tokens back to this Android WebView.
+      await Browser.open({ url: "https://balance-buddy-980.lovable.app/auth" });
+    } catch {
+      setSignInError("تعذر فتح متصفح الهاتف. افتح balance-buddy-980.lovable.app/auth مباشرةً.");
+    }
+  }
+
   async function signIn() {
     if (signingIn.current) return;
     signingIn.current = true;
@@ -98,6 +109,16 @@ function AuthPage() {
             متابعة باستخدام جوجل
           </Button>
           {signInError && <p role="alert" className="mt-4 text-sm leading-7 text-destructive">{signInError}</p>}
+          {signInError === NATIVE_GOOGLE_UNAVAILABLE && (
+            <div className="mt-4 space-y-2">
+              <Button className="w-full" variant="secondary" onClick={openWebLogin} type="button">
+                فتح حساب رصد في متصفح الهاتف
+              </Button>
+              <p className="text-xs leading-6 text-muted-foreground text-center">
+                يفتح حسابك الحالي في المتصفح بشكل مستقل؛ لن تنتقل الجلسة إلى تطبيق Android تلقائيًا.
+              </p>
+            </div>
+          )}
           <p className="mt-6 text-center text-xs text-muted-foreground">
             بتسجيلك توافق على حفظ بياناتك بأمان في حسابك السحابي.
           </p>
