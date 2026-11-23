@@ -58,9 +58,9 @@ function renderStatementHTML(rows: StatementRow[], meta: ExportMeta) {
       <td>${formatDate(r.date)}</td>
       <td>${escapeHtml(r.description)}</td>
       <td>${escapeHtml(r.category)}</td>
-      <td class="num">${r.debit ? formatMoney(r.debit, r.currency) : "—"}</td>
-      <td class="num">${r.credit ? formatMoney(r.credit, r.currency) : "—"}</td>
-      <td class="num bal">${formatMoney(r.balance, r.currency)}</td>
+      <td class="num">${r.debit ? escapeHtml(formatMoney(r.debit, r.currency)) : "—"}</td>
+      <td class="num">${r.credit ? escapeHtml(formatMoney(r.credit, r.currency)) : "—"}</td>
+      <td class="num bal">${escapeHtml(formatMoney(r.balance, r.currency))}</td>
     </tr>`).join("");
   return `<!doctype html>
 <html dir="rtl" lang="ar">
@@ -90,10 +90,10 @@ function renderStatementHTML(rows: StatementRow[], meta: ExportMeta) {
   <h1>${escapeHtml(meta.title)}</h1>
   ${meta.subtitle ? `<div class="sub">${escapeHtml(meta.subtitle)}</div>` : ""}
   <div class="summary">
-    ${meta.openingBalance != null ? `<div class="pill">الرصيد الافتتاحي<b>${formatMoney(meta.openingBalance, meta.currency)}</b></div>` : ""}
-    <div class="pill">إجمالي المدين<b>${formatMoney(totalDebit, meta.currency)}</b></div>
-    <div class="pill">إجمالي الدائن<b>${formatMoney(totalCredit, meta.currency)}</b></div>
-    <div class="pill">الرصيد الختامي<b>${formatMoney(closing, meta.currency)}</b></div>
+    ${meta.openingBalance != null ? `<div class="pill">الرصيد الافتتاحي<b>${escapeHtml(formatMoney(meta.openingBalance, meta.currency))}</b></div>` : ""}
+    <div class="pill">إجمالي المدين<b>${escapeHtml(formatMoney(totalDebit, meta.currency))}</b></div>
+    <div class="pill">إجمالي الدائن<b>${escapeHtml(formatMoney(totalCredit, meta.currency))}</b></div>
+    <div class="pill">الرصيد الختامي<b>${escapeHtml(formatMoney(closing, meta.currency))}</b></div>
     <div class="pill">عدد الحركات<b>${chrono.length}</b></div>
   </div>
   <table>

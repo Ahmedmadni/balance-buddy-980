@@ -144,7 +144,9 @@ async function deleteStorageFiles(
 
   const metadataPaths = (attachmentRows ?? [])
     .map((row) => row.file_path)
-    .filter((path): path is string => typeof path === "string" && path.length > 0);
+    .filter((path): path is string => typeof path === "string" && path.length > 0)
+    // Only files inside the caller's own folder may be removed.
+    .filter((path) => path.startsWith(`${userId}/`) && !path.split("/").includes(".."));
   const discoveredPaths = await listStorageFiles(admin, userId);
   const paths = [...new Set([...metadataPaths, ...discoveredPaths])];
 
