@@ -107,6 +107,17 @@ describe("durable v2 restore journal", () => {
     expect(readRestoreOperationId(store, "A")).toBe(null);
   });
 
+  test("manual acknowledgement cannot clear a UUID-backed restore", () => {
+    const store = storage();
+    const id = "e8888888-8888-4888-8888-888888888888";
+    expect(reserveRestoreHold(store, "A", id)).toBe(true);
+    settleRestoreHold(store, "A", "unconfirmed");
+    expect(acknowledgeRestoreHold(store, "A")).toBe(false);
+    expect(readRestoreOperationId(store, "A")).toBe(id);
+    settleRestoreHold(store, "A", "rejected");
+    expect(readRestoreHold(store, "A")).toBe(null);
+  });
+
   test("invalid server UUID cannot reserve a journal entry", () => {
     const store = storage();
     expect(reserveRestoreHold(store, "A", "not-a-uuid")).toBe(false);
