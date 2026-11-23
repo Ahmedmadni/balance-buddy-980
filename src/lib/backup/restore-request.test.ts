@@ -20,6 +20,18 @@ describe("destructive v2 restore outcome and identity guards", () => {
     }
     expect(classifyRestoreResponse({ error: { code: "" }, status: null })).toBe("unconfirmed");
   });
+  test("server success must acknowledge the exact persisted operation UUID", () => {
+    const operationId = "e8888888-8888-4888-8888-888888888888";
+    expect(classifyRestoreResponse({ ...committed, data: {
+      ok: true, format: "rasd-backup", version: 2, operation_id: operationId,
+    } }, operationId)).toBe("committed");
+    expect(classifyRestoreResponse(committed, operationId)).toBe("unconfirmed");
+    expect(classifyRestoreResponse({ ...committed, data: {
+      ok: true, format: "rasd-backup", version: 2,
+      operation_id: "ffffffff-ffff-4fff-8fff-ffffffffffff",
+    } }, operationId)).toBe("unconfirmed");
+  });
+
   test("refuses an account switch before calling the RPC", async () => {
     let calls = 0;
     const result = await runGuardedBackupRestore("user-A", async () => "user-B", async () => {

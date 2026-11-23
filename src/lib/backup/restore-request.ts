@@ -16,14 +16,20 @@ export interface RestoreRequestHooks {
   beforeSend?: () => boolean;
   /** Journal errors must never reclassify an acknowledged SQL success. */
   onOutcome?: (outcome: "committed" | "rejected" | "unconfirmed") => void;
+  /** When using the server idempotency RPC, require a matching operation ID. */
+  expectedOperationId?: string;
 }
 
-export function classifyRestoreResponse(response: RestoreRpcResponse): Exclude<RestoreRequestOutcome, "blocked"> {
+export function classifyRestoreResponse(
+  response: RestoreRpcResponse,
+  expectedOperationId?: string,
+): Exclude<RestoreRequestOutcome, "blocked"> {
   if (!response.error) {
     const data = response.data;
     if (data && typeof data === "object" && !Array.isArray(data)) {
       const result = data as Record<string, unknown>;
-      if (result.ok === true && result.format === "rasd-backup" && result.version === 2) {
+      if (result.ok === true && result.format === "rasd-backup" && result.version === 2 &&
+          (expectedOperationId === undefined || result.operation_id === expectedOperationId)) {
         return "committed";
       }
     }
@@ -61,7 +67,7 @@ export async function runGuardedBackupRestore(
   }
   let outcome: "committed" | "rejected" | "unconfirmed";
   try {
-    outcome = classifyRestoreResponse(await sendRestore());
+    outcome = classifyRestoreResponse(await sendRestore(), hooks?.expectedOperationId);
   } catch {
     // A transport exception does not prove that the server did not commit.
     outcome = "unconfirmed";
