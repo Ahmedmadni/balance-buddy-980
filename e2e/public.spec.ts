@@ -2,6 +2,7 @@ test("Android يعرض مسار المتصفح بدلاً من زر Google غي�
   await page.addInitScript(() => {
     Object.defineProperty(window, "Capacitor", {
       configurable: true,
+      writable: true,
       value: {
         isNativePlatform: () => true,
         getPlatform: () => "android",
