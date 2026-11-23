@@ -16,6 +16,15 @@ DECLARE
   status_response jsonb;
   failure_state text;
 BEGIN
+  -- Commit markers must not be writable/readable directly from REST-backed
+  -- authenticated role: only private SECURITY DEFINER helpers can access them.
+  IF has_table_privilege('authenticated', 'rasd_internal.restore_operation_journal', 'SELECT')
+     OR has_table_privilege('authenticated', 'rasd_internal.restore_operation_journal', 'INSERT')
+     OR has_table_privilege('authenticated', 'rasd_internal.restore_operation_journal', 'UPDATE')
+     OR has_table_privilege('authenticated', 'rasd_internal.restore_operation_journal', 'DELETE') THEN
+    RAISE EXCEPTION 'A14 authoritative journal has unsafe direct role grants';
+  END IF;
+
   INSERT INTO auth.users (
     id, instance_id, aud, role, email, encrypted_password, email_confirmed_at
   ) VALUES
@@ -38,7 +47,7 @@ BEGIN
      OR response->>'replayed' IS DISTINCT FROM 'false'
      OR response->>'operation_id' IS DISTINCT FROM op::text
      OR (SELECT name FROM public.wallets WHERE id = wallet_a) IS DISTINCT FROM 'A14 original'
-     OR (SELECT count(*) FROM public.restore_operation_journal
+     OR (SELECT count(*) FROM rasd_internal.restore_operation_journal
          WHERE user_id = user_a AND operation_id = op) <> 1 THEN
     RAISE EXCEPTION 'A14 initial restore was not committed and journaled';
   END IF;
@@ -78,7 +87,7 @@ BEGIN
     failure_state := SQLSTATE;
   END;
   IF failure_state IS NULL
-     OR EXISTS (SELECT 1 FROM public.restore_operation_journal
+     OR EXISTS (SELECT 1 FROM rasd_internal.restore_operation_journal
                  WHERE user_id = user_a AND operation_id = failed_op)
      OR (SELECT name FROM public.wallets WHERE id = wallet_a)
        IS DISTINCT FROM 'changed after commit' THEN
@@ -104,7 +113,7 @@ BEGIN
   backup_b := public.export_user_backup();
   response := public.restore_user_backup_once(backup_b, op);
   IF response->>'replayed' IS DISTINCT FROM 'false'
-     OR (SELECT count(*) FROM public.restore_operation_journal
+     OR (SELECT count(*) FROM rasd_internal.restore_operation_journal
           WHERE operation_id = op) <> 2
      OR (SELECT name FROM public.wallets WHERE id = wallet_a)
         IS DISTINCT FROM 'changed after commit' THEN
