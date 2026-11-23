@@ -77,3 +77,13 @@ bun run android:apk
 ## Windows Android Studio build compatibility
 - Use `bun install` then `bun run android:debug` to generate a debug APK, or `bun run android:apk` / `bun run android:aab` with release signing configured.
 - The production Android launcher runs `bun`, `npx cap sync android`, and `gradlew.bat` on Windows or `./gradlew` on Linux/macOS. It does not change Google OAuth or test login.
+
+## Native Rasd brand verification (2026-11-23)
+
+A real Android APK before this fix contained the blue **Capacitor default** mark in `res/mipmap-xxxhdpi-v4/ic_launcher.png` and `res/drawable-port-xxxhdpi-v4/splash.png`, even though the hosted Rasd login screen already displayed the teal wallet + رصد correctly. This was confirmed by extracting the compiled PNGs, not inferred from web source.
+
+The editable `assets/logo.svg` is now the Rasd teal-wallet source master. The production Android build must run `scripts/generate-android-branding.mjs` **after** creating the native project and **before** `cap sync` / Gradle. This generates launcher/adaptive launcher and splash images from the same mark; older experimental `resources/icon.png` and `resources/splash.png` are deliberately ignored.
+
+The Android CI job rejects the previously observed Capacitor-default icon, adaptive foreground, and splash PNG hashes extracted directly from the newly built APK. The launcher icon should be inspected on the phone home screen and the system splash on cold start in addition to the automated packaged-resource check; the login screen's logo is checked via emulator screenshots.
+
+Do not claim Google login works merely because this branding test passes: native Google OAuth remains disabled until supported secure native callback and real-device tests are complete.

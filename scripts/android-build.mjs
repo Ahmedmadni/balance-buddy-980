@@ -29,6 +29,9 @@ const run = (bin, args, options = {}) => {
 
 run("bun", ["run", "build"]);
 run("node", ["scripts/ensure-android.mjs"]);
+// The generated Capacitor scaffold contains placeholder icons. Always
+// replace those with Rasd branding before syncing and packaging native APKs.
+run("node", ["scripts/generate-android-branding.mjs"]);
 run("npx", ["cap", "sync", "android"]);
 const gradleTask = allowed.get(command);
 if (gradleTask) run(isWindows ? "gradlew.bat" : "./gradlew", [gradleTask], { cwd: "android" });

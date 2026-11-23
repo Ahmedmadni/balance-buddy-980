@@ -19,7 +19,7 @@ jobs:
       - name: Unit regression tests
         run: bun run test:unit
       - name: Android setup script syntax
-        run: node --check scripts/ensure-android.mjs && node --check scripts/android-build.mjs && bash -n scripts/android-emulator-smoke.sh && bash -n scripts/ci-install-with-sharp-fallback.sh
+        run: node --check scripts/ensure-android.mjs && node --check scripts/android-build.mjs && node --check scripts/generate-android-branding.mjs && bash -n scripts/android-emulator-smoke.sh && bash -n scripts/ci-install-with-sharp-fallback.sh
 
   android-debug:
     runs-on: ubuntu-latest
@@ -38,6 +38,23 @@ jobs:
         run: bash scripts/ci-install-with-sharp-fallback.sh
       - name: Build Android debug APK against published app
         run: bun run android:debug
+      - name: Verify APK contains Rasd launcher and splash, not Capacitor defaults
+        run: |
+          set -euo pipefail
+          APK=android/app/build/outputs/apk/debug/app-debug.apk
+          unzip -p "$APK" res/mipmap-xxxhdpi-v4/ic_launcher.png > /tmp/rasd-launcher.png
+          unzip -p "$APK" res/mipmap-xxxhdpi-v4/ic_launcher_foreground.png > /tmp/rasd-foreground.png
+          unzip -p "$APK" res/drawable-port-xxxhdpi-v4/splash.png > /tmp/rasd-splash.png
+          test -s /tmp/rasd-launcher.png
+          test -s /tmp/rasd-foreground.png
+          test -s /tmp/rasd-splash.png
+          file /tmp/rasd-launcher.png | grep -q "PNG image data"
+          file /tmp/rasd-foreground.png | grep -q "PNG image data"
+          file /tmp/rasd-splash.png | grep -q "PNG image data"
+          test "$(sha256sum /tmp/rasd-launcher.png | cut -c1-64)" != "87cb2f2ffe992652bb4fa768c73719a37b5852ab17fbf8e170e888f7a42b0761"
+          test "$(sha256sum /tmp/rasd-foreground.png | cut -c1-64)" != "bd24fd383253bf8d43f0a81f11c071d76d1d555114376dd647cd9fb38fa0a9da"
+          test "$(sha256sum /tmp/rasd-splash.png | cut -c1-64)" != "3db071a03b2f8ffe0dfd4170fc59842d53cd15bba5e88af59401d58efabf7827"
+          echo "PASS: packaged native launcher and splash are no longer the default Capacitor assets"
       - name: Verify the OAuth callback is in AndroidManifest.xml
         run: grep -q 'android:scheme="app.lovable.rasd"' android/app/src/main/AndroidManifest.xml
       - name: Verify Android background snapshot protection
