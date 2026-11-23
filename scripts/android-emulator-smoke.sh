@@ -63,6 +63,14 @@ if [ -z "$login_detected" ]; then
   exit 1
 fi
 
+# A provider badge must not occupy the native Android login viewport.
+# UiAutomator's accessibility tree may omit WebView shadow DOM, so keep the
+# screenshot evidence as well; this check does not replace visual inspection.
+if grep -Eiq 'Edit with Lovable|lovable-badge' "$EVIDENCE/portrait-ui.xml"; then
+  echo "::error::Lovable badge exposed on the native login screen."
+  exit 1
+fi
+
 # Exercise native application lifecycle; no Google auth involved.
 adb shell input keyevent KEYCODE_HOME
 sleep 2
