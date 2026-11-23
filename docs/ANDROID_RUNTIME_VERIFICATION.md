@@ -131,3 +131,10 @@ Do not declare `100% works` until all required real-device rows are tested and O
 - To remove an unresolved hold, the user must independently verify the account after connectivity recovers, type `راجعت البيانات`, and pass a fresh authentication check. This is **manual acknowledgment**, not cryptographic proof that the original SQL request completed.
 - The journal is scoped per account. Browser storage may be deleted by device maintenance, and this **does not enforce idempotency across devices or concurrent tabs**. A server-side operation ID and status query are still required for global exactly-once safety.
 - Synthetic unit tests cover restart survival, reservation-before-send, in-flight crash, account separation, failed storage, definite outcomes, and explicit acknowledgment. No financial production data or Google OAuth is used.
+
+## Phase 15 — delayed restore cancellation fence (2026-11-23)
+
+- The previous phase-14 `not_found` acknowledgment was unsafe because an older HTTP request could arrive after the user manually cleared the hold. A UUID-backed restore now **cannot** be cleared by `acknowledgeRestoreHold`, even through another caller of the shared helper.
+- After `not_found`, require an explicit typed `إلغاء الاستعادة` action and a confirmed `cancel_restore_operation` RPC. The server locks the same account as restore, inserts a permanent `cancelled` tombstone, and refuses delayed calls with that UUID. If the restore wins the race, cancellation returns `committed` instead and refreshes the displayed account.
+- The app must retain the local hold if the cancellation RPC is missing/unreachable, returns an invalid payload, or authentication changes during verification. Legacy holds without UUID still need manual user reconciliation.
+- CI SQL tests must confirm cancellation, idempotent cancellation, stale restore rejection, committed-wins race, isolation, and unauthenticated failure. Emulator startup alone does not validate this interactive flow; a real-device test with disposable records is still required.
