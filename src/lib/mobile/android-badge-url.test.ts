@@ -1,9 +1,13 @@
 import { describe, expect, test } from "bun:test";
-import { androidBadgeUrl, androidBadgeReloadUrl } from "./android-badge-url";
+import { androidBadgeUrl, androidBadgeReloadUrl, androidHostedLoginEntryUrl } from "./android-badge-url";
 
 describe("Android-only hosted badge URL", () => {
   test("Android launches the existing published host with the observed flag", () => {
     expect(androidBadgeUrl("https://balance-buddy-980.lovable.app")).toBe("https://balance-buddy-980.lovable.app/?forceHideBadge=true");
+  });
+  test("Android starts on the login route without losing the badge parameter to a root redirect", () => {
+    expect(androidHostedLoginEntryUrl("https://balance-buddy-980.lovable.app"))
+      .toBe("https://balance-buddy-980.lovable.app/auth?forceHideBadge=true");
   });
   test("ordinary website visitors are never redirected", () => {
     expect(androidBadgeReloadUrl("https://balance-buddy-980.lovable.app/auth", false)).toBeNull();
