@@ -58,9 +58,9 @@ export function BackupV2Section() {
     let mounted = true;
     const applyUser = (userId: string | null) => {
       if (!mounted) return;
+      if (reviewAccountIdRef.current !== userId) setServerStatusReviewedId(null);
       reviewAccountIdRef.current = userId;
       setReviewAccountId(userId);
-      setServerStatusReviewedId(null);
       setRestoreHold(userId ? readRestoreHold(getRestoreHoldStorage(), userId) : null);
     };
     void supabase.auth.getUser().then(({ data, error }) => {
