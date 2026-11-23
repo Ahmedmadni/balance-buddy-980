@@ -27,6 +27,12 @@ import {
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { createAuditEntry } from "@/lib/system/audit";
+
+// These RPCs come from optional migrations; the UI probes for them and falls back
+// to the legacy restore when absent, so they are not in the generated types yet.
+type RpcResult = { data: unknown; error: { message: string; code?: string } | null };
+const untypedRpc = (fn: string, args: Record<string, unknown>) =>
+  (supabase.rpc as unknown as (f: string, a: Record<string, unknown>) => Promise<RpcResult>)(fn, args);
 import { countBackupV2Rows, isBackupJsonFile, validateBackupV2, type BackupV2 } from "@/lib/backup/v2-validation";
 
 export function BackupV2Section() {
@@ -225,7 +231,7 @@ export function BackupV2Section() {
       // Non-destructive capability probe: prior Android/web versions continue
       // to work if the database migration has not been deployed yet.
       const operationId = crypto.randomUUID();
-      const probe = await supabase.rpc("get_restore_operation_status", { p_operation_id: operationId });
+      const probe = await untypedRpc("get_restore_operation_status", { p_operation_id: operationId });
       const mode = selectRestoreApiMode(probe, operationId);
       if (mode === "unavailable") {
         toast.error("تعذر التحقق من جاهزية خادم الاستعادة", {
@@ -247,7 +253,7 @@ export function BackupV2Section() {
           return data.user?.id ?? null;
         },
         async () => mode === "once"
-          ? await supabase.rpc("restore_user_backup_once", {
+          ? await untypedRpc("restore_user_backup_once", {
               p_backup: pendingBackup as never,
               p_operation_id: operationId,
             })
@@ -375,7 +381,7 @@ export function BackupV2Section() {
         toast.error("الحساب الحالي لا يطابق حساب طلب الاستعادة.");
         return;
       }
-      const response = await supabase.rpc("get_restore_operation_status", { p_operation_id: operationId });
+      const response = await untypedRpc("get_restore_operation_status", { p_operation_id: operationId });
       const status = classifyServerRestoreStatus(response, operationId);
       const second = await supabase.auth.getUser();
       if (second.error || second.data.user?.id !== userId || reviewAccountIdRef.current !== userId) {
@@ -430,7 +436,7 @@ export function BackupV2Section() {
       }
       // Server transaction lock guarantees that cancellation either fences
       // a not-yet-committed restore, or reveals that a commit won the race.
-      const response = await supabase.rpc("cancel_restore_operation", { p_operation_id: operationId });
+      const response = await untypedRpc("cancel_restore_operation", { p_operation_id: operationId });
       const status = classifyServerRestoreStatus(response, operationId);
       const afterAuth = await supabase.auth.getUser();
       if (afterAuth.error || afterAuth.data.user?.id !== userId || reviewAccountIdRef.current !== userId) {
