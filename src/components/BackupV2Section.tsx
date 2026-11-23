@@ -392,12 +392,19 @@ export function BackupV2Section() {
         } else {
           toast.success("أكد الخادم اكتمال الاستعادة وتم تحديث العرض والتنبيهات.");
         }
+      } else if (status === "cancelled") {
+        // The server has a permanent same-UUID tombstone. A delayed request
+        // cannot apply after this acknowledgement.
+        settleRestoreHold(getRestoreHoldStorage(), userId, "rejected");
+        setRestoreHold(readRestoreHold(getRestoreHoldStorage(), userId));
+        setReviewConfirmation("");
+        toast.success("أكد الخادم إلغاء الطلب القديم ومنع تنفيذه لاحقًا.");
       } else if (status === "not_found") {
-        // A missing commit marker is not proof that the request will never
-        // reach PostgreSQL. Keep the hold until explicit human verification.
+        // A missing row is NOT a fence. Never let manual acknowledgment
+        // unlock this UUID while a delayed HTTP request might still arrive.
         setServerStatusReviewedId(operationId);
-        toast.warning("لا يوجد إثبات لاكتمال العملية على الخادم", {
-          description: "قد يكون الطلب السابق ما زال في الطريق. لا تكرر الاستعادة دون التأكد من البيانات ومن انتهاء الطلب.",
+        toast.warning("لم يجد الخادم سجلًا لهذا الطلب", {
+          description: "قد يصل الطلب القديم متأخرًا؛ يلزم إلغاء معرّفه نهائيًا على الخادم قبل بدء استعادة جديدة.",
         });
       } else {
         toast.warning("تعذر التحقق من نتيجة العملية عبر الخادم. لا تكرر الاستعادة.");
@@ -409,11 +416,61 @@ export function BackupV2Section() {
     }
   }
 
+  async function cancelPendingRestoreOnServer() {
+    const userId = reviewAccountId;
+    if (!userId || busy || checkingRestoreStatus || reviewConfirmation.trim() !== "إلغاء الاستعادة") return;
+    const operationId = readRestoreOperationId(getRestoreHoldStorage(), userId);
+    if (!operationId || serverStatusReviewedId !== operationId) return;
+    setCheckingRestoreStatus(true);
+    try {
+      const before = await supabase.auth.getUser();
+      if (before.error || before.data.user?.id !== userId || reviewAccountIdRef.current !== userId) {
+        toast.error("الحساب الحالي لا يطابق صاحب عملية الاستعادة.");
+        return;
+      }
+      // Server transaction lock guarantees that cancellation either fences
+      // a not-yet-committed restore, or reveals that a commit won the race.
+      const response = await supabase.rpc("cancel_restore_operation", { p_operation_id: operationId });
+      const status = classifyServerRestoreStatus(response, operationId);
+      const afterAuth = await supabase.auth.getUser();
+      if (afterAuth.error || afterAuth.data.user?.id !== userId || reviewAccountIdRef.current !== userId) {
+        toast.warning("تغير الحساب أثناء الطلب. أعد التحقق من نتيجة الاستعادة بعد تسجيل الدخول للحساب الأصلي.");
+        return;
+      }
+      if (status === "cancelled") {
+        settleRestoreHold(getRestoreHoldStorage(), userId, "rejected");
+        setRestoreHold(readRestoreHold(getRestoreHoldStorage(), userId));
+        setReviewConfirmation("");
+        setServerStatusReviewedId(null);
+        toast.success("ألغى الخادم عملية الاستعادة القديمة نهائيًا", {
+          description: "لن يتمكن الطلب المتأخر بنفس المعرّف من تغيير بياناتك.",
+        });
+      } else if (status === "committed") {
+        settleRestoreHold(getRestoreHoldStorage(), userId, "committed");
+        setRestoreHold(readRestoreHold(getRestoreHoldStorage(), userId));
+        setReviewConfirmation("");
+        setServerStatusReviewedId(null);
+        const refreshed = await runPostRestoreRefresh();
+        toast.warning(refreshed.viewUpdated && refreshed.remindersCleared && refreshed.remindersSynced
+          ? "اكتملت الاستعادة قبل وصول طلب الإلغاء؛ تم تحديث العرض والتنبيهات."
+          : "اكتملت الاستعادة قبل الإلغاء؛ راجع البيانات وتنبيهات الجهاز.");
+      } else {
+        toast.error("تعذر تأكيد إلغاء الطلب على الخادم", {
+          description: "الحظر ما زال فعالًا. تأكد من نشر ترحيل إلغاء العمليات واتصالك بالإنترنت.",
+        });
+      }
+    } catch {
+      toast.warning("تعذر تأكيد نتيجة الإلغاء. استمر في الحظر وأعد الاستعلام عن الحالة فقط.");
+    } finally {
+      setCheckingRestoreStatus(false);
+    }
+  }
+
   async function acknowledgeReviewedRestore() {
     if (busy || checkingRestoreStatus || !reviewAccountId || reviewConfirmation.trim() !== "راجعت البيانات") return;
     const operationId = readRestoreOperationId(getRestoreHoldStorage(), reviewAccountId);
-    if (operationId && serverStatusReviewedId !== operationId) {
-      toast.error("تحقق من نتيجة العملية على الخادم قبل رفع الحظر.");
+    if (operationId) {
+      toast.error("لا يمكن رفع حظر طلب خادمي غير مؤكد يدويًا. تحقق من نتيجته أو ألغِ معرّفه نهائيًا على الخادم.");
       return;
     }
     const { data, error } = await supabase.auth.getUser();
@@ -468,20 +525,35 @@ export function BackupV2Section() {
                     {checkingRestoreStatus ? "جارٍ التحقق من الخادم..." : "التحقق من نتيجة الاستعادة على الخادم"}
                   </Button>
                 )}
-                <p>بعد مراجعة أرصدة الحساب وسجلاته والتأكد أن الطلب القديم انتهى، اكتب «راجعت البيانات» لرفع الحظر. عودة الإنترنت وحدها ليست إثباتًا.</p>
-                {reviewAccountId && readRestoreOperationId(getRestoreHoldStorage(), reviewAccountId) && serverStatusReviewedId !== readRestoreOperationId(getRestoreHoldStorage(), reviewAccountId) && (
-                  <p className="font-medium">يلزم التحقق من نتيجة العملية عبر الزر أعلاه قبل السماح بالإقرار اليدوي.</p>
+                {reviewAccountId && readRestoreOperationId(getRestoreHoldStorage(), reviewAccountId) ? (
+                  <>
+                    <p>إذا لم يجد الخادم سجلًا، فهذا لا يثبت أن الطلب لم يُنفذ. لإغلاقه بأمان يلزم تأكيد إلغائه على الخادم؛ الطلب المتأخر بنفس المعرّف سيُرفض.</p>
+                    {serverStatusReviewedId === readRestoreOperationId(getRestoreHoldStorage(), reviewAccountId) && (
+                      <>
+                        <p className="font-medium">لتأكيد إلغاء الطلب المعلّق اكتب «إلغاء الاستعادة»:</p>
+                        <Input aria-label="تأكيد إلغاء طلب الاستعادة" placeholder="إلغاء الاستعادة"
+                          value={reviewConfirmation} onChange={(e) => setReviewConfirmation(e.target.value)}
+                          disabled={busy || checkingRestoreStatus} />
+                        <Button size="sm" variant="destructive" onClick={cancelPendingRestoreOnServer}
+                          disabled={busy || checkingRestoreStatus || reviewConfirmation.trim() !== "إلغاء الاستعادة"}>
+                          إلغاء الطلب القديم نهائيًا على الخادم
+                        </Button>
+                      </>
+                    )}
+                  </>
+                ) : (
+                  <>
+                    <p>هذه استعادة قديمة بلا معرّف خادمي؛ راجع البيانات وتأكد أن الطلب انتهى. اكتب «راجعت البيانات» إذا كنت متأكدًا. عودة الإنترنت وحدها ليست إثباتًا.</p>
+                    <Input aria-label="تأكيد مراجعة الحساب" placeholder="راجعت البيانات"
+                      value={reviewConfirmation} onChange={(e) => setReviewConfirmation(e.target.value)}
+                      disabled={busy || checkingRestoreStatus} />
+                    <Button size="sm" variant="outline" onClick={acknowledgeReviewedRestore}
+                      disabled={busy || checkingRestoreStatus || !reviewAccountId ||
+                        reviewConfirmation.trim() !== "راجعت البيانات"}>
+                      تأكيد المراجعة ورفع الحظر
+                    </Button>
+                  </>
                 )}
-                <Input aria-label="تأكيد مراجعة الحساب" placeholder="راجعت البيانات"
-                  value={reviewConfirmation} onChange={(e) => setReviewConfirmation(e.target.value)}
-                  disabled={busy || checkingRestoreStatus} />
-                <Button size="sm" variant="outline" onClick={acknowledgeReviewedRestore}
-                  disabled={busy || checkingRestoreStatus || !reviewAccountId ||
-                    (Boolean(readRestoreOperationId(getRestoreHoldStorage(), reviewAccountId)) &&
-                      serverStatusReviewedId !== readRestoreOperationId(getRestoreHoldStorage(), reviewAccountId)) ||
-                    reviewConfirmation.trim() !== "راجعت البيانات"}>
-                  تأكيد المراجعة ورفع الحظر
-                </Button>
               </>
             )}
           </AlertDescription>
