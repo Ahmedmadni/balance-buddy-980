@@ -1464,6 +1464,14 @@ export type Database = {
         Returns: Json
       }
       restore_user_backup: { Args: { p_backup: Json }; Returns: Json }
+      restore_user_backup_once: {
+        Args: { p_backup: Json; p_operation_id: string }
+        Returns: Json
+      }
+      get_restore_operation_status: {
+        Args: { p_operation_id: string }
+        Returns: Json
+      }
     }
     Enums: {
       contact_kind:

@@ -3,6 +3,7 @@ import {
   RESTORE_HOLD_PREFIX,
   acknowledgeRestoreHold,
   readRestoreHold,
+  readRestoreOperationId,
   reserveRestoreHold,
   settleRestoreHold,
   type RestoreHoldStorage,
@@ -89,6 +90,26 @@ describe("durable v2 restore journal", () => {
     reserveRestoreHold(store, "A");
     settleRestoreHold(store, "A", "unconfirmed");
     expect(acknowledgeRestoreHold(store, "A")).toBe(true);
+    expect(readRestoreHold(store, "A")).toBe(null);
+  });
+
+  test("server operation UUID survives unconfirmed result and WebView remount", () => {
+    const store = storage();
+    const id = "e8888888-8888-4888-8888-888888888888";
+    expect(reserveRestoreHold(store, "A", id)).toBe(true);
+    expect(readRestoreHold(store, "A")).toBe("pending");
+    expect(readRestoreOperationId(store, "A")).toBe(id);
+    settleRestoreHold(store, "A", "unconfirmed");
+    expect(readRestoreHold(store, "A")).toBe("unconfirmed");
+    expect(readRestoreOperationId(store, "A")).toBe(id);
+    expect(readRestoreOperationId(store, "B")).toBe(null);
+    settleRestoreHold(store, "A", "committed");
+    expect(readRestoreOperationId(store, "A")).toBe(null);
+  });
+
+  test("invalid server UUID cannot reserve a journal entry", () => {
+    const store = storage();
+    expect(reserveRestoreHold(store, "A", "not-a-uuid")).toBe(false);
     expect(readRestoreHold(store, "A")).toBe(null);
   });
 

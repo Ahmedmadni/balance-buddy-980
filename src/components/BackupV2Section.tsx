@@ -10,9 +10,10 @@ import { Capacitor } from "@capacitor/core";
 import { clearNativeReminders, syncNativeReminders } from "@/lib/notifications/native-scheduler";
 import { afterSuccessfulBackupRestore } from "@/lib/backup/post-restore";
 import { runGuardedBackupRestore } from "@/lib/backup/restore-request";
+import { classifyServerRestoreStatus, selectRestoreApiMode } from "@/lib/backup/restore-protocol";
 import {
   RESTORE_HOLD_PREFIX, getRestoreHoldStorage, acknowledgeRestoreHold, readRestoreHold,
-  reserveRestoreHold, settleRestoreHold, type RestoreHoldState,
+  readRestoreOperationId, reserveRestoreHold, settleRestoreHold, type RestoreHoldState,
 } from "@/lib/backup/restore-hold";
 import { decryptBackup, encryptBackup, isEncryptedBackup } from "@/lib/backup/encrypted-backup";
 import {
@@ -42,6 +43,8 @@ export function BackupV2Section() {
   const [restoreHold, setRestoreHold] = useState<RestoreHoldState>(null);
   const [reviewAccountId, setReviewAccountId] = useState<string | null>(null);
   const [reviewConfirmation, setReviewConfirmation] = useState("");
+  const [checkingRestoreStatus, setCheckingRestoreStatus] = useState(false);
+  const [serverStatusReviewedId, setServerStatusReviewedId] = useState<string | null>(null);
   const [confirmOpen, setConfirmOpen] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
   const operationLock = useRef(false);
@@ -57,6 +60,7 @@ export function BackupV2Section() {
       if (!mounted) return;
       reviewAccountIdRef.current = userId;
       setReviewAccountId(userId);
+      setServerStatusReviewedId(null);
       setRestoreHold(userId ? readRestoreHold(getRestoreHoldStorage(), userId) : null);
     };
     void supabase.auth.getUser().then(({ data, error }) => {
@@ -194,13 +198,47 @@ export function BackupV2Section() {
     setRestoreConfirmation("");
   }
 
+  async function runPostRestoreRefresh() {
+    return await afterSuccessfulBackupRestore({
+      native: Capacitor.isNativePlatform(),
+      clearNativeReminders,
+      refreshActiveViews: async () => {
+        await qc.invalidateQueries({ refetchType: "none" });
+        await qc.refetchQueries({ type: "active" }, { throwOnError: true });
+      },
+      syncNativeReminders: async () => {
+        const { data, error } = await supabase.auth.getUser();
+        if (error || !data.user) throw new Error("Active session required");
+        await syncNativeReminders(data.user.id, { askPermission: false });
+      },
+    });
+  }
+
   async function doRestore() {
     if (!pendingBackup || !previewUserId || restoreHold !== null ||
         operationLock.current || restoreConfirmation.trim() !== "استعادة") return;
     operationLock.current = true;
     setRestoring(true);
     let restoreConfirmed = false;
+    let restoreRequestReserved = false;
     try {
+      // Non-destructive capability probe: prior Android/web versions continue
+      // to work if the database migration has not been deployed yet.
+      const operationId = crypto.randomUUID();
+      const probe = await supabase.rpc("get_restore_operation_status", { p_operation_id: operationId });
+      const mode = selectRestoreApiMode(probe, operationId);
+      if (mode === "unavailable") {
+        toast.error("تعذر التحقق من جاهزية خادم الاستعادة", {
+          description: "لم نرسل أي عملية استعادة. تحقق من الإنترنت وحالة ترقية قاعدة البيانات.",
+        });
+        return;
+      }
+      if (mode === "legacy") {
+        toast.info("خادم النسخ الاحتياطي لم يُحدَّث بعد", {
+          description: "سيُستخدم مسار الاستعادة السابق مع حارس الأمان المحلي حتى اكتمال ترقية قاعدة البيانات.",
+        });
+      }
+
       const response = await runGuardedBackupRestore(
         previewUserId,
         async () => {
@@ -208,11 +246,24 @@ export function BackupV2Section() {
           if (error) throw error;
           return data.user?.id ?? null;
         },
-        async () => await supabase.rpc("restore_user_backup", { p_backup: pendingBackup as never }),
+        async () => mode === "once"
+          ? await supabase.rpc("restore_user_backup_once", {
+              p_backup: pendingBackup as never,
+              p_operation_id: operationId,
+            })
+          : await supabase.rpc("restore_user_backup", { p_backup: pendingBackup as never }),
         {
-          // Persist before sending: a crash or lost response must not permit a
-          // second destructive call after Android restarts the WebView.
-          beforeSend: () => reserveRestoreHold(getRestoreHoldStorage(), previewUserId),
+          // Persist UUID and pending state *together* before the new RPC.
+          // A crash must preserve which exact operation the server handled.
+          beforeSend: () => {
+            const reserved = reserveRestoreHold(
+              getRestoreHoldStorage(), previewUserId,
+              mode === "once" ? operationId : undefined,
+            );
+            if (reserved) restoreRequestReserved = true;
+            return reserved;
+          },
+          expectedOperationId: mode === "once" ? operationId : undefined,
           onOutcome: (outcome) => {
             settleRestoreHold(getRestoreHoldStorage(), previewUserId, outcome);
             if (reviewAccountIdRef.current === previewUserId) {
@@ -258,23 +309,19 @@ export function BackupV2Section() {
       // committed; later view/native errors cannot turn this into a failure.
       restoreConfirmed = true;
       clearPreparedRestore();
+      // The original account's SQL result is committed, but do not refresh
+      // views or reschedule native alarms under a different signed-in user.
+      if (reviewAccountIdRef.current !== previewUserId) {
+        toast.warning("أكد الخادم استعادة حساب سابق، لكن تغير الحساب النشط", {
+          description: "سجل الدخول للحساب الذي نفذ الاستعادة للتحقق من أرصدته وتنبيهاته.",
+        });
+        return;
+      }
       try {
         createAuditEntry("restore", "استعادة نسخة احتياطية (v2)", { meta: { version: 2 } });
       } catch { /* optional local log cannot invalidate an already committed restore */ }
 
-      const after = await afterSuccessfulBackupRestore({
-        native: Capacitor.isNativePlatform(),
-        clearNativeReminders,
-        refreshActiveViews: async () => {
-          await qc.invalidateQueries({ refetchType: "none" });
-          await qc.refetchQueries({ type: "active" }, { throwOnError: true });
-        },
-        syncNativeReminders: async () => {
-          const { data, error } = await supabase.auth.getUser();
-          if (error || !data.user) throw new Error("Active session required");
-          await syncNativeReminders(data.user.id, { askPermission: false });
-        },
-      });
+      const after = await runPostRestoreRefresh();
       if (!after.viewUpdated || !after.remindersCleared || !after.remindersSynced) {
         const issues = [
           !after.viewUpdated ? "لم تكتمل إعادة تحميل البيانات المعروضة." : "",
@@ -293,24 +340,82 @@ export function BackupV2Section() {
       // A local exception after a confirmed SQL response is not a failed
       // restore. Never invite retrying the destructive call.
       clearPreparedRestore();
-      if (!restoreConfirmed && previewUserId) {
+      if (!restoreConfirmed && restoreRequestReserved && previewUserId) {
         settleRestoreHold(getRestoreHoldStorage(), previewUserId, "unconfirmed");
         if (reviewAccountIdRef.current === previewUserId) {
           setRestoreHold(readRestoreHold(getRestoreHoldStorage(), previewUserId));
         }
       }
-      toast.warning(
-        restoreConfirmed ? "تمت الاستعادة، لكن تعذر إكمال تحديث العرض" : "تعذر تأكيد نتيجة الاستعادة",
-        { description: "لا تكرر عملية الاستعادة. تحقق من سجلات الحساب والاتصال أولًا." },
-      );
+      if (restoreConfirmed || restoreRequestReserved) {
+        toast.warning(
+          restoreConfirmed ? "تمت الاستعادة، لكن تعذر إكمال تحديث العرض" : "تعذر تأكيد نتيجة الاستعادة",
+          { description: "لا تكرر عملية الاستعادة. تحقق من سجلات الحساب والاتصال أولًا." },
+        );
+      } else {
+        toast.error("تعذر تجهيز طلب الاستعادة", {
+          description: "لم يُرسل طلب الاستعادة. تحقق من الاتصال ثم افتح الملف مجددًا.",
+        });
+      }
     } finally {
       operationLock.current = false;
       setRestoring(false);
     }
   }
 
+  async function verifyPendingRestoreOnServer() {
+    const userId = reviewAccountId;
+    if (!userId || busy || checkingRestoreStatus) return;
+    const operationId = readRestoreOperationId(getRestoreHoldStorage(), userId);
+    if (!operationId) return;
+    setCheckingRestoreStatus(true);
+    setServerStatusReviewedId(null);
+    try {
+      const first = await supabase.auth.getUser();
+      if (first.error || first.data.user?.id !== userId) {
+        toast.error("الحساب الحالي لا يطابق حساب طلب الاستعادة.");
+        return;
+      }
+      const response = await supabase.rpc("get_restore_operation_status", { p_operation_id: operationId });
+      const status = classifyServerRestoreStatus(response, operationId);
+      const second = await supabase.auth.getUser();
+      if (second.error || second.data.user?.id !== userId || reviewAccountIdRef.current !== userId) {
+        toast.error("تغير الحساب قبل اكتمال فحص الاستعادة.");
+        return;
+      }
+      if (status === "committed") {
+        settleRestoreHold(getRestoreHoldStorage(), userId, "committed");
+        setRestoreHold(readRestoreHold(getRestoreHoldStorage(), userId));
+        setReviewConfirmation("");
+        const after = await runPostRestoreRefresh();
+        if (!after.viewUpdated || !after.remindersCleared || !after.remindersSynced) {
+          toast.warning("أكد الخادم اكتمال الاستعادة، لكن بعض وظائف الجهاز بحاجة للمراجعة.");
+        } else {
+          toast.success("أكد الخادم اكتمال الاستعادة وتم تحديث العرض والتنبيهات.");
+        }
+      } else if (status === "not_found") {
+        // A missing commit marker is not proof that the request will never
+        // reach PostgreSQL. Keep the hold until explicit human verification.
+        setServerStatusReviewedId(operationId);
+        toast.warning("لا يوجد إثبات لاكتمال العملية على الخادم", {
+          description: "قد يكون الطلب السابق ما زال في الطريق. لا تكرر الاستعادة دون التأكد من البيانات ومن انتهاء الطلب.",
+        });
+      } else {
+        toast.warning("تعذر التحقق من نتيجة العملية عبر الخادم. لا تكرر الاستعادة.");
+      }
+    } catch {
+      toast.warning("تعذر الاتصال بخدمة التحقق من الاستعادة. الحظر الاحترازي مستمر.");
+    } finally {
+      setCheckingRestoreStatus(false);
+    }
+  }
+
   async function acknowledgeReviewedRestore() {
-    if (busy || !reviewAccountId || reviewConfirmation.trim() !== "راجعت البيانات") return;
+    if (busy || checkingRestoreStatus || !reviewAccountId || reviewConfirmation.trim() !== "راجعت البيانات") return;
+    const operationId = readRestoreOperationId(getRestoreHoldStorage(), reviewAccountId);
+    if (operationId && serverStatusReviewedId !== operationId) {
+      toast.error("تحقق من نتيجة العملية على الخادم قبل رفع الحظر.");
+      return;
+    }
     const { data, error } = await supabase.auth.getUser();
     if (error || data.user?.id !== reviewAccountId) {
       toast.error("تعذر تأكيد الحساب الحالي. أعد تسجيل الدخول.");
@@ -322,6 +427,7 @@ export function BackupV2Section() {
     }
     setRestoreHold(readRestoreHold(getRestoreHoldStorage(), reviewAccountId));
     setReviewConfirmation("");
+    setServerStatusReviewedId(null);
     toast.info("تم رفع حظر الاستعادة بعد تأكيدك مراجعة بيانات الحساب.");
   }
 
@@ -356,12 +462,24 @@ export function BackupV2Section() {
                   {" "}لا تكرر الاستعادة. بعد استقرار الاتصال، راجع المحافظ والعمليات والأرصدة والسجلات بعناية.
                   يظل الحظر فعالًا حتى بعد إعادة تحميل التطبيق أو إعادة فتحه على هذا الجهاز.
                 </p>
-                <p>إذا تحققت بنفسك من حالة الحساب وأن الطلب السابق لم يعد قيد التنفيذ، اكتب «راجعت البيانات» لرفع الحظر. لا تضغط هذا الإجراء لمجرد عودة الإنترنت.</p>
+                {reviewAccountId && readRestoreOperationId(getRestoreHoldStorage(), reviewAccountId) && (
+                  <Button size="sm" variant="outline" onClick={verifyPendingRestoreOnServer}
+                    disabled={busy || checkingRestoreStatus}>
+                    {checkingRestoreStatus ? "جارٍ التحقق من الخادم..." : "التحقق من نتيجة الاستعادة على الخادم"}
+                  </Button>
+                )}
+                <p>بعد مراجعة أرصدة الحساب وسجلاته والتأكد أن الطلب القديم انتهى، اكتب «راجعت البيانات» لرفع الحظر. عودة الإنترنت وحدها ليست إثباتًا.</p>
+                {reviewAccountId && readRestoreOperationId(getRestoreHoldStorage(), reviewAccountId) && serverStatusReviewedId !== readRestoreOperationId(getRestoreHoldStorage(), reviewAccountId) && (
+                  <p className="font-medium">يلزم التحقق من نتيجة العملية عبر الزر أعلاه قبل السماح بالإقرار اليدوي.</p>
+                )}
                 <Input aria-label="تأكيد مراجعة الحساب" placeholder="راجعت البيانات"
                   value={reviewConfirmation} onChange={(e) => setReviewConfirmation(e.target.value)}
-                  disabled={busy} />
+                  disabled={busy || checkingRestoreStatus} />
                 <Button size="sm" variant="outline" onClick={acknowledgeReviewedRestore}
-                  disabled={busy || !reviewAccountId || reviewConfirmation.trim() !== "راجعت البيانات"}>
+                  disabled={busy || checkingRestoreStatus || !reviewAccountId ||
+                    (Boolean(readRestoreOperationId(getRestoreHoldStorage(), reviewAccountId)) &&
+                      serverStatusReviewedId !== readRestoreOperationId(getRestoreHoldStorage(), reviewAccountId)) ||
+                    reviewConfirmation.trim() !== "راجعت البيانات"}>
                   تأكيد المراجعة ورفع الحظر
                 </Button>
               </>

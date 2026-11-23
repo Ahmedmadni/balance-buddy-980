@@ -19,23 +19,52 @@ function keyFor(userId: string): string {
   return `${RESTORE_HOLD_PREFIX}${userId}`;
 }
 
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+function decodeHold(raw: string | null): { state: "pending" | "unconfirmed"; operationId: string | null } | "unavailable" | null {
+  if (raw === null) return null;
+  if (raw === "pending" || raw === "unconfirmed") return { state: raw, operationId: null };
+  const match = /^(pending|unconfirmed):([0-9a-f-]{36})$/i.exec(raw);
+  if (match && UUID.test(match[2])) {
+    return { state: match[1] as "pending" | "unconfirmed", operationId: match[2] };
+  }
+  return "unavailable";
+}
+
 export function readRestoreHold(storage: RestoreHoldStorage, userId: string): RestoreHoldState {
   if (!userId) return "unavailable";
   try {
-    const value = storage.getItem(keyFor(userId));
-    if (value === null) return null;
-    return value === "pending" || value === "unconfirmed" ? value : "unavailable";
+    const record = decodeHold(storage.getItem(keyFor(userId)));
+    if (record === null || record === "unavailable") return record;
+    return record.state;
   } catch {
     return "unavailable";
   }
 }
 
-/** Write BEFORE sending the RPC. Failure to persist must prevent the call. */
-export function reserveRestoreHold(storage: RestoreHoldStorage, userId: string): boolean {
-  if (readRestoreHold(storage, userId) !== null) return false;
+/** The operation UUID survives an Android WebView crash in the same journal entry. */
+export function readRestoreOperationId(storage: RestoreHoldStorage, userId: string): string | null {
+  if (!userId) return null;
   try {
-    storage.setItem(keyFor(userId), "pending");
-    return readRestoreHold(storage, userId) === "pending";
+    const record = decodeHold(storage.getItem(keyFor(userId)));
+    return record && record !== "unavailable" ? record.operationId : null;
+  } catch {
+    return null;
+  }
+}
+
+/** Write BEFORE sending the RPC. Failure to persist must prevent the call. */
+export function reserveRestoreHold(
+  storage: RestoreHoldStorage,
+  userId: string,
+  operationId?: string,
+): boolean {
+  if (readRestoreHold(storage, userId) !== null) return false;
+  if (operationId !== undefined && !UUID.test(operationId)) return false;
+  try {
+    storage.setItem(keyFor(userId), operationId ? `pending:${operationId}` : "pending");
+    return readRestoreHold(storage, userId) === "pending" &&
+      readRestoreOperationId(storage, userId) === (operationId ?? null);
   } catch {
     return false;
   }
@@ -48,10 +77,13 @@ export function settleRestoreHold(
   outcome: SettledRestoreOutcome,
 ): void {
   try {
+    const state = readRestoreHold(storage, userId);
+    if (state === "unavailable" || state === null) return;
     if (outcome === "committed" || outcome === "rejected") {
       storage.removeItem(keyFor(userId));
     } else {
-      storage.setItem(keyFor(userId), "unconfirmed");
+      const operationId = readRestoreOperationId(storage, userId);
+      storage.setItem(keyFor(userId), operationId ? `unconfirmed:${operationId}` : "unconfirmed");
     }
   } catch {
     // Leaving an existing "pending" hold is safer than permitting a retry.
