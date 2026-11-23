@@ -162,6 +162,14 @@ function RootComponent() {
       : Promise.resolve([]);
     const nativeAuth = listenForNativeOAuth({
       onFailure: (message) => toast.error("تعذر تسجيل الدخول", { description: message }),
+      onSuccess: () => {
+        // The native callback processor has already exchanged PKCE and checked
+        // auth.getUser(). A browser redirect alone NEVER enters finance routes.
+        toast.success("تم تسجيل الدخول إلى رصد");
+        void router.navigate({ to: "/app", replace: true }).catch(() => {
+          toast.error("تمت المصادقة، لكن تعذر فتح الواجهة. أعد فتح تطبيق رصد.");
+        });
+      },
     });
     let accountId: string | null = null;
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
