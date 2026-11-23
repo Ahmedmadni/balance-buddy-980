@@ -63,6 +63,13 @@ if [ -z "$login_detected" ]; then
   exit 1
 fi
 
+# Source CI must not silently pass against an older hosted SSR deployment:
+# this Android build runs the LIVE site, not the bundled Vite build.
+if ! grep -Fq 'فتح حساب رصد في المتصفح' "$EVIDENCE/portrait-ui.xml"; then
+  echo "::error::Hosted Lovable login is stale: Android-safe browser sign-in UI was not published. Publish main before release testing."
+  exit 1
+fi
+
 # A provider badge must not occupy the native Android login viewport.
 # UiAutomator's accessibility tree may omit WebView shadow DOM, so keep the
 # screenshot evidence as well; this check does not replace visual inspection.
