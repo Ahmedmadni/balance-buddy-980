@@ -5,6 +5,8 @@ test("Android يعرض مسار المتصفح بدلاً من زر Google غي�
   await page.goto("/auth?__rasdNativeUiTest=1");
   await expect(page.getByRole("button", { name: "فتح حساب رصد في المتصفح" })).toBeVisible();
   await expect(page.getByRole("button", { name: "متابعة باستخدام جوجل" })).toHaveCount(0);
+  await expect(page.getByText(/يلزم إكمال إعداد تسجيل Google/)).toBeVisible();
+  await expect(page.getByRole("button", { name: "متابعة باستخدام Google داخل التطبيق" })).toHaveCount(0);
   await expect(page.getByText("جلسة المتصفح مستقلة ولن تسجّل دخولك إلى تطبيق Android تلقائيًا.")).toBeVisible();
 });
 
