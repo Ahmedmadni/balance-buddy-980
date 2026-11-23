@@ -5,6 +5,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { isNative } from "@/lib/mobile/platform";
 import { runGoogleSignIn } from "@/lib/auth/google-sign-in-flow";
 import { Browser } from "@capacitor/browser";
+import { nativeGoogleReady, NATIVE_GOOGLE_SETUP_REQUIRED, startNativeGoogleSignIn } from "@/lib/auth/native-oauth";
 import { lovable } from "@/integrations/lovable/index";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
@@ -74,6 +75,23 @@ function AuthPage() {
     }
   }
 
+  async function signInNative() {
+    if (signingIn.current || !nativeGoogleReady()) return;
+    signingIn.current = true;
+    setLoading(true);
+    setSignInError(null);
+    try {
+      const result = await startNativeGoogleSignIn();
+      if (result.kind === "error") setSignInError(result.message);
+      else if (result.kind === "authenticated") await navigate({ to: "/app", replace: true });
+      // "opened" is intentionally NOT success: root will validate the returned
+      // PKCE code and user before navigating to the financial application.
+    } finally {
+      signingIn.current = false;
+      setLoading(false);
+    }
+  }
+
   async function signIn() {
     if (signingIn.current) return;
     signingIn.current = true;
@@ -117,15 +135,27 @@ function AuthPage() {
           <p className="mt-2 text-center text-sm text-muted-foreground">سجّل الدخول للوصول إلى ديونك ومصاريفك بأمان</p>
           {nativeMode ? (
             <div className="mt-8 space-y-3">
-              <p className="text-sm leading-7 text-muted-foreground text-center" role="status">
-                تسجيل Google داخل نسخة Android قيد التجهيز. يمكنك الدخول إلى حسابك الحالي من
-                متصفح الهاتف، دون إنشاء حساب جديد.
-              </p>
-              <Button onClick={openWebLogin} type="button" size="lg" className="w-full">
+              {nativeGoogleReady() ? (
+                <>
+                  <Button onClick={signInNative} disabled={loading} type="button" size="lg" className="w-full">
+                    {loading ? "جار فتح Google..." : "متابعة باستخدام Google داخل التطبيق"}
+                  </Button>
+                  <p className="text-sm leading-7 text-muted-foreground text-center" role="status">
+                    بعد اختيار حساب Google في متصفح الهاتف، سيعود رصد تلقائيًا
+                    ويؤكد الجلسة قبل فتح بياناتك.
+                  </p>
+                </>
+              ) : (
+                <p className="text-sm leading-7 text-muted-foreground text-center" role="status">
+                  {NATIVE_GOOGLE_SETUP_REQUIRED}
+                </p>
+              )}
+              <Button onClick={openWebLogin} type="button" size="lg" variant="outline" className="w-full">
                 فتح حساب رصد في المتصفح
               </Button>
               <p className="text-xs leading-6 text-muted-foreground text-center">
                 جلسة المتصفح مستقلة ولن تسجّل دخولك إلى تطبيق Android تلقائيًا.
+                هذا خيار بديل مؤقت، وليس تسجيلًا داخل التطبيق.
               </p>
             </div>
           ) : (
