@@ -1,5 +1,13 @@
 import { expect, test } from "./fixtures";
 
+test("Android يعرض مسار المتصفح بدلاً من زر Google غير الجاهز", async ({ page }) => {
+  // A dev-only visual branch, not a fake native bridge or authenticated session.
+  await page.goto("/auth?__rasdNativeUiTest=1");
+  await expect(page.getByRole("button", { name: "فتح حساب رصد في المتصفح" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "متابعة باستخدام جوجل" })).toHaveCount(0);
+  await expect(page.getByText("جلسة المتصفح مستقلة ولن تسجّل دخولك إلى تطبيق Android تلقائيًا.")).toBeVisible();
+});
+
 test("صفحة الدخول تعرض خيار جوجل", async ({ page }) => {
   await page.goto("/auth");
 

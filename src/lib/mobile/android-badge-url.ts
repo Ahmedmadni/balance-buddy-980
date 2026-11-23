@@ -20,3 +20,8 @@ export function androidBadgeReloadUrl(raw: string, nativeAndroid: boolean): stri
     return androidBadgeUrl(raw);
   } catch { return null; }
 }
+/** Open the public login route directly so the site's root redirect cannot drop the badge flag. */
+export function androidHostedLoginEntryUrl(raw: string): string {
+  const url = new URL("/auth", raw);
+  return androidBadgeUrl(url.href);
+}

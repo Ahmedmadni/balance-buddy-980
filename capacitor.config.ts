@@ -1,6 +1,6 @@
 import type { CapacitorConfig } from '@capacitor/cli';
 import { validateAndroidReleaseUrl } from './src/lib/mobile/release-url';
-import { androidBadgeUrl } from './src/lib/mobile/android-badge-url';
+import { androidHostedLoginEntryUrl } from './src/lib/mobile/android-badge-url';
 
 // ─────────────────────────────────────────────────────────────
 // وضعان صريحان:
@@ -14,7 +14,7 @@ import { androidBadgeUrl } from './src/lib/mobile/android-badge-url';
 // ─────────────────────────────────────────────────────────────
 const isProduction = process.env['CAP_ENV'] === 'production';
 const productionUrl = process.env['CAP_SERVER_URL'] || 'https://balance-buddy-980.lovable.app';
-const PROD_URL = isProduction ? androidBadgeUrl(validateAndroidReleaseUrl(productionUrl)) : productionUrl;
+const PROD_URL = isProduction ? androidHostedLoginEntryUrl(validateAndroidReleaseUrl(productionUrl)) : productionUrl;
 const DEV_URL = 'https://a152564d-27eb-4c34-88c3-bd4d16c0e912.lovableproject.com?forceHideBadge=true';
 
 const config: CapacitorConfig = {

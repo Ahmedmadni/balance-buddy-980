@@ -118,6 +118,17 @@ function RootComponent() {
   const router = useRouter();
 
   useEffect(() => {
+    // Android can hard-reload a nested page without the initial badge flag.
+    // Restore the tested host flag before mounting any financial state.
+    // The helper refuses URLs carrying OAuth codes, tokens, or error payloads.
+    const badgeReload = androidBadgeReloadUrl(
+      window.location.href,
+      Capacitor.isNativePlatform() && Capacitor.getPlatform() === "android",
+    );
+    if (badgeReload) {
+      window.location.replace(badgeReload);
+      return;
+    }
     // Native WebView versions may not support OKLCH, even when the web build does.
     // A dedicated, contrast-safe palette avoids dark text on dark splash colours.
     document.documentElement.classList.toggle("rasd-native-app", Capacitor.isNativePlatform());
