@@ -10,6 +10,7 @@ DECLARE
   wallet_b uuid := '36000000-0000-0000-0000-0000000000b4';
   op uuid := '46000000-0000-0000-0000-0000000000a4';
   failed_op uuid := '46000000-0000-0000-0000-0000000000f4';
+  late_failed_op uuid := '46000000-0000-0000-0000-0000000000e4';
   backup_a jsonb;
   backup_b jsonb;
   response jsonb;
@@ -92,6 +93,25 @@ BEGIN
      OR (SELECT name FROM public.wallets WHERE id = wallet_a)
        IS DISTINCT FROM 'changed after commit' THEN
     RAISE EXCEPTION 'A14 failed restore left a journal row or changed balances';
+  END IF;
+
+  -- A failure AFTER the restore started deleting rows must still roll back
+  -- every financial table AND leave no committed operation journal entry.
+  failure_state := NULL;
+  BEGIN
+    PERFORM public.restore_user_backup_once(
+      jsonb_set(backup_a, '{data,wallets,0,name}', 'null'::jsonb),
+      late_failed_op
+    );
+  EXCEPTION WHEN OTHERS THEN
+    failure_state := SQLSTATE;
+  END;
+  IF failure_state IS DISTINCT FROM '23502'
+     OR EXISTS (SELECT 1 FROM rasd_internal.restore_operation_journal
+                WHERE user_id = user_a AND operation_id = late_failed_op)
+     OR (SELECT name FROM public.wallets WHERE id = wallet_a)
+        IS DISTINCT FROM 'changed after commit' THEN
+    RAISE EXCEPTION 'A14 late SQL failure left partial finance data or a false commit marker';
   END IF;
 
   status_response := public.get_restore_operation_status(op);
