@@ -32,7 +32,13 @@ function AuthPage() {
 
   // SSR starts as web; detect the actual native shell after hydration so the
   // login card never promises Android Google OAuth that this build cannot do.
-  useEffect(() => { setNativeMode(isNative()); }, []);
+  useEffect(() => {
+    // Test-only UI preview: Vite removes DEV-only branches from production.
+    // This does NOT mock Capacitor plugins, authentication, or native sessions.
+    const previewNativeUI = import.meta.env.DEV &&
+      new URLSearchParams(window.location.search).get("__rasdNativeUiTest") === "1";
+    setNativeMode(isNative() || previewNativeUI);
+  }, []);
   const signingIn = useRef(false);
 
   useEffect(() => {
