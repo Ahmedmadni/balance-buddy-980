@@ -10,3 +10,5 @@
 - Keep signed Android releases manual-only, pass validated version inputs through environment variables, and verify APK/AAB signatures before uploading; this prevents input injection and accidental distribution of unsigned packages.
 - Disambiguate embedded financial reads with the existing owner-scoped foreign key names; parallel legacy foreign keys otherwise cause ambiguous relationship failures.
 - A UUID-backed restore hold must never be manually released on `not_found`; release only on verified server `committed` or `cancelled` status. All delayed-request cancellation uses the same per-account SQL advisory lock and never touches real financial records in CI.
+
+- Native Android Google sign-in MUST use browser PKCE code redemption inside the initiating WebView; never accept access/refresh tokens in deep-link URLs, never call Google in embedded WebView, and never mistake a separate browser session for an app session. Do not enable the hosted public `VITE_RASD_NATIVE_GOOGLE_OAUTH_READY` flag before Supabase Google credentials and exact callback allowlist are configured and device acceptance is complete.

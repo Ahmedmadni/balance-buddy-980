@@ -45,6 +45,27 @@ done
 adb shell pm path "$APP" | tee "$EVIDENCE/package-path.txt"
 adb shell am start -W -n "$APP/.MainActivity" | tee "$EVIDENCE/launch.txt"
 
+# Confirm Android's OS resolver actually returns an external browser callback
+# to our installed activity (no OAuth request; code is a disposable fake).
+# The app MUST refuse it without a prior PKCE attempt. We only validate routing.
+if ! adb shell am start -W \
+    -a android.intent.action.VIEW \
+    -c android.intent.category.BROWSABLE \
+    -d "app.lovable.rasd://auth/callback?code=synthetic-ci-no-auth" \
+    -p "$APP" > "$EVIDENCE/deep-link-return.txt" 2>&1; then
+  cat "$EVIDENCE/deep-link-return.txt"
+  echo "::error::Android OS did not route the registered OAuth deep link back to Rasd."
+  exit 1
+fi
+if ! grep -Fq "$APP/.MainActivity" "$EVIDENCE/deep-link-return.txt"; then
+  cat "$EVIDENCE/deep-link-return.txt"
+  echo "::error::Deep link did not resolve to the Rasd native MainActivity."
+  exit 1
+fi
+echo "PASS: OS deep link resolves to Rasd; no test account or real provider involved."
+
+
+
 # UiAutomator fails if SystemUI is in an ANR state; use a local/tmp output
 # instead of /sdcard where some emulator images deny access.
 login_detected=""
@@ -60,6 +81,13 @@ for attempt in 1 2 3; do
 done
 if [ -z "$login_detected" ]; then
   echo "::error::Android login screen not observable. Emulator/SystemUI may be hung or network-hosted WebView may not have loaded; inspect screenshots and logs. Do not claim app validation."
+  exit 1
+fi
+
+# Do not confuse the local offline recovery page with a stale deployed login.
+# Network failures on hosted WebView are a separate acceptance blocker.
+if grep -Fq 'تعذر الاتصال برصد' "$EVIDENCE/portrait-ui.xml"; then
+  echo "::error::Android hosted WebView could not reach Lovable; offline recovery page displayed. Native intent routing was checked separately."
   exit 1
 fi
 

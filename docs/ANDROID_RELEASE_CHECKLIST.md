@@ -87,3 +87,27 @@ The editable `assets/logo.svg` is now the Rasd teal-wallet source master. The pr
 The Android CI job rejects the previously observed Capacitor-default icon, adaptive foreground, and splash PNG hashes extracted directly from the newly built APK. The launcher icon should be inspected on the phone home screen and the system splash on cold start in addition to the automated packaged-resource check; the login screen's logo is checked via emulator screenshots.
 
 Do not claim Google login works merely because this branding test passes: native Google OAuth remains disabled until supported secure native callback and real-device tests are complete.
+
+## Phase 17 — Google native PKCE handoff implemented in source (2026-11-23)
+
+**This section supersedes the old "native OAuth unimplemented" statements above.**
+The user reported that opening the website in Chrome signs into the *browser* but never signs into the Android app. That behavior was by design in the phase-16 fallback and is **not** a real Android login. The new Android flow is coded and covered by synthetic tests; it is gated until the backend is configured and verified.
+
+### How the real Android flow works
+1. Hosted WebView invokes Supabase `auth.signInWithOAuth({ provider: "google", options: { redirectTo: "app.lovable.rasd://auth/callback", skipBrowserRedirect: true } })` while retaining its **own** PKCE code verifier in local storage. It rejects non-Supabase auth origins and records a short-lived, one-use local intent. No Google consent screen is opened inside WebView.
+2. Capacitor Browser (Android Chrome Custom Tab) opens only the authenticated HTTPS Supabase authorization URL. Google returns to the Supabase callback, and Supabase redirects to `app.lovable.rasd://auth/callback?code=...`.
+3. `appUrlOpen` / `getLaunchUrl` returns that code to the **same app/WebView**, which consumes the intent, calls `exchangeCodeForSession(code)`, then `getUser()` and only navigates to `/app` if both identities match. It never accepts tokens in the callback link, never silently replaces an existing account and rejects stale/unsolicited callbacks.
+4. The legacy browser-only link remains clearly labeled as **website only**, and does not impersonate native login.
+
+### Mandatory administrator configuration (outside GitHub)
+- In the Supabase/Lovable Cloud project used by this APK: configure the **Google provider for Supabase Auth** (Google Cloud **Web application** OAuth Client ID and Client Secret), not only Lovable's managed web OAuth broker. The screenshot's `Unsupported provider: missing OAuth secret` means the direct native authorization endpoint is not ready. The secret stays on the backend, **never** in GitHub, Android assets, build flags or chat.
+- Google's **Authorized redirect URI** for this Web Client is the project's Supabase GoTrue callback, e.g. `https://tbwogguzpygnbkjmoeeh.supabase.co/auth/v1/callback` **if that is the confirmed linked project**. Do not register the custom Android scheme as Google's callback; Google always returns to Supabase first.
+- Supabase Authentication → URL Configuration → Redirect URLs: add **exactly** `app.lovable.rasd://auth/callback`. Keep `https://balance-buddy-980.lovable.app/auth` for web login.
+- **Only after a disposable-account provider test succeeds**, set the public Vite build flag `VITE_RASD_NATIVE_GOOGLE_OAUTH_READY=true` **on the hosted Lovable frontend** and redeploy it. Setting this variable only during the Android APK build does **not** affect a remotely hosted WebView. The default is fail-closed to avoid relaunching the previously observed HTTP 400 page.
+- Keep using the same backend/project and verify the resulting authenticated Supabase `user.id` matches the expected account before relying on existing financial records. Accounts are **not** migrated or merged by this code.
+- Debug APK versus store APK has different signing keys; this browser-based Supabase PKCE flow uses a custom scheme, but users must still verify the app-link handler on their device and that other apps cannot intercept the deep link. An arbitrary callback without the originating PKCE verifier cannot create a session.
+
+### Acceptance gates
+- Unit tests: one-time intent expiration, strict Supabase auth origin, invalid/tampered callback, missing verifier/attempt, repeat callback, existing-account protection, verified returned user, no token disclosure.
+- Android CI: AndroidManifest scheme/host/path, build, install/start/resume and real login-screen screenshot. **CI never exercises a real Google account and never proves live provider readiness.**
+- On a **disposable Google test account and physical Android device**: sign in, consent in system browser, automatic return, verify same `auth.uid`, warm start, force stop/restart, cancellation, duplicate callback, back button, switching accounts, and data isolation. Until this completes native login is NOT production-accepted.
