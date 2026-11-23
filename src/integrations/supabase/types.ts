@@ -1446,7 +1446,15 @@ export type Database = {
         Args: { _kind: string }
         Returns: Database["public"]["Enums"]["txn_type"]
       }
+      cancel_restore_operation: {
+        Args: { p_operation_id: string }
+        Returns: Json
+      }
       export_user_backup: { Args: never; Returns: Json }
+      get_restore_operation_status: {
+        Args: { p_operation_id: string }
+        Returns: Json
+      }
       mutate_investment_transaction: {
         Args: { p_data?: Json; p_operation: string; p_transaction_id?: string }
         Returns: Json
@@ -1464,6 +1472,10 @@ export type Database = {
         Returns: Json
       }
       restore_user_backup: { Args: { p_backup: Json }; Returns: Json }
+      restore_user_backup_once: {
+        Args: { p_backup: Json; p_operation_id: string }
+        Returns: Json
+      }
     }
     Enums: {
       contact_kind:
