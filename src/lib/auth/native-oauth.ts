@@ -52,9 +52,12 @@ export async function startNativeGoogleSignIn(): Promise<NativeGoogleStartResult
     if (error) {
       return { kind: "error", message: "تعذر بدء Google من خادم رصد. تحقق من إعداد المزوّد وحاول مرة أخرى." };
     }
-    const authorizeUrl = validNativeGoogleAuthorizeUrl(
-      data.url, supabase.supabaseUrl, NATIVE_AUTH_CALLBACK,
-    );
+    // SupabaseClient.supabaseUrl is a protected internal property; use the
+    // same public Vite environment URL that initializes the existing client.
+    const configuredAuthOrigin = import.meta.env.VITE_SUPABASE_URL as string | undefined;
+    const authorizeUrl = configuredAuthOrigin
+      ? validNativeGoogleAuthorizeUrl(data.url, configuredAuthOrigin, NATIVE_AUTH_CALLBACK)
+      : null;
     if (!authorizeUrl) {
       return { kind: "error", message: "رفض رصد رابط Google غير مطابق لخادم المصادقة المعتمد." };
     }
