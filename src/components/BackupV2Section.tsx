@@ -309,6 +309,14 @@ export function BackupV2Section() {
       // committed; later view/native errors cannot turn this into a failure.
       restoreConfirmed = true;
       clearPreparedRestore();
+      // The original account's SQL result is committed, but do not refresh
+      // views or reschedule native alarms under a different signed-in user.
+      if (reviewAccountIdRef.current !== previewUserId) {
+        toast.warning("أكد الخادم استعادة حساب سابق، لكن تغير الحساب النشط", {
+          description: "سجل الدخول للحساب الذي نفذ الاستعادة للتحقق من أرصدته وتنبيهاته.",
+        });
+        return;
+      }
       try {
         createAuditEntry("restore", "استعادة نسخة احتياطية (v2)", { meta: { version: 2 } });
       } catch { /* optional local log cannot invalidate an already committed restore */ }
