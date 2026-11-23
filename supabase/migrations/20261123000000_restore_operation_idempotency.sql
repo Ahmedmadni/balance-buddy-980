@@ -2,7 +2,13 @@
 -- Apply database migration BEFORE enabling the new client RPC.
 -- No financial rows are touched by installing this migration.
 
-CREATE TABLE public.restore_operation_journal (
+-- Keep authoritative commit markers out of all REST-exposed schemas.
+-- Supabase must NOT add rasd_internal to its exposed API schemas.
+CREATE SCHEMA IF NOT EXISTS rasd_internal;
+REVOKE ALL ON SCHEMA rasd_internal FROM PUBLIC, anon;
+GRANT USAGE ON SCHEMA rasd_internal TO authenticated;
+
+CREATE TABLE rasd_internal.restore_operation_journal (
   user_id uuid NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
   operation_id uuid NOT NULL,
   backup_sha256 text NOT NULL CHECK (backup_sha256 ~ '^[0-9a-f]{64}$'),
@@ -10,23 +16,65 @@ CREATE TABLE public.restore_operation_journal (
   PRIMARY KEY (user_id, operation_id)
 );
 
-ALTER TABLE public.restore_operation_journal ENABLE ROW LEVEL SECURITY;
+-- The journal is not directly accessible to authenticated app sessions.
+-- SECURITY DEFINER helper functions *only* handle journal reads/writes and
+-- independently filter by auth.uid(); the destructive restore itself retains
+-- SECURITY INVOKER and therefore its existing table RLS semantics.
+REVOKE ALL ON rasd_internal.restore_operation_journal FROM PUBLIC, anon, authenticated;
+ALTER TABLE rasd_internal.restore_operation_journal ENABLE ROW LEVEL SECURITY;
 
--- Authenticated calls use SECURITY INVOKER, retaining RLS in the existing
--- restore_user_backup(jsonb) implementation. Users cannot read other accounts'
--- journal entries, and UPDATE/DELETE are not granted.
-CREATE POLICY restore_op_read_own
-ON public.restore_operation_journal
-FOR SELECT TO authenticated
-USING (user_id = (SELECT auth.uid()));
+CREATE OR REPLACE FUNCTION rasd_internal.lookup_restore_commit(p_operation_id uuid)
+RETURNS jsonb
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = rasd_internal, pg_temp
+AS $function$
+DECLARE
+  v_uid uuid := auth.uid();
+  v_hash text;
+  v_at timestamptz;
+BEGIN
+  IF v_uid IS NULL THEN
+    RAISE EXCEPTION 'Authentication required' USING ERRCODE = '28000';
+  END IF;
+  SELECT backup_sha256, committed_at INTO v_hash, v_at
+  FROM rasd_internal.restore_operation_journal
+  WHERE user_id = v_uid AND operation_id = p_operation_id;
+  IF NOT FOUND THEN
+    RETURN NULL;
+  END IF;
+  RETURN jsonb_build_object('backup_sha256', v_hash, 'committed_at', v_at);
+END;
+$function$;
 
-CREATE POLICY restore_op_insert_own
-ON public.restore_operation_journal
-FOR INSERT TO authenticated
-WITH CHECK (user_id = (SELECT auth.uid()));
+CREATE OR REPLACE FUNCTION rasd_internal.record_restore_commit(
+  p_operation_id uuid,
+  p_backup_sha256 text
+)
+RETURNS timestamptz
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = rasd_internal, pg_temp
+AS $function$
+DECLARE
+  v_uid uuid := auth.uid();
+  v_at timestamptz;
+BEGIN
+  IF v_uid IS NULL THEN
+    RAISE EXCEPTION 'Authentication required' USING ERRCODE = '28000';
+  END IF;
+  INSERT INTO rasd_internal.restore_operation_journal
+    (user_id, operation_id, backup_sha256)
+  VALUES (v_uid, p_operation_id, p_backup_sha256)
+  RETURNING committed_at INTO v_at;
+  RETURN v_at;
+END;
+$function$;
 
-REVOKE ALL ON public.restore_operation_journal FROM PUBLIC, anon;
-GRANT SELECT, INSERT ON public.restore_operation_journal TO authenticated;
+REVOKE ALL ON FUNCTION rasd_internal.lookup_restore_commit(uuid) FROM PUBLIC, anon;
+REVOKE ALL ON FUNCTION rasd_internal.record_restore_commit(uuid, text) FROM PUBLIC, anon;
+GRANT EXECUTE ON FUNCTION rasd_internal.lookup_restore_commit(uuid) TO authenticated;
+GRANT EXECUTE ON FUNCTION rasd_internal.record_restore_commit(uuid, text) TO authenticated;
 
 CREATE OR REPLACE FUNCTION public.restore_user_backup_once(
   p_backup jsonb,
@@ -40,8 +88,8 @@ AS $function$
 DECLARE
   v_uid uuid := auth.uid();
   v_fingerprint text;
-  v_prior_fingerprint text;
-  v_prior_time timestamptz;
+  v_previous jsonb;
+  v_committed_at timestamptz;
   v_result jsonb;
 BEGIN
   IF v_uid IS NULL THEN
@@ -54,38 +102,28 @@ BEGIN
     RAISE EXCEPTION 'Backup payload is required' USING ERRCODE = '22023';
   END IF;
 
-  -- Serialize restore calls for this account across devices/sessions. The same
-  -- lock is used by the status RPC. This only covers clients using the new API.
+  -- Serialize new-style restores for one account across devices and tabs.
+  -- The same lock is used by the status query. The legacy RPC bypasses it.
   PERFORM pg_advisory_xact_lock(hashtextextended(v_uid::text, 14014));
-
-  -- Canonical JSONB text ensures key order cannot defeat replay detection.
   v_fingerprint := encode(sha256(convert_to(p_backup::text, 'UTF8')), 'hex');
 
-  SELECT j.backup_sha256, j.committed_at
-    INTO v_prior_fingerprint, v_prior_time
-  FROM public.restore_operation_journal AS j
-  WHERE j.user_id = v_uid AND j.operation_id = p_operation_id;
-
-  IF FOUND THEN
-    IF v_prior_fingerprint IS DISTINCT FROM v_fingerprint THEN
+  v_previous := rasd_internal.lookup_restore_commit(p_operation_id);
+  IF v_previous IS NOT NULL THEN
+    IF v_previous->>'backup_sha256' IS DISTINCT FROM v_fingerprint THEN
       RAISE EXCEPTION 'Restore operation id already used for different backup'
         USING ERRCODE = '22023';
     END IF;
-
-    -- Duplicate request returns the original SQL result WITHOUT applying
-    -- another destructive restore, even if current records changed since.
     RETURN jsonb_build_object(
       'ok', true, 'format', 'rasd-backup', 'version', 2,
       'operation_id', p_operation_id,
-      'restored_at', v_prior_time, 'replayed', true
+      'restored_at', v_previous->>'committed_at', 'replayed', true
     );
   END IF;
 
-  -- Existing v2 SQL validation + transaction-scoped deletions/inserts.
-  -- The journal INSERT and restore share this very same PostgreSQL transaction.
-  -- Any exception rolls back BOTH the financial changes and the journal row.
+  -- SECURITY INVOKER preserves the existing v2 RLS and data validation.
+  -- The helper insert below shares the same transaction as all financial
+  -- changes. A failure rolls back the journal entry and the entire restore.
   v_result := public.restore_user_backup(p_backup);
-
   IF v_result->>'ok' IS DISTINCT FROM 'true'
      OR v_result->>'format' IS DISTINCT FROM 'rasd-backup'
      OR v_result->>'version' IS DISTINCT FROM '2' THEN
@@ -93,22 +131,16 @@ BEGIN
       USING ERRCODE = 'P0001';
   END IF;
 
-  INSERT INTO public.restore_operation_journal
-    (user_id, operation_id, backup_sha256)
-  VALUES (v_uid, p_operation_id, v_fingerprint)
-  RETURNING committed_at INTO v_prior_time;
-
+  v_committed_at := rasd_internal.record_restore_commit(p_operation_id, v_fingerprint);
   RETURN v_result || jsonb_build_object(
     'operation_id', p_operation_id,
-    'restored_at', v_prior_time,
-    'replayed', false
+    'restored_at', v_committed_at, 'replayed', false
   );
 END;
 $function$;
 
--- This query does not contain financial contents or a password.
--- It waits behind an in-flight RESTORE from the new API for the same account;
--- "not_found" is still NOT proof that a request was never sent/never started.
+-- Do NOT auto-retry if status is absent: a previously sent request could
+-- still arrive after the query. Confirm account data and wait when uncertain.
 CREATE OR REPLACE FUNCTION public.get_restore_operation_status(p_operation_id uuid)
 RETURNS jsonb
 LANGUAGE plpgsql
@@ -117,7 +149,7 @@ SET search_path = public, pg_temp
 AS $function$
 DECLARE
   v_uid uuid := auth.uid();
-  v_committed_at timestamptz;
+  v_previous jsonb;
 BEGIN
   IF v_uid IS NULL THEN
     RAISE EXCEPTION 'Authentication required' USING ERRCODE = '28000';
@@ -127,18 +159,15 @@ BEGIN
   END IF;
 
   PERFORM pg_advisory_xact_lock(hashtextextended(v_uid::text, 14014));
-
-  SELECT committed_at INTO v_committed_at
-  FROM public.restore_operation_journal
-  WHERE user_id = v_uid AND operation_id = p_operation_id;
-
-  IF NOT FOUND THEN
+  v_previous := rasd_internal.lookup_restore_commit(p_operation_id);
+  IF v_previous IS NULL THEN
     RETURN jsonb_build_object('status', 'not_found', 'operation_id', p_operation_id);
   END IF;
 
   RETURN jsonb_build_object(
     'status', 'committed', 'operation_id', p_operation_id,
-    'format', 'rasd-backup', 'version', 2, 'committed_at', v_committed_at
+    'format', 'rasd-backup', 'version', 2,
+    'committed_at', v_previous->>'committed_at'
   );
 END;
 $function$;
@@ -148,7 +177,5 @@ REVOKE ALL ON FUNCTION public.get_restore_operation_status(uuid) FROM PUBLIC, an
 GRANT EXECUTE ON FUNCTION public.restore_user_backup_once(jsonb, uuid) TO authenticated;
 GRANT EXECUTE ON FUNCTION public.get_restore_operation_status(uuid) TO authenticated;
 
--- Legacy restore_user_backup(jsonb) is not revoked here because old hosted
--- Android/web clients still use it. Roll out the new RPC to ALL clients, then
--- retire the legacy endpoint in a separately tested migration. The journal
--- cannot deduplicate requests that bypass this new function.
+-- Legacy restore_user_backup(jsonb) stays callable for old Android clients.
+-- Retire it only after all clients migrate to the new RPC.
