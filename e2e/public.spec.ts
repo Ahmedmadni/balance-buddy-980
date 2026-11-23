@@ -1,3 +1,21 @@
+test("Android يعرض مسار المتصفح بدلاً من زر Google غير الجاهز", async ({ page }) => {
+  await page.addInitScript(() => {
+    Object.defineProperty(window, "Capacitor", {
+      configurable: true,
+      value: {
+        isNativePlatform: () => true,
+        getPlatform: () => "android",
+        Plugins: {},
+      },
+    });
+  });
+  await page.goto("/auth");
+  // Native detection happens after SSR hydration, never during the server render.
+  await expect(page.getByRole("button", { name: "فتح حساب رصد في المتصفح" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "متابعة باستخدام جوجل" })).toHaveCount(0);
+  await expect(page.getByText("جلسة المتصفح مستقلة ولن تسجّل دخولك إلى تطبيق Android تلقائيًا.")).toBeVisible();
+});
+
 import { expect, test } from "./fixtures";
 
 test("صفحة الدخول تعرض خيار جوجل", async ({ page }) => {
