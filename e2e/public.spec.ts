@@ -1,3 +1,5 @@
+import { expect, test } from "./fixtures";
+
 test("Android يعرض مسار المتصفح بدلاً من زر Google غير الجاهز", async ({ page }) => {
   // A dev-only visual branch, not a fake native bridge or authenticated session.
   await page.goto("/auth?__rasdNativeUiTest=1");
