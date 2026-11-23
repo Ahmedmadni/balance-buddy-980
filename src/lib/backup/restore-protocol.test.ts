@@ -16,6 +16,8 @@ describe("staged server restore capabilities", () => {
     expect(classifyServerRestoreStatus({ data: { status: "committed", format: "rasd-backup", version: 2, operation_id: id } }, id)).toBe("committed");
     expect(classifyServerRestoreStatus({ data: { status: "committed", operation_id: id } }, id)).toBe("unavailable");
     expect(classifyServerRestoreStatus({ data: { status: "not_found", operation_id: id } }, id)).toBe("not_found");
+    expect(classifyServerRestoreStatus({ data: { status: "cancelled", operation_id: id } }, id)).toBe("cancelled");
+    expect(classifyServerRestoreStatus({ data: { status: "cancelled", operation_id: "wrong" } }, id)).toBe("unavailable");
     expect(classifyServerRestoreStatus({ data: { status: "not_found", operation_id: "other" } }, id)).toBe("unavailable");
   });
 });

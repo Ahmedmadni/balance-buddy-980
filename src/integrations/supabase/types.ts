@@ -1472,6 +1472,10 @@ export type Database = {
         Args: { p_operation_id: string }
         Returns: Json
       }
+      cancel_restore_operation: {
+        Args: { p_operation_id: string }
+        Returns: Json
+      }
     }
     Enums: {
       contact_kind:

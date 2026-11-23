@@ -6,7 +6,7 @@ export interface RestoreStatusResponse {
 }
 
 export type RestoreApiMode = "once" | "legacy" | "unavailable";
-export type ServerRestoreStatus = "committed" | "not_found" | "unavailable";
+export type ServerRestoreStatus = "committed" | "cancelled" | "not_found" | "unavailable";
 
 function matchingData(response: RestoreStatusResponse, operationId: string): Record<string, unknown> | null {
   const data = response.data;
@@ -25,6 +25,7 @@ export function selectRestoreApiMode(response: RestoreStatusResponse, operationI
 export function classifyServerRestoreStatus(response: RestoreStatusResponse, operationId: string): ServerRestoreStatus {
   const data = matchingData(response, operationId);
   if (data?.status === "not_found") return "not_found";
+  if (data?.status === "cancelled") return "cancelled";
   if (data?.status === "committed" && data.format === "rasd-backup" && data.version === 2) return "committed";
   return "unavailable";
 }

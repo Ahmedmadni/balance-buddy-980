@@ -95,6 +95,9 @@ export function acknowledgeRestoreHold(storage: RestoreHoldStorage, userId: stri
   const existing = readRestoreHold(storage, userId);
   if (existing === null) return true;
   if (existing === "unavailable") return false;
+  // A UUID-backed request may still arrive after a "not_found" response.
+  // Only server-confirmed commit/cancellation can release such a journal.
+  if (readRestoreOperationId(storage, userId) !== null) return false;
   try {
     storage.removeItem(keyFor(userId));
     return readRestoreHold(storage, userId) === null;
