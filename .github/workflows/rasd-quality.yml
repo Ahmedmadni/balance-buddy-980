@@ -38,79 +38,23 @@ jobs:
         run: bash scripts/ci-install-with-sharp-fallback.sh
       - name: Build Android debug APK against published app
         run: bun run android:debug
-      - name: Verify APK contains Rasd launcher and splash instead of Capacitor placeholders
+      - name: Verify APK contains Rasd launcher and splash, not Capacitor defaults
         run: |
           set -euo pipefail
           APK=android/app/build/outputs/apk/debug/app-debug.apk
           unzip -p "$APK" res/mipmap-xxxhdpi-v4/ic_launcher.png > /tmp/rasd-launcher.png
           unzip -p "$APK" res/mipmap-xxxhdpi-v4/ic_launcher_foreground.png > /tmp/rasd-foreground.png
           unzip -p "$APK" res/drawable-port-xxxhdpi-v4/splash.png > /tmp/rasd-splash.png
-          file /tmp/rasd-launcher.png /tmp/rasd-foreground.png /tmp/rasd-splash.png | grep -c 'PNG image data' | grep -q '^3
-        run: grep -q 'android:scheme="app.lovable.rasd"' android/app/src/main/AndroidManifest.xml
-      - name: Verify Android background snapshot protection
-        run: grep -q 'FLAG_SECURE' android/app/src/main/java/app/lovable/rasd/MainActivity.java
-      - name: Verify native PDF print bridge registration
-        run: grep -q 'registerPlugin(RasdPrintPlugin.class)' android/app/src/main/java/app/lovable/rasd/MainActivity.java && grep -q 'PrintManager' android/app/src/main/java/app/lovable/rasd/RasdPrintPlugin.java
-      - name: Verify packaged offline recovery page
-        run: |
-          grep -q 'تعذر الاتصال برصد' android/app/src/main/assets/public/offline.html
-          grep -q 'errorPath' android/app/src/main/assets/capacitor.config.json
-      - uses: actions/upload-artifact@v4
-        with:
-          name: rasd-android-debug-apk
-          path: android/app/build/outputs/apk/debug/app-debug.apk
-          if-no-files-found: error
-          retention-days: 14
-
-  android-smoke:
-    # API 33/Pixel 2 is less resource-intensive than API 35/Pixel 6 on CI.
-    runs-on: ubuntu-24.04
-    needs: android-debug
-    timeout-minutes: 30
-    steps:
-      - uses: actions/checkout@v4
-      - name: Enable Android emulator KVM acceleration
-        run: |
-          if [ -e /dev/kvm ]; then
-            sudo chmod 666 /dev/kvm
-            ls -l /dev/kvm
-          else
-            echo "::warning::KVM unavailable; emulator will be slow or unstable"
-          fi
-      - uses: actions/download-artifact@v4
-        with:
-          name: rasd-android-debug-apk
-          path: android-apk
-      - uses: actions/setup-java@v4
-        with:
-          distribution: temurin
-          java-version: '21'
-      - name: Launch Rasd on Android emulator (no Google sign-in)
-        uses: reactivecircus/android-emulator-runner@v2
-        with:
-          api-level: 33
-          target: google_apis
-          arch: x86_64
-          profile: pixel_2
-          ram-size: 2048M
-          heap-size: 256M
-          disable-animations: true
-          emulator-options: -no-window -no-boot-anim -no-snapshot -noaudio -gpu swiftshader_indirect
-          script: bash scripts/android-emulator-smoke.sh android-apk/app-debug.apk
-      - name: Upload Android UI screenshots and crash logs
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: rasd-android-smoke-evidence
-          path: android-smoke-evidence
-          if-no-files-found: warn
-          retention-days: 14
-
-          # Known capacitor-8 scaffold placeholders, witnessed in the 2026-11-23 APK.
-          ! echo '87cb2f2ffe992652bb4fa768c73719a37b5852ab17fbf8e170e888f7a42b0761  /tmp/rasd-launcher.png' | sha256sum -c --status
-          ! echo 'bd24fd383253bf8d43f0a81f11c071d76d1d555114376dd647cd9fb38fa0a9da  /tmp/rasd-foreground.png' | sha256sum -c --status
-          ! echo '3db071a03b2f8ffe0dfd4170fc59842d53cd15bba5e88af59401d58efabf7827  /tmp/rasd-splash.png
-          echo "PASS: branded Rasd launcher, adaptive foreground, and splash are packaged in APK"
+          test -s /tmp/rasd-launcher.png
+          test -s /tmp/rasd-foreground.png
+          test -s /tmp/rasd-splash.png
+          file /tmp/rasd-launcher.png | grep -q "PNG image data"
+          file /tmp/rasd-foreground.png | grep -q "PNG image data"
+          file /tmp/rasd-splash.png | grep -q "PNG image data"
+          test "$(sha256sum /tmp/rasd-launcher.png | cut -c1-64)" != "87cb2f2ffe992652bb4fa768c73719a37b5852ab17fbf8e170e888f7a42b0761"
+          test "$(sha256sum /tmp/rasd-foreground.png | cut -c1-64)" != "bd24fd383253bf8d43f0a81f11c071d76d1d555114376dd647cd9fb38fa0a9da"
+          test "$(sha256sum /tmp/rasd-splash.png | cut -c1-64)" != "3db071a03b2f8ffe0dfd4170fc59842d53cd15bba5e88af59401d58efabf7827"
+          echo "PASS: packaged native launcher and splash are no longer the default Capacitor assets"
       - name: Verify the OAuth callback is in AndroidManifest.xml
         run: grep -q 'android:scheme="app.lovable.rasd"' android/app/src/main/AndroidManifest.xml
       - name: Verify Android background snapshot protection
