@@ -45,39 +45,6 @@ done
 adb shell pm path "$APP" | tee "$EVIDENCE/package-path.txt"
 adb shell am start -W -n "$APP/.MainActivity" | tee "$EVIDENCE/launch.txt"
 
-# UiAutomator fails if SystemUI is in an ANR state; use a local/tmp output
-# instead of /sdcard where some emulator images deny access.
-login_detected=""
-for attempt in 1 2 3; do
-  sleep 12
-  adb exec-out screencap -p > "$EVIDENCE/portrait-$attempt.png" 2>/dev/null || true
-  timeout 30s adb shell uiautomator dump /data/local/tmp/rasd-window.xml     > "$EVIDENCE/uiautomator-$attempt.log" 2>&1 || true
-  adb exec-out cat /data/local/tmp/rasd-window.xml     > "$EVIDENCE/portrait-ui.xml" 2>/dev/null || true
-  if grep -Eq 'مرحب|تسجيل الدخول|متابعة باستخدام جوجل|Google|رصد' "$EVIDENCE/portrait-ui.xml"; then
-    login_detected=1
-    break
-  fi
-done
-if [ -z "$login_detected" ]; then
-  echo "::error::Android login screen not observable. Emulator/SystemUI may be hung or network-hosted WebView may not have loaded; inspect screenshots and logs. Do not claim app validation."
-  exit 1
-fi
-
-# Source CI must not silently pass against an older hosted SSR deployment:
-# this Android build runs the LIVE site, not the bundled Vite build.
-if ! grep -Fq 'فتح حساب رصد في المتصفح' "$EVIDENCE/portrait-ui.xml"; then
-  echo "::error::Hosted Lovable login is stale: Android-safe browser sign-in UI was not published. Publish main before release testing."
-  exit 1
-fi
-
-# A provider badge must not occupy the native Android login viewport.
-# UiAutomator's accessibility tree may omit WebView shadow DOM, so keep the
-# screenshot evidence as well; this check does not replace visual inspection.
-if grep -Eiq 'Edit with Lovable|lovable-badge' "$EVIDENCE/portrait-ui.xml"; then
-  echo "::error::Lovable badge exposed on the native login screen."
-  exit 1
-fi
-
 # Confirm Android's OS resolver actually returns an external browser callback
 # to our installed activity (no OAuth request; code is a disposable fake).
 # The app MUST refuse it without a prior PKCE attempt. We only validate routing.
@@ -96,6 +63,48 @@ if ! grep -Fq "$APP/.MainActivity" "$EVIDENCE/deep-link-return.txt"; then
   exit 1
 fi
 echo "PASS: OS deep link resolves to Rasd; no test account or real provider involved."
+
+
+
+# UiAutomator fails if SystemUI is in an ANR state; use a local/tmp output
+# instead of /sdcard where some emulator images deny access.
+login_detected=""
+for attempt in 1 2 3; do
+  sleep 12
+  adb exec-out screencap -p > "$EVIDENCE/portrait-$attempt.png" 2>/dev/null || true
+  timeout 30s adb shell uiautomator dump /data/local/tmp/rasd-window.xml     > "$EVIDENCE/uiautomator-$attempt.log" 2>&1 || true
+  adb exec-out cat /data/local/tmp/rasd-window.xml     > "$EVIDENCE/portrait-ui.xml" 2>/dev/null || true
+  if grep -Eq 'مرحب|تسجيل الدخول|متابعة باستخدام جوجل|Google|رصد' "$EVIDENCE/portrait-ui.xml"; then
+    login_detected=1
+    break
+  fi
+done
+if [ -z "$login_detected" ]; then
+  echo "::error::Android login screen not observable. Emulator/SystemUI may be hung or network-hosted WebView may not have loaded; inspect screenshots and logs. Do not claim app validation."
+  exit 1
+fi
+
+# Do not confuse the local offline recovery page with a stale deployed login.
+# Network failures on hosted WebView are a separate acceptance blocker.
+if grep -Fq 'تعذر الاتصال برصد' "$EVIDENCE/portrait-ui.xml"; then
+  echo "::error::Android hosted WebView could not reach Lovable; offline recovery page displayed. Native intent routing was checked separately."
+  exit 1
+fi
+
+# Source CI must not silently pass against an older hosted SSR deployment:
+# this Android build runs the LIVE site, not the bundled Vite build.
+if ! grep -Fq 'فتح حساب رصد في المتصفح' "$EVIDENCE/portrait-ui.xml"; then
+  echo "::error::Hosted Lovable login is stale: Android-safe browser sign-in UI was not published. Publish main before release testing."
+  exit 1
+fi
+
+# A provider badge must not occupy the native Android login viewport.
+# UiAutomator's accessibility tree may omit WebView shadow DOM, so keep the
+# screenshot evidence as well; this check does not replace visual inspection.
+if grep -Eiq 'Edit with Lovable|lovable-badge' "$EVIDENCE/portrait-ui.xml"; then
+  echo "::error::Lovable badge exposed on the native login screen."
+  exit 1
+fi
 
 # Exercise native application lifecycle; no Google auth involved.
 adb shell input keyevent KEYCODE_HOME
