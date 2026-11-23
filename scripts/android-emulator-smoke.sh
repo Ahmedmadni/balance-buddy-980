@@ -78,6 +78,25 @@ if grep -Eiq 'Edit with Lovable|lovable-badge' "$EVIDENCE/portrait-ui.xml"; then
   exit 1
 fi
 
+# Confirm Android's OS resolver actually returns an external browser callback
+# to our installed activity (no OAuth request; code is a disposable fake).
+# The app MUST refuse it without a prior PKCE attempt. We only validate routing.
+if ! adb shell am start -W \
+    -a android.intent.action.VIEW \
+    -c android.intent.category.BROWSABLE \
+    -d "app.lovable.rasd://auth/callback?code=synthetic-ci-no-auth" \
+    -p "$APP" > "$EVIDENCE/deep-link-return.txt" 2>&1; then
+  cat "$EVIDENCE/deep-link-return.txt"
+  echo "::error::Android OS did not route the registered OAuth deep link back to Rasd."
+  exit 1
+fi
+if ! grep -Fq "$APP/.MainActivity" "$EVIDENCE/deep-link-return.txt"; then
+  cat "$EVIDENCE/deep-link-return.txt"
+  echo "::error::Deep link did not resolve to the Rasd native MainActivity."
+  exit 1
+fi
+echo "PASS: OS deep link resolves to Rasd; no test account or real provider involved."
+
 # Exercise native application lifecycle; no Google auth involved.
 adb shell input keyevent KEYCODE_HOME
 sleep 2
