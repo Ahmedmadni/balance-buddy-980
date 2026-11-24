@@ -62,6 +62,19 @@ jobs:
             exit 1
           fi
           echo 'PASS: fully packaged local Android entry with separate application ID'
+      - name: Verify hardware-bound unlock is registered ONLY in local APK
+        run: |
+          set -euo pipefail
+          PLUGIN=android/app/src/main/java/app/lovable/rasd/local/RasdDeviceUnlockPlugin.java
+          test -s "$PLUGIN"
+          grep -q 'registerPlugin(RasdDeviceUnlockPlugin.class)' android/app/src/main/java/app/lovable/rasd/local/MainActivity.java
+          grep -q 'android.permission.USE_BIOMETRIC' android/app/src/main/AndroidManifest.xml
+          grep -q 'KeyProperties.AUTH_BIOMETRIC_STRONG' "$PLUGIN"
+          grep -q 'KeyProperties.AUTH_DEVICE_CREDENTIAL' "$PLUGIN"
+          grep -q 'CryptoObject(cipher)' "$PLUGIN"
+          grep -q 'setUserAuthenticationRequired(true)' "$PLUGIN"
+          grep -q 'AndroidKeyStore' "$PLUGIN"
+          echo 'PASS: Rasd local-only Android Keystore hardware-bound key unwrap installed'
       - uses: actions/upload-artifact@v4
         with:
           name: rasd-offline-android-beta-apk
