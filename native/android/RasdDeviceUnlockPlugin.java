@@ -150,6 +150,7 @@ public class RasdDeviceUnlockPlugin extends Plugin {
                         try {
                             BiometricPrompt.CryptoObject crypto = result.getCryptoObject();
                             if (crypto == null || crypto.getCipher() == null) {
+                                onAbort.run();
                                 call.reject("لم يمنح Android إذن تشغيل مفتاح التشفير.");
                                 return;
                             }
