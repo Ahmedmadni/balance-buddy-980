@@ -38,6 +38,10 @@ describe("Rasd native Google OAuth PKCE guard", () => {
       base + "/auth/v1/authorize?provider=github&redirect_to=" + encodeURIComponent(cb),
       base + "/auth/v1/authorize?provider=google&redirect_to=https%3A%2F%2Fevil.example",
       base + "/auth/v1/token?provider=google&redirect_to=" + encodeURIComponent(cb),
+      base + "/auth/v1/authorize?provider=google&provider=github&redirect_to=" + encodeURIComponent(cb),
+      base + "/auth/v1/authorize?provider=google&redirect_to=" + encodeURIComponent(cb) + "&redirect_to=https%3A%2F%2Fevil.example",
+      base + "/auth/v1/authorize?provider=google&redirect_to=" + encodeURIComponent(cb) + "#access_token=secret",
+      base + "/auth/v1/authorize?provider=google&redirect_to=" + encodeURIComponent(cb) + "&code=private",
     ]) expect(validNativeGoogleAuthorizeUrl(url, base, cb)).toBeNull();
   });
 

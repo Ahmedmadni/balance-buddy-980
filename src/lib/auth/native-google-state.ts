@@ -58,9 +58,12 @@ export function validNativeGoogleAuthorizeUrl(raw: string | null | undefined, su
     const configured = new URL(supabaseUrl);
     if (configured.protocol !== "https:" || target.protocol !== "https:" ||
         target.origin !== configured.origin || target.username || target.password ||
-        target.pathname !== "/auth/v1/authorize" ||
+        target.pathname !== "/auth/v1/authorize" || target.hash ||
+        target.searchParams.getAll("provider").length !== 1 ||
         target.searchParams.get("provider") !== "google" ||
-        target.searchParams.get("redirect_to") !== callback) return null;
+        target.searchParams.getAll("redirect_to").length !== 1 ||
+        target.searchParams.get("redirect_to") !== callback ||
+        ["access_token", "refresh_token", "id_token", "code"].some(k => target.searchParams.has(k))) return null;
     return target.href;
   } catch {
     return null;
