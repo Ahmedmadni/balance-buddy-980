@@ -18,7 +18,6 @@ import com.getcapacitor.PluginMethod;
 import com.getcapacitor.annotation.CapacitorPlugin;
 
 import java.security.KeyStore;
-import java.security.SecureRandom;
 import java.util.Arrays;
 import java.util.concurrent.atomic.AtomicBoolean;
 
@@ -133,7 +132,8 @@ public class RasdDeviceUnlockPlugin extends Plugin {
     }
 
     private void authenticate(Cipher cipher, PluginCall call,
-                              java.util.function.Consumer<Cipher> success) {
+                              java.util.function.Consumer<Cipher> success,
+                              Runnable onAbort) {
         final CancellationSignal cancellation = new CancellationSignal();
         final BiometricPrompt prompt = new BiometricPrompt.Builder(getActivity())
             .setTitle("فتح خزنة رصد")
@@ -155,18 +155,21 @@ public class RasdDeviceUnlockPlugin extends Plugin {
                             }
                             success.accept(crypto.getCipher());
                         } catch (Exception ignored) {
+                            onAbort.run();
                             call.reject("تعذر استخدام مفتاح حماية الجهاز.");
                         }
                     }
                     @Override
                     public void onAuthenticationError(int code, CharSequence message) {
                         if (inProgress.compareAndSet(true, false)) {
+                            onAbort.run();
                             call.reject("ألغي التحقق أو تعذّر استخدام قفل الجهاز.");
                         }
                     }
                 });
             } catch (Exception ignored) {
                 inProgress.set(false);
+                onAbort.run();
                 call.reject("تعذر فتح التحقق الآمن لنظام Android.");
             }
         });
@@ -205,7 +208,7 @@ public class RasdDeviceUnlockPlugin extends Plugin {
                 } finally {
                     Arrays.fill(keyMaterial, (byte) 0);
                 }
-            });
+            }, () -> Arrays.fill(keyMaterial, (byte) 0));
         } catch (Exception ignored) {
             if (raw != null) Arrays.fill(raw, (byte) 0);
             inProgress.set(false);
@@ -243,7 +246,7 @@ public class RasdDeviceUnlockPlugin extends Plugin {
                     if (raw != null) Arrays.fill(raw, (byte) 0);
                     Arrays.fill(data, (byte) 0);
                 }
-            });
+            }, () -> Arrays.fill(data, (byte) 0));
         } catch (Exception ignored) {
             inProgress.set(false);
             call.reject("مفتاح قفل الجهاز مفقود أو تغير. استخدم كلمة المرور الرئيسية.");
