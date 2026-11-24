@@ -148,12 +148,15 @@ describe("Rasd Android Google PKCE account verification boundary", () => {
   test("protected navigation flag remains active throughout asynchronous identity verification", async () => {
     const s = storage(); recordPendingGoogleOAuth(s, now);
     let resolveVerification!: () => void;
+    let signalEntered!: () => void;
     const gate = new Promise<void>(r => { resolveVerification = r; });
+    const entered = new Promise<void>(r => { signalEntered = r; });
     let calls = 0;
     const auth: NativeGoogleAuthGateway = {
       getSession: async () => ({ data: { session: null }, error: null }),
       getUser: async () => {
         if (++calls === 1) return { data: { user: null }, error: null };
+        signalEntered();
         await gate;
         return { data: { user: { id: "expected" } }, error: null };
       },
@@ -161,7 +164,7 @@ describe("Rasd Android Google PKCE account verification boundary", () => {
       signOutLocal: async () => ({ error: null }),
     };
     const pending = processNativeGoogleCallback(callback, s, auth, now);
-    await new Promise(resolve => setTimeout(resolve, 5));
+    await entered;
     expect(isNativeGoogleSessionVerificationInProgress()).toBe(true);
     resolveVerification();
     expect((await pending).kind).toBe("success");
