@@ -44,11 +44,11 @@ export async function startNativeGoogleSignIn(): Promise<NativeGoogleStartResult
     const local = await supabase.auth.getSession();
     if (local.error)
       return { kind: "error", message: "تعذر فحص الجلسة الحالية. أعد المحاولة بعد استقرار الاتصال." };
-    if (local.data.session?.access_token)
-      return { kind: "authenticated" };
     const authenticated = await supabase.auth.getUser();
     if (authenticated.error)
       return { kind: "error", message: "تعذر التحقق من الحساب الحالي. أعد المحاولة بعد استقرار الاتصال." };
+    if (local.data.session?.access_token && !authenticated.data.user)
+      return { kind: "error", message: "توجد جلسة محفوظة غير مؤكدة. لا يمكن استبدال الحساب أو فتح البيانات قبل التحقق منه." };
     if (authenticated.data.user)
       return { kind: "authenticated" };
 
