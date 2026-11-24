@@ -59,13 +59,9 @@ function encodeKey(raw: Uint8Array): string {
   return btoa(source);
 }
 function decodeKey(text: string): Uint8Array {
-  if (!/^[A-Za-z0-9+/]{42}[AEIMQUYcgkosw048]=$/.test(text)) {
-    // Standard base64 encoding of 32 random bytes has 44 chars, one '='.
-    // Verify both length and decoded bytes below; generic encoded keys
-    // remain accepted on Android versions with canonical Base64 output.
-    if (!/^[A-Za-z0-9+/]{43}=$/.test(text))
-      throw new Error("رد مفتاح Android غير صالح.");
-  }
+  // A 32-byte DEK is exactly 43 canonical Base64 symbols + '='.
+  if (!/^[A-Za-z0-9+/]{43}=$/.test(text))
+    throw new Error("رد مفتاح Android غير صالح.");
   const result = Uint8Array.from(atob(text), char => char.charCodeAt(0));
   if (result.length !== 32) throw new Error("طول مفتاح الجهاز غير صالح.");
   return result;
