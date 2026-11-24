@@ -39,8 +39,17 @@ export async function startNativeGoogleSignIn(): Promise<NativeGoogleStartResult
     return { kind: "error", message: NATIVE_GOOGLE_SETUP_REQUIRED };
 
   try {
+    // Local session is authoritative for preventing account replacement even
+    // if the network is offline and getUser cannot validate it yet.
+    const local = await supabase.auth.getSession();
+    if (local.error)
+      return { kind: "error", message: "تعذر فحص الجلسة الحالية. أعد المحاولة بعد استقرار الاتصال." };
+    if (local.data.session?.access_token)
+      return { kind: "authenticated" };
     const authenticated = await supabase.auth.getUser();
-    if (!authenticated.error && authenticated.data.user)
+    if (authenticated.error)
+      return { kind: "error", message: "تعذر التحقق من الحساب الحالي. أعد المحاولة بعد استقرار الاتصال." };
+    if (authenticated.data.user)
       return { kind: "authenticated" };
 
     // Supabase JS persists the PKCE verifier in this WebView's auth.storage.
@@ -89,8 +98,10 @@ export async function listenForNativeOAuth(opts: {
     processing = true;
     try {
       const outcome = await processNativeGoogleCallback(raw, localStorage, {
+        getSession: () => supabase.auth.getSession(),
         getUser: () => supabase.auth.getUser(),
         exchangeCodeForSession: (code) => supabase.auth.exchangeCodeForSession(code),
+        signOutLocal: () => supabase.auth.signOut({ scope: "local" }),
       });
       if (disposed) return;
       if (outcome.kind === "success") opts.onSuccess();
