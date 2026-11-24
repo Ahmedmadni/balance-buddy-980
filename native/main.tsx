@@ -10,7 +10,10 @@ import {
 import {
   emptyLedger, parseSAR, walletBalanceMinor, type LocalLedger, type LocalWallet,
 } from "../src/lib/offline/ledger";
-import { loadDeviceVault, saveDeviceVault, shareEncryptedBackup } from "../src/lib/offline/device-store";
+import {
+  inspectDeviceVault, recoverDeviceVault, saveDeviceVault, shareEncryptedBackup,
+} from "../src/lib/offline/device-store";
+import { type VaultCandidate, type VaultFileName } from "../src/lib/offline/vault-transaction";
 import {
   probeDeviceUnlock, enableDeviceUnlock, unlockDeviceKey, disableDeviceUnlock,
   type DeviceUnlockProbe,
@@ -18,7 +21,7 @@ import {
 import logoSrc from "../assets/logo.svg";
 import "./styles.css";
 
-type Stage = "loading" | "setup" | "locked" | "open" | "show-recovery" | "failed";
+type Stage = "loading" | "setup" | "locked" | "open" | "show-recovery" | "recover-vault" | "failed";
 type Tab = "home" | "wallets" | "entries" | "debts" | "backup";
 const today = () => new Date().toISOString().slice(0,10);
 const stamp = () => new Date().toISOString();
@@ -46,6 +49,11 @@ function OfflineRasd() {
   const [recoveryCode, setRecoveryCode] = useState("");
   const [recoveryInput, setRecoveryInput] = useState("");
   const [recoveryConfirmed, setRecoveryConfirmed] = useState(false);
+  const [recoveryCandidates, setRecoveryCandidates] = useState<VaultCandidate[]>([]);
+  const [recoverySource, setRecoverySource] = useState<VaultFileName>("pending");
+  const verifiedCandidate = useRef<{ source: VaultFileName; file: RasdVaultFile; value: OpenedVault } | null>(null);
+  const [verifiedSummary, setVerifiedSummary] = useState<{ wallets: number; entries: number; debts: number } | null>(null);
+  const [recoveryDecision, setRecoveryDecision] = useState("");
   const [importing, setImporting] = useState<RasdVaultFile | null>(null);
   const [importPassword, setImportPassword] = useState("");
   const [importConfirm, setImportConfirm] = useState("");
@@ -61,6 +69,9 @@ function OfflineRasd() {
   const lock = useCallback(() => {
     opened.current?.keyBytes.fill(0);
     opened.current = null;
+    verifiedCandidate.current?.value.keyBytes.fill(0);
+    verifiedCandidate.current = null;
+    setVerifiedSummary(null);
     setLedger(emptyLedger());
     setPassword("");
     setStage(old => old === "open" ? "locked" : old);
@@ -81,11 +92,23 @@ function OfflineRasd() {
       setError("هذه النسخة محلية ومخصصة لتطبيق Android المثبّت فقط.");
       return;
     }
-    void loadDeviceVault().then(v => {
+    void inspectDeviceVault().then(snapshot => {
       if (!active) return;
-      fileRef.current = v;
-      setFile(v);
-      setStage(v ? "locked" : "setup");
+      if (snapshot.kind === "empty") {
+        setStage("setup");
+      } else if (snapshot.kind === "ready") {
+        fileRef.current = snapshot.file;
+        setFile(snapshot.file);
+        setStage("locked");
+      } else if (snapshot.kind === "recovery_required") {
+        setRecoveryCandidates(snapshot.candidates);
+        setRecoverySource(snapshot.candidates[0].source);
+        setError("رصد اكتشف عملية حفظ غير مكتملة. لن يعرض أرصدة قديمة تلقائيًا. اختر النسخة وافتحها ثم أكد الاستعادة.");
+        setStage("recover-vault");
+      } else {
+        setError("كل ملفات الخزنة المحلية غير سليمة. لم تُمسح أي نسخة؛ استخدم نسخة احتياطية خارجية معتمدة.");
+        setStage("failed");
+      }
     }).catch(e => { if (active) { setError(errorText(e)); setStage("failed"); }});
     let listener: { remove: () => Promise<void> } | undefined;
     let backgroundTimeout: ReturnType<typeof setTimeout> | undefined;
@@ -125,6 +148,55 @@ function OfflineRasd() {
     setStage("open");
     setTab("home");
   }
+  function setRecoveryChoice(source: VaultFileName) {
+    verifiedCandidate.current?.value.keyBytes.fill(0);
+    verifiedCandidate.current = null;
+    setVerifiedSummary(null);
+    setRecoveryDecision("");
+    setRecoverySource(source);
+    setPassword("");
+    setRecoveryInput("");
+  }
+
+  function checkRecoveryCandidate() {
+    void action(async () => {
+      const picked = recoveryCandidates.find(c => c.source === recoverySource);
+      if (!picked) throw new Error("اختر ملفًا موجودًا للاسترداد.");
+      if (verifiedCandidate.current) verifiedCandidate.current.value.keyBytes.fill(0);
+      verifiedCandidate.current = null;
+      setVerifiedSummary(null);
+      const unlocked = recoveryInput.trim().startsWith("RSD-")
+        ? await unlockWithRecoveryCode(picked.file, recoveryInput.trim())
+        : await unlockWithPassword(picked.file, password);
+      verifiedCandidate.current = { source: picked.source, file: picked.file, value: unlocked };
+      setVerifiedSummary({
+        wallets: unlocked.ledger.wallets.length,
+        entries: unlocked.ledger.entries.length,
+        debts: unlocked.ledger.debts.length,
+      });
+      setPassword("");
+      setRecoveryInput("");
+      setRecoveryDecision("");
+      setInfo("تم التحقق من سلامة النسخة بالتشفير. راجع عدد السجلات قبل الاعتماد.");
+    });
+  }
+
+  function confirmRecoveryCandidate() {
+    void action(async () => {
+      const verified = verifiedCandidate.current;
+      if (!verified || recoveryDecision.trim() !== "اعتماد")
+        throw new Error("افحص النسخة واكتب «اعتماد» لتأكيد استعادتها.");
+      // Check file identity again immediately before writing any data.
+      await recoverDeviceVault(verified.source, verified.file);
+      verifiedCandidate.current = null;
+      setRecoveryCandidates([]);
+      setVerifiedSummary(null);
+      setRecoveryDecision("");
+      adopt(verified.file, verified.value);
+      setInfo("تم اعتماد نسخة محلية بعد التحقق. قد تكون بعض العمليات الأحدث غير موجودة؛ راجع السجلات قبل الاستخدام.");
+    });
+  }
+
   async function commit(next: LocalLedger) {
     if (!opened.current || !fileRef.current) throw new Error("افتح الخزنة أولًا.");
     const result = await sealVault(fileRef.current, opened.current.keyBytes, next);
@@ -284,6 +356,37 @@ function OfflineRasd() {
       {!!info && <div className="message good" role="status">{info}</div>}
       {stage === "loading" && <section className="panel"><p>جار فتح مخزن البيانات المحلي…</p></section>}
       {stage === "failed" && <section className="panel"><h2>تعذر فتح مخزن رصد المحلي</h2><p>لن يتم إنشاء خزنة جديدة فوق ملف غير قابل للقراءة. راجع سلامة الجهاز والنسخ الاحتياطية.</p></section>}
+      {stage === "recover-vault" && <section className="panel signin">
+        <div className="centered"><ShieldCheck size={32}/><h1>استرداد حفظ غير مكتمل</h1></div>
+        <p>تعثر آخر حفظ على الجهاز. توجد ملفات مشفرة يمكن فحصها، لكن لن يعتمد رصد أي ملف تلقائيًا؛ قد تختلف الأرصدة والعمليات بين النسخ.</p>
+        <Field label="اختر الملف الذي تريد فحصه">
+          <select value={recoverySource} onChange={e=>setRecoveryChoice(e.target.value as VaultFileName)}>
+            {recoveryCandidates.map(c=><option key={c.source} value={c.source}>{
+              c.source==="pending"?"الملف المؤقت — ربما يحوي أحدث عملية":
+              c.source==="previous"?"نسخة الأمان السابقة — ربما أقدم من آخر عملية":
+              "الملف الرئيسي — آخر بيانات محفوظة يمكن قراءتها"
+            }</option>)}
+          </select>
+        </Field>
+        <Field label="كلمة مرور النسخة المحددة">
+          <input type="password" autoComplete="current-password" value={password} onChange={e=>setPassword(e.target.value)}/>
+        </Field>
+        <Field label="أو رمز الاسترداد (اختياري بدل كلمة المرور)">
+          <input dir="ltr" autoCapitalize="none" value={recoveryInput} onChange={e=>setRecoveryInput(e.target.value.trim())}/>
+        </Field>
+        <button className="secondary full" disabled={busy} onClick={checkRecoveryCandidate}>فحص وفك تشفير النسخة المحددة</button>
+        {!!verifiedSummary && <>
+          <div className="message good" role="status">
+            نسخة قابلة لفك التشفير: {verifiedSummary.wallets} محافظ، {verifiedSummary.entries} حركات، {verifiedSummary.debts} ديون.
+            تحقق من عدد السجلات قبل استبدال الملف الرئيسي.
+          </div>
+          <Field label="للتأكيد اكتب «اعتماد»"><input value={recoveryDecision} onChange={e=>setRecoveryDecision(e.target.value)}/></Field>
+          <button className="danger full" disabled={busy||recoveryDecision.trim()!=="اعتماد"} onClick={confirmRecoveryCandidate}>
+            اعتماد النسخة المحددة بعد المراجعة
+          </button>
+        </>}
+        <p className="muted">إن لم تتأكد من النسخة الصحيحة فلا تعتمد أيًا منها. احتفظ بالجهاز وملفات الخزنة كما هي، أو استخدم نسخة احتياطية موثوقة.</p>
+      </section>}
       {loginSection && <section className="panel signin">
         <div className="centered"><LockKeyhole size={32}/><h1>{stage==="setup"?"إنشاء خزنتك المحلية":stage==="show-recovery"?"احفظ رمز استرداد الخزنة":"فتح رصد"}</h1></div>
         {stage === "setup" && <>
