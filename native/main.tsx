@@ -11,6 +11,7 @@ import {
   emptyLedger, parseSAR, walletBalanceMinor, type LocalLedger, type LocalWallet,
 } from "../src/lib/offline/ledger";
 import { loadDeviceVault, saveDeviceVault, shareEncryptedBackup } from "../src/lib/offline/device-store";
+import logoSrc from "../assets/logo.svg";
 import "./styles.css";
 
 type Stage = "loading" | "setup" | "locked" | "open" | "show-recovery" | "failed";
@@ -220,7 +221,7 @@ function OfflineRasd() {
 
   return <div className="app" dir="rtl">
     <header className="masthead">
-      <div className="brand"><img src="/assets/logo.svg" alt="" /><div><strong>رصد</strong><small>النسخة المحلية — Android</small></div></div>
+      <div className="brand"><img src={logoSrc} alt="" /><div><strong>رصد</strong><small>النسخة المحلية — Android</small></div></div>
       {stage === "open" && <button className="subtle" onClick={lock}><LogOut size={18}/> قفل</button>}
     </header>
     <main className="content">
