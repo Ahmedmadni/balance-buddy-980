@@ -1,0 +1,108 @@
+name: Rasd standalone offline Android beta
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  offline-core:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+      - name: Typecheck native entry and local crypto
+        run: bun run typecheck
+      - name: Test encrypted local storage and monetary validation
+        run: bun test src/lib/offline
+      - name: Build static Android WebView bundle without hosted SSR
+        run: bun run build:offline
+      - name: Confirm local index and absence of cloud API endpoints in runtime bundle
+        run: |
+          set -euo pipefail
+          test -s dist-native/index.html
+          grep -q 'assets/index-' dist-native/index.html
+          if grep -ERq '(supabase\.co|balance-buddy-980\.lovable\.app|auth/v1/authorize)' dist-native/assets; then
+            echo "::error::A remote sign-in/backend endpoint leaked into offline Android bundle"
+            exit 1
+          fi
+
+  offline-apk:
+    needs: offline-core
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - uses: oven-sh/setup-bun@v2
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+      - name: Install locked dependencies with Sharp fallback
+        run: bash scripts/ci-install-with-sharp-fallback.sh
+      - name: Build isolated local-only Android APK
+        run: bun run android:offline:debug
+      - name: Validate installed APK package and bundled-only entry point
+        run: |
+          set -euo pipefail
+          APK=android/app/build/outputs/apk/debug/app-debug.apk
+          test -s "$APK"
+          unzip -p "$APK" assets/capacitor.config.json > /tmp/rasd-local-cap.json
+          node -e "const c=require('/tmp/rasd-local-cap.json'); if(c.appId!=='app.lovable.rasd.local' || (c.server && c.server.url)) process.exit(1);"
+          unzip -l "$APK" | grep -q 'assets/public/index.html'
+          unzip -p "$APK" assets/public/index.html | grep -q 'assets/index-'
+          if unzip -p "$APK" assets/public/index.html | grep -q lovable.app; then
+            echo "::error::Offline APK still contains a hosted startup URL"
+            exit 1
+          fi
+          echo 'PASS: fully packaged local Android entry with separate application ID'
+      - uses: actions/upload-artifact@v4
+        with:
+          name: rasd-offline-android-beta-apk
+          path: android/app/build/outputs/apk/debug/app-debug.apk
+          if-no-files-found: error
+          retention-days: 14
+
+  offline-smoke:
+    needs: offline-apk
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - name: Enable emulator KVM
+        run: |
+          if [ -e /dev/kvm ]; then sudo chmod 666 /dev/kvm; fi
+      - uses: actions/download-artifact@v4
+        with:
+          name: rasd-offline-android-beta-apk
+          path: offline-apk
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+      - name: Prove offline Android screen works with network disabled
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 33
+          target: google_apis
+          arch: x86_64
+          profile: pixel_2
+          ram-size: 2048M
+          heap-size: 256M
+          disable-animations: true
+          emulator-options: -no-window -no-boot-anim -no-snapshot -noaudio -gpu swiftshader_indirect
+          script: bash scripts/android-offline-emulator-smoke.sh offline-apk/app-debug.apk
+      - name: Upload offline device screenshot and logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: rasd-offline-android-emulator-evidence
+          path: android-offline-evidence
+          if-no-files-found: warn
+          retention-days: 14

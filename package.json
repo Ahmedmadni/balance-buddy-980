@@ -29,6 +29,10 @@
     "android:run": "bun run android:sync && npx cap run android",
     "android:sync:prod": "node scripts/android-build.mjs sync-prod",
     "android:debug": "node scripts/android-build.mjs debug",
+    "build:offline": "vite build --config vite.native.config.ts",
+    "android:offline:debug": "node scripts/android-build.mjs offline-debug",
+    "android:offline:apk": "node scripts/android-build.mjs offline-apk",
+    "android:offline:aab": "node scripts/android-build.mjs offline-aab",
     "android:apk": "node scripts/android-build.mjs apk",
     "android:aab": "node scripts/android-build.mjs aab",
     "android:prepare": "node scripts/ensure-android.mjs"
