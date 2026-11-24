@@ -7,6 +7,7 @@
  * A crash/reload during exchange must never auto-unlock financial routes.
  */
 export const NATIVE_GOOGLE_QUARANTINE_KEY = "rasd-native-google-session-quarantine-v1";
+export const NATIVE_GOOGLE_QUARANTINE_EVENT = "rasd-native-google-quarantine-changed";
 
 type StorageReader = Pick<Storage, "getItem">;
 type StorageWriter = Pick<Storage, "getItem" | "setItem" | "removeItem">;
