@@ -4,13 +4,17 @@ import { App } from "@capacitor/app";
 import { Capacitor } from "@capacitor/core";
 import { Wallet, LockKeyhole, ShieldCheck, Plus, ArrowDownLeft, ArrowUpRight, HandCoins, Save, FileDown, FileUp, KeyRound, LogOut } from "lucide-react";
 import {
-  createVault, parseVaultFile, sealVault, setNewPassword, unlockWithPassword,
+  createVault, parseVaultFile, sealVault, setNewPassword, unlockWithPassword, unlockWithDeviceKey,
   unlockWithRecoveryCode, type RasdVaultFile, type OpenedVault,
 } from "../src/lib/offline/crypto";
 import {
   emptyLedger, parseSAR, walletBalanceMinor, type LocalLedger, type LocalWallet,
 } from "../src/lib/offline/ledger";
 import { loadDeviceVault, saveDeviceVault, shareEncryptedBackup } from "../src/lib/offline/device-store";
+import {
+  probeDeviceUnlock, enableDeviceUnlock, unlockDeviceKey, disableDeviceUnlock,
+  type DeviceUnlockProbe,
+} from "../src/lib/offline/device-unlock";
 import logoSrc from "../assets/logo.svg";
 import "./styles.css";
 
@@ -27,6 +31,9 @@ function OfflineRasd() {
   const [stage, setStage] = useState<Stage>("loading");
   const [tab, setTab] = useState<Tab>("home");
   const [file, setFile] = useState<RasdVaultFile | null>(null);
+  const [deviceAccess, setDeviceAccess] = useState<DeviceUnlockProbe>({
+    supported: false, enabled: false, matchesVault: false,
+  });
   const opened = useRef<OpenedVault | null>(null);
   const fileRef = useRef<RasdVaultFile | null>(null);
   const busyRef = useRef(false);
@@ -61,6 +68,14 @@ function OfflineRasd() {
 
   useEffect(() => {
     let active = true;
+    if (file) void probeDeviceUnlock(file).then(status => {
+      if (active) setDeviceAccess(status);
+    });
+    return () => { active = false; };
+  }, [file]);
+
+  useEffect(() => {
+    let active = true;
     if (!Capacitor.isNativePlatform() || Capacitor.getPlatform() !== "android") {
       setStage("failed");
       setError("هذه النسخة محلية ومخصصة لتطبيق Android المثبّت فقط.");
@@ -74,11 +89,17 @@ function OfflineRasd() {
     }).catch(e => { if (active) { setError(errorText(e)); setStage("failed"); }});
     let listener: { remove: () => Promise<void> } | undefined;
     let backgroundTimeout: ReturnType<typeof setTimeout> | undefined;
+    let inactiveAt: number | null = null;
     void App.addListener("appStateChange", ({ isActive }) => {
       if (!isActive) {
+        inactiveAt = Date.now();
         backgroundTimeout = setTimeout(lock, 60000);
-      } else if (backgroundTimeout) {
-        clearTimeout(backgroundTimeout);
+      } else {
+        // Android suspends JavaScript timers in the background. Enforce the
+        // elapsed timeout *on resume* before sensitive data can be reused.
+        if (inactiveAt !== null && Date.now() - inactiveAt >= 60000) lock();
+        inactiveAt = null;
+        if (backgroundTimeout) clearTimeout(backgroundTimeout);
         backgroundTimeout = undefined;
       }
     }).then(l => { if (active) listener = l; else void l.remove(); });
@@ -135,6 +156,38 @@ function OfflineRasd() {
       if (!fileRef.current) throw new Error("الخزنة غير موجودة.");
       const value = await unlockWithPassword(fileRef.current, password);
       adopt(fileRef.current, value);
+    });
+  }
+  function unlockWithDevice() {
+    void action(async () => {
+      if (!fileRef.current) throw new Error("الخزنة غير موجودة.");
+      const rawKey = await unlockDeviceKey(fileRef.current);
+      try {
+        const value = await unlockWithDeviceKey(fileRef.current, rawKey);
+        adopt(fileRef.current, value);
+        setInfo("تم فتح رصد عبر قفل Android الآمن.");
+      } finally {
+        rawKey.fill(0);
+      }
+    });
+  }
+  function setUpDeviceUnlock() {
+    void action(async () => {
+      if (!opened.current || !fileRef.current)
+        throw new Error("افتح الخزنة بكلمة المرور الرئيسية أولًا.");
+      await enableDeviceUnlock(fileRef.current, opened.current.keyBytes);
+      const status = await probeDeviceUnlock(fileRef.current);
+      setDeviceAccess(status);
+      if (!status.matchesVault) throw new Error("لم يؤكد Android ربط المفتاح بالخزنة الحالية.");
+      setInfo("فُعّل فتح رصد بقفل الجهاز. كلمة المرور الرئيسية ورمز الاسترداد ما زالا صالحين.");
+    });
+  }
+  function turnOffDeviceUnlock() {
+    void action(async () => {
+      if (!opened.current || !fileRef.current) throw new Error("الخزنة مغلقة.");
+      await disableDeviceUnlock();
+      setDeviceAccess(await probeDeviceUnlock(fileRef.current));
+      setInfo("أُلغي فتح قفل الجهاز. الخزنة ما زالت محمية بكلمة المرور الرئيسية.");
     });
   }
   function recover() {
@@ -248,6 +301,10 @@ function OfflineRasd() {
         {stage === "locked" && <>
           <Field label="كلمة المرور"><input type="password" autoComplete="current-password" value={password} onChange={e=>setPassword(e.target.value)} onKeyDown={e=>{if(e.key==="Enter")unlock()}}/></Field>
           <button className="primary full" disabled={busy} onClick={unlock}><LockKeyhole size={18}/> فتح الخزنة</button>
+          {deviceAccess.matchesVault && deviceAccess.supported &&
+            <button className="secondary full" disabled={busy} onClick={unlockWithDevice}>
+              <ShieldCheck size={18}/> فتح ببصمة أو رمز/نمط قفل الهاتف
+            </button>}
           <details><summary>نسيت كلمة المرور؟ استخدم رمز الاسترداد</summary>
             <p>الاسم وتاريخ الميلاد وأسئلة الأقارب ليست بديلًا آمنًا للمفتاح السري.</p>
             <Field label="رمز الاسترداد"><input dir="ltr" autoCapitalize="none" value={recoveryInput} onChange={e=>setRecoveryInput(e.target.value.trim())}/></Field>
@@ -288,6 +345,16 @@ function OfflineRasd() {
           {ledger.debts.slice().reverse().map(d=><div className="item" key={d.id}><span>{d.person}<small>{d.direction==="owed_to_me"?"مستحق لي":"مستحق عليّ"}{d.dueDate?" • "+d.dueDate:""}</small></span><b>{fmt(d.amountMinor)}</b></div>)}
         </section>}
         {tab === "backup" && <section className="panel"><h2><FileDown size={22}/> النسخ الاحتياطي والاستعادة</h2>
+          <h3>قفل Android والبصمة / الوجه</h3>
+          {deviceAccess.supported ? <>
+            <p>يمكنك فتح خزنة رصد باستخدام بصمة قوية أو قفل شاشة Android (رمز أو نمط أو كلمة مرور). Android Keystore وحده يحتفظ بمفتاح الفتح المشفر؛ لا نخزّن بصمتك أو رمز قفل هاتفك.</p>
+            {deviceAccess.matchesVault ?
+              <button className="secondary full" disabled={busy} onClick={turnOffDeviceUnlock}>إلغاء فتح قفل الجهاز</button> :
+              <button className="secondary full" disabled={busy} onClick={setUpDeviceUnlock}>
+                <ShieldCheck size={18}/> تفعيل فتح قفل الجهاز
+              </button>}
+          </> : <p className="muted">لفتح رصد بالبصمة أو قفل الجهاز، تحتاج Android 11 أو أحدث وقفل شاشة آمنًا مفعّلًا. سيظل الدخول بكلمة المرور الرئيسية متاحًا.</p>}
+          <hr/>
           <p>الملف المُصدّر مشفّر بالكامل، ويمكنك اختيار Google Drive أو تطبيق الملفات في نافذة مشاركة Android. لا تتم أي مزامنة تلقائية.</p>
           <button className="primary full" disabled={busy||!file} onClick={()=>void action(async()=>{if(!fileRef.current)throw Error("الخزنة مغلقة");await shareEncryptedBackup(fileRef.current);setInfo("تم فتح نافذة المشاركة. تأكد بنفسك من حفظ الملف في المكان المختار.");})}><FileDown size={18}/> تصدير نسخة مشفرة</button>
           <hr/>
