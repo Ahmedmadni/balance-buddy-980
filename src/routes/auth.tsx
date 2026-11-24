@@ -6,6 +6,7 @@ import { isNative } from "@/lib/mobile/platform";
 import { runGoogleSignIn } from "@/lib/auth/google-sign-in-flow";
 import { Browser } from "@capacitor/browser";
 import { nativeGoogleReady, NATIVE_GOOGLE_SETUP_REQUIRED, startNativeGoogleSignIn } from "@/lib/auth/native-oauth";
+import { isNativeGoogleSessionVerificationInProgress } from "@/lib/auth/native-google-handoff";
 import { lovable } from "@/integrations/lovable/index";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
@@ -46,7 +47,7 @@ function AuthPage() {
     let active = true;
     let checking = false;
     const verifyAndEnter = async () => {
-      if (!active || checking) return;
+      if (!active || checking || isNativeGoogleSessionVerificationInProgress()) return;
       checking = true;
       try {
         const { data, error } = await supabase.auth.getUser();
@@ -55,7 +56,8 @@ function AuthPage() {
     };
     // Defer auth-server requests outside the auth callback to avoid its internal lock.
     const { data: listener } = supabase.auth.onAuthStateChange((event, session) => {
-      if (session && (event === "SIGNED_IN" || event === "INITIAL_SESSION" || event === "USER_UPDATED")) {
+      if (session && (event === "SIGNED_IN" || event === "INITIAL_SESSION" || event === "USER_UPDATED")
+          && !isNativeGoogleSessionVerificationInProgress()) {
         setTimeout(() => { void verifyAndEnter().catch(() => {}); }, 0);
       }
     });
