@@ -20,6 +20,7 @@ import { ConsentBanner } from "@/components/ConsentBanner";
 import { RouteProgressBar } from "@/components/motion/RouteProgressBar";
 import { listenForNativeOAuth } from "@/lib/auth/native-oauth";
 import { isNativeGoogleSessionVerificationInProgress } from "@/lib/auth/native-google-handoff";
+import { NATIVE_GOOGLE_QUARANTINE_EVENT } from "@/lib/auth/native-google-quarantine";
 import { toast } from "sonner";
 import { App } from "@capacitor/app";
 import { Capacitor } from "@capacitor/core";
@@ -162,10 +163,15 @@ function RootComponent() {
         ])
       : Promise.resolve([]);
     const nativeAuth = listenForNativeOAuth({
-      onFailure: (message) => toast.error("تعذر تسجيل الدخول", { description: message }),
+      onFailure: (message) => {
+        window.dispatchEvent(new Event(NATIVE_GOOGLE_QUARANTINE_EVENT));
+        toast.error("تعذر تسجيل الدخول", { description: message });
+      },
       onSuccess: () => {
-        // The native callback processor has already exchanged PKCE and checked
-        // auth.getUser(). A browser redirect alone NEVER enters finance routes.
+        // Only the verified server identity can unlock finance; clear caches
+        // left by earlier sessions before loading any account-scoped records.
+        window.dispatchEvent(new Event(NATIVE_GOOGLE_QUARANTINE_EVENT));
+        queryClient.clear();
         toast.success("تم تسجيل الدخول إلى رصد");
         void router.invalidate().then(() => router.navigate({ to: "/app", replace: true })).catch(() => {
           toast.error("تمت المصادقة، لكن تعذر فتح الواجهة. أعد فتح تطبيق رصد.");

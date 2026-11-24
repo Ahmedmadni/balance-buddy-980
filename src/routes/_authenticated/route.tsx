@@ -1,5 +1,6 @@
 import { createFileRoute, Outlet, redirect, Link, useRouterState, useNavigate } from "@tanstack/react-router";
 import { supabase } from "@/integrations/supabase/client";
+import { isNativeGoogleSessionVerificationInProgress } from "@/lib/auth/native-google-handoff";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   LayoutDashboard, Wallet, FileBarChart, Settings, LogOut, Menu, Landmark,
@@ -39,11 +40,16 @@ function PrivacyToggle() {
 export const Route = createFileRoute("/_authenticated")({
   ssr: false,
   beforeLoad: async () => {
+    // Do not allow a cached, not-yet-verified native Google session to unlock
+    // financial routes, even after a WebView kill/relaunch or sign-out failure.
+    if (isNativeGoogleSessionVerificationInProgress()) throw redirect({ to: "/auth" });
     const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
-    if (sessionError || !sessionData.session) throw redirect({ to: "/auth" });
+    if (isNativeGoogleSessionVerificationInProgress() || sessionError || !sessionData.session)
+      throw redirect({ to: "/auth" });
 
     const { data, error } = await supabase.auth.getUser(sessionData.session.access_token);
-    if (error || !data.user) throw redirect({ to: "/auth" });
+    if (isNativeGoogleSessionVerificationInProgress() || error || !data.user)
+      throw redirect({ to: "/auth" });
     return { user: data.user };
   },
   component: AppLayout,

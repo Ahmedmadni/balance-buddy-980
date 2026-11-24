@@ -7,6 +7,11 @@ import { runGoogleSignIn } from "@/lib/auth/google-sign-in-flow";
 import { Browser } from "@capacitor/browser";
 import { nativeGoogleReady, NATIVE_GOOGLE_SETUP_REQUIRED, startNativeGoogleSignIn } from "@/lib/auth/native-oauth";
 import { isNativeGoogleSessionVerificationInProgress } from "@/lib/auth/native-google-handoff";
+import {
+  clearNativeGoogleQuarantine,
+  isNativeGoogleQuarantinedOnDevice,
+  NATIVE_GOOGLE_QUARANTINE_EVENT,
+} from "@/lib/auth/native-google-quarantine";
 import { lovable } from "@/integrations/lovable/index";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
@@ -31,6 +36,7 @@ function AuthPage() {
   const [loading, setLoading] = useState(false);
   const [signInError, setSignInError] = useState<string | null>(null);
   const [nativeMode, setNativeMode] = useState(false);
+  const [needsNativeSessionRepair, setNeedsNativeSessionRepair] = useState(false);
 
   // SSR starts as web; detect the actual native shell after hydration so the
   // login card never promises Android Google OAuth that this build cannot do.
@@ -40,6 +46,14 @@ function AuthPage() {
     const previewNativeUI = import.meta.env.DEV &&
       new URLSearchParams(window.location.search).get("__rasdNativeUiTest") === "1";
     setNativeMode(isNative() || previewNativeUI);
+    const refresh = () => setNeedsNativeSessionRepair(isNativeGoogleQuarantinedOnDevice());
+    refresh();
+    window.addEventListener(NATIVE_GOOGLE_QUARANTINE_EVENT, refresh);
+    document.addEventListener("visibilitychange", refresh);
+    return () => {
+      window.removeEventListener(NATIVE_GOOGLE_QUARANTINE_EVENT, refresh);
+      document.removeEventListener("visibilitychange", refresh);
+    };
   }, []);
   const signingIn = useRef(false);
 
@@ -74,6 +88,36 @@ function AuthPage() {
       await Browser.open({ url: "https://balance-buddy-980.lovable.app/auth" });
     } catch {
       setSignInError("تعذر فتح متصفح الهاتف. افتح balance-buddy-980.lovable.app/auth مباشرةً.");
+    }
+  }
+
+  async function repairNativeGoogleSession() {
+    if (!isNative() || signingIn.current || loading || !isNativeGoogleQuarantinedOnDevice()) return;
+    signingIn.current = true;
+    setLoading(true);
+    setSignInError(null);
+    try {
+      // scope=local never signs the user out on their other devices. The
+      // quarantine stays in place if local cleanup fails or is unconfirmed.
+      const result = await supabase.auth.signOut({ scope: "local" });
+      if (result.error) {
+        setSignInError("تعذر إنهاء الجلسة القديمة على هذا الجهاز؛ لا تزال بيانات رصد محمية.");
+        return;
+      }
+      const remaining = await supabase.auth.getSession();
+      if (remaining.error || remaining.data.session?.access_token ||
+          !clearNativeGoogleQuarantine(localStorage)) {
+        setSignInError("تعذر تنظيف جلسة Google غير المكتملة. سيظل الوصول إلى البيانات محظورًا حتى إتمام الإصلاح.");
+        return;
+      }
+      setNeedsNativeSessionRepair(false);
+      toast.success("تم تنظيف الجلسة غير المكتملة. يمكنك تسجيل الدخول مجددًا.");
+      await navigate({ to: "/auth", replace: true });
+    } catch {
+      setSignInError("تعذر تنظيف الجلسة المحلية. تحقق من اتصال الجهاز وأعد المحاولة.");
+    } finally {
+      signingIn.current = false;
+      setLoading(false);
     }
   }
 
@@ -137,7 +181,17 @@ function AuthPage() {
           <p className="mt-2 text-center text-sm text-muted-foreground">سجّل الدخول للوصول إلى ديونك ومصاريفك بأمان</p>
           {nativeMode ? (
             <div className="mt-8 space-y-3">
-              {nativeGoogleReady() ? (
+              {needsNativeSessionRepair ? (
+                <>
+                  <p role="alert" className="text-sm leading-7 text-destructive text-center">
+                    توقّفت عملية Google قبل تأكيد الجلسة. حماية بياناتك المالية مفعلة،
+                    ولن تُفتح الحسابات حتى حذف الجلسة المحلية غير المكتملة.
+                  </p>
+                  <Button onClick={repairNativeGoogleSession} disabled={loading} type="button" size="lg" className="w-full">
+                    {loading ? "جار إصلاح الجلسة..." : "إصلاح جلسة Google غير المكتملة"}
+                  </Button>
+                </>
+              ) : nativeGoogleReady() ? (
                 <>
                   <Button onClick={signInNative} disabled={loading} type="button" size="lg" className="w-full">
                     {loading ? "جار فتح Google..." : "متابعة باستخدام Google داخل التطبيق"}
