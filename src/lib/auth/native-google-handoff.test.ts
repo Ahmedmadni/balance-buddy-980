@@ -193,6 +193,25 @@ describe("Rasd Android Google PKCE account verification boundary", () => {
     expect(signOuts).toBe(1);
   });
 
+  test("a nominally successful sign-out cannot clear quarantine while tokens remain cached", async () => {
+    const s = storage(); recordPendingGoogleOAuth(s, now);
+    let call = 0, sessionPresent = false, signOuts = 0;
+    const auth: NativeGoogleAuthGateway = {
+      getSession: async () => ({
+        data: { session: sessionPresent ? { access_token: "token-still-cached" } : null }, error: null,
+      }),
+      getUser: async () => ({ data: { user: ++call === 1 ? null : { id: "wrong-user" } }, error: null }),
+      exchangeCodeForSession: async () => {
+        sessionPresent = true;
+        return { data: { user: { id: "expected" }, session: { access_token: "token-still-cached" } }, error: null };
+      },
+      signOutLocal: async () => { signOuts++; return { error: null }; },
+    };
+    expect((await processNativeGoogleCallback(callback, s, auth, now)).kind).toBe("error");
+    expect(signOuts).toBe(1);
+    expect(hasNativeGoogleQuarantine(s)).toBe(true);
+  });
+
   test("a thrown exchange triggers local rollback even without a response marker", async () => {
     const s = storage(); recordPendingGoogleOAuth(s, now);
     let signOuts = 0;
