@@ -43,7 +43,11 @@ const retryMessage = "تعذر التحقق من جلسة Google على الجه
 async function discardNewSession(auth: NativeGoogleAuthGateway): Promise<boolean> {
   try {
     const result = await auth.signOutLocal();
-    return !result.error;
+    if (result.error) return false;
+    // An SDK success response alone is not proof that a token was removed
+    // from WebView storage. Keep the persistent lock until it is absent.
+    const remaining = await auth.getSession();
+    return !remaining.error && !remaining.data.session?.access_token;
   } catch {
     return false;
   }
