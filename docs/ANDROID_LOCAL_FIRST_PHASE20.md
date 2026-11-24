@@ -50,3 +50,15 @@ The owner has decided that Rasd will ultimately be a **standalone Android financ
 - GitHub Actions `Rasd standalone offline Android beta`: local-only APK build, assert no `server.url` and beta package ID; install and run with Wi-Fi/data disabled on the emulator.
 
 **Release policy:** Only call the variant `app.lovable.rasd.local` an offline **beta** until all modules, import/migration, security and device acceptance are complete. The original `app.lovable.rasd` remains unchanged.
+
+## Phase 22 — Interrupted local vault write inspection and explicit recovery (2026-11-24)
+
+Existing v1 persisted a pending encrypted file and a previous encrypted copy but read only `rasd-private-v1.json`. A truncated main file could therefore leave the owner stranded even with a sound previous snapshot; a crashed first write with only a pending file could mistakenly appear as an empty install.
+
+The native launcher now inspects **primary, pending and previous** instead of treating "primary not found" as proof of an empty vault. It displays a dedicated recovery screen if the latest staged write differs from the committed file or the primary is malformed, and blocks all ordinary finance writes until the owner explicitly selects a candidate.
+
+To recover, the owner chooses a snapshot, enters that snapshot's password or `RSD-` recovery code, reviews its **decrypted counts** of wallets, transactions and debts, types **اعتماد**, and confirms the choice. The app rechecks that the candidate file did not change before promoting it to primary. It never promotes a structurally parseable but unauthenticated encrypted file automatically, and never silently rolls back newer transactions.
+
+The write coordinator validates a staged file by reading it back, verifies that the previous encrypted file is copied before writing primary, then checks the committed file on disk. A leftover pending file identical to primary is recognized as a finished save. All filesystem failure paths are exercised by fault-injected in-memory tests, including a half-written primary, failed previous snapshot, interrupted initial setup and unexpected concurrent snapshot changes.
+
+**Limitations**: Capacitor Filesystem's ordinary writeFile does not guarantee POSIX fsync or cross-file ACID transactions. This is crash recovery and corruption detection, not a formal atomic database. Future Android production work must use a native atomic write/SQLite transaction with backup verification and device-specific process-kill tests. An encrypted snapshot from a preceding commit can legitimately omit recent operations; review counts and offline backup before adopting it. A fully damaged vault with no valid snapshot still requires an external backup.
