@@ -29,7 +29,9 @@ describe("Rasd fully offline AES-GCM personal vault", () => {
     await expect(unlockWithPassword(v.file, "wrong-password-123")).rejects.toThrow();
     await expect(unlockWithRecoveryCode(v.file, "RSD-not-a-real-recovery-code")).rejects.toThrow();
     const changed = JSON.parse(JSON.stringify(v.file));
-    changed.vault.data = changed.vault.data.slice(0,-1) + (changed.vault.data.endsWith("A") ? "B" : "A");
+    // Flip a high-order Base64 symbol: changing a trailing symbol can alter
+    // only unused padding bits and leave the decoded AES ciphertext identical.
+    changed.vault.data = (changed.vault.data[0] === "A" ? "B" : "A") + changed.vault.data.slice(1);
     await expect(unlockWithPassword(changed, "Another-secure-password-12345!")).rejects.toThrow();
     expect(() => parseVaultFile('{"format":"not-rasd"}')).toThrow();
   }, 120000);
