@@ -19,6 +19,7 @@ import { registerServiceWorker } from "@/lib/pwa/register";
 import { ConsentBanner } from "@/components/ConsentBanner";
 import { RouteProgressBar } from "@/components/motion/RouteProgressBar";
 import { listenForNativeOAuth } from "@/lib/auth/native-oauth";
+import { isNativeGoogleSessionVerificationInProgress } from "@/lib/auth/native-google-handoff";
 import { toast } from "sonner";
 import { App } from "@capacitor/app";
 import { Capacitor } from "@capacitor/core";
@@ -166,7 +167,7 @@ function RootComponent() {
         // The native callback processor has already exchanged PKCE and checked
         // auth.getUser(). A browser redirect alone NEVER enters finance routes.
         toast.success("تم تسجيل الدخول إلى رصد");
-        void router.navigate({ to: "/app", replace: true }).catch(() => {
+        void router.invalidate().then(() => router.navigate({ to: "/app", replace: true })).catch(() => {
           toast.error("تمت المصادقة، لكن تعذر فتح الواجهة. أعد فتح تطبيق رصد.");
         });
       },
@@ -178,6 +179,10 @@ function RootComponent() {
         return;
       }
       if (event !== "SIGNED_IN" && event !== "SIGNED_OUT" && event !== "USER_UPDATED") return;
+      // exchangeCodeForSession emits SIGNED_IN before getUser has verified the
+      // account. Do not hydrate protected pages or prefetch financial data
+      // until the native callback explicitly confirms the same identity.
+      if (event === "SIGNED_IN" && isNativeGoogleSessionVerificationInProgress()) return;
       const nextAccountId = session?.user?.id ?? null;
       if (shouldClearFinancialCache(event, accountId, nextAccountId)) {
         // Query keys are not all user-scoped; cache entries from user A must
