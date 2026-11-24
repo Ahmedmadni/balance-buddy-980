@@ -97,6 +97,18 @@ export async function createVault(password: string): Promise<CreatedVault> {
     },
   };
 }
+/**
+ * Only call after Android Keystore's authenticated CryptoObject returned this
+ * DEK. The vault's AES-GCM authentication tag verifies the exact key.
+ * Clone so callers may erase their bridge result without locking the UI.
+ */
+export async function unlockWithDeviceKey(
+  file: RasdVaultFile, rawKey: Uint8Array,
+): Promise<OpenedVault> {
+  if (rawKey.length !== 32) throw new Error("مفتاح الجهاز غير صالح.");
+  return decryptLedger(file, new Uint8Array(rawKey));
+}
+
 export async function unlockWithPassword(file: RasdVaultFile, password: string): Promise<OpenedVault> {
   try {
     const key = await keyFromPassword(password, decode64(file.password.salt), file.password.iterations);
