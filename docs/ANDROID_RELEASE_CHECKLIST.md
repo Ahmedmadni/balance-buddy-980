@@ -111,3 +111,16 @@ The user reported that opening the website in Chrome signs into the *browser* bu
 - Unit tests: one-time intent expiration, strict Supabase auth origin, invalid/tampered callback, missing verifier/attempt, repeat callback, existing-account protection, verified returned user, no token disclosure.
 - Android CI: AndroidManifest scheme/host/path, build, install/start/resume and real login-screen screenshot. **CI never exercises a real Google account and never proves live provider readiness.**
 - On a **disposable Google test account and physical Android device**: sign in, consent in system browser, automatic return, verify same `auth.uid`, warm start, force stop/restart, cancellation, duplicate callback, back button, switching accounts, and data isolation. Until this completes native login is NOT production-accepted.
+
+## Phase 19 — Android PKCE crash-safe account quarantine (2026-11-24)
+
+Phase 18 prevented immediate route transitions during server verification. Phase 19 closes a further failure mode: Supabase can have already stored a new session when the browser/WebView crashes, or `signOut({ scope: "local" })` can return an error (or appear successful while a token remains cached). An in-memory boolean alone cannot survive that restart.
+
+- Before `exchangeCodeForSession`, `native-google-handoff.ts` writes the no-token marker `rasd-native-google-session-quarantine-v1=1` in the initiating WebView's local storage. If writing it fails, exchange is refused. Existing sessions and unrelated links are not exchanged.
+- The `/_authenticated` route tests this marker **before, between and after** its session/user checks. The root auth listener also blocks early `SIGNED_IN` routing. A cold-started WebView must not open stored finance pages while this marker exists.
+- On verified success, the marker is cleared before navigation; the financial query cache is cleared first. On failure, the app calls local-only sign-out and checks that `getSession()` no longer returns an access token. Only then is the marker removed. An error or residual token retains the lock across restarts.
+- The Android auth page shows **إصلاح جلسة Google غير المكتملة** when a marker survives. Repair locally signs out without affecting other devices and checks token absence before clearing the lock. No Google tokens, codes, or financial data are stored in the marker.
+- The native callback listener ignores unrelated app URLs without closing the Custom Tab.
+- Unit regressions cover storage failures, a crashed/throwing exchange, server user mismatch, sign-out error, an SDK reporting sign-out success while a token remains, and persistence across a simulated WebView restart.
+
+**Still blocked for real-world acceptance:** Supabase Google provider secret, redirect allowlist, hosted frontend flag, and successful physical-device browser-to-APK flow. GitHub merge and Android emulator smoke do not configure these server-side requirements. Google remains off by default.
