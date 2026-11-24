@@ -10,11 +10,15 @@ const allowed = new Map([
   ["debug", "assembleDebug"],
   ["apk", "assembleRelease"],
   ["aab", "bundleRelease"],
+  ["offline-debug", "assembleDebug"],
+  ["offline-apk", "assembleRelease"],
+  ["offline-aab", "bundleRelease"],
 ]);
 if (!allowed.has(command)) {
-  throw new Error("Usage: node scripts/android-build.mjs sync-prod|debug|apk|aab");
+  throw new Error("Usage: node scripts/android-build.mjs sync-prod|debug|apk|aab|offline-debug|offline-apk|offline-aab");
 }
-const env = { ...process.env, CAP_ENV: "production" };
+const offline = command.startsWith("offline-");
+const env = { ...process.env, CAP_ENV: "production", CAP_LOCAL_ONLY: offline ? "1" : "0" };
 const isWindows = process.platform === "win32";
 const run = (bin, args, options = {}) => {
   const result = spawnSync(bin, args, {
@@ -27,7 +31,8 @@ const run = (bin, args, options = {}) => {
   if (result.status !== 0) process.exit(result.status || 1);
 };
 
-run("bun", ["run", "build"]);
+if (offline) run("bun", ["run", "build:offline"]);
+else run("bun", ["run", "build"]);
 run("node", ["scripts/ensure-android.mjs"]);
 // The generated Capacitor scaffold contains placeholder icons. Always
 // replace those with Rasd branding before syncing and packaging native APKs.
