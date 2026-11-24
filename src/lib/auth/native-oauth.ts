@@ -96,6 +96,7 @@ export async function listenForNativeOAuth(opts: {
   const receive = async (raw: string) => {
     if (processing || disposed) return;
     processing = true;
+    let receivedOAuthCallback = false;
     try {
       const outcome = await processNativeGoogleCallback(raw, localStorage, {
         getSession: () => supabase.auth.getSession(),
@@ -103,12 +104,18 @@ export async function listenForNativeOAuth(opts: {
         exchangeCodeForSession: (code) => supabase.auth.exchangeCodeForSession(code),
         signOutLocal: () => supabase.auth.signOut({ scope: "local" }),
       });
+      if (outcome.kind === "ignored") return;
+      receivedOAuthCallback = true;
       if (disposed) return;
       if (outcome.kind === "success") opts.onSuccess();
       else if (outcome.kind === "error") opts.onFailure(outcome.message);
     } finally {
       processing = false;
-      try { await Browser.close(); } catch { /* browser already closed */ }
+      // Another app:// link or general intent is not a Google result and
+      // must not close a user's unrelated Custom Tab.
+      if (receivedOAuthCallback) {
+        try { await Browser.close(); } catch { /* browser already closed */ }
+      }
     }
   };
   const listener = await App.addListener("appUrlOpen", ({ url }) => { void receive(url); });
