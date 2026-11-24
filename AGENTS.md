@@ -12,3 +12,5 @@
 - A UUID-backed restore hold must never be manually released on `not_found`; release only on verified server `committed` or `cancelled` status. All delayed-request cancellation uses the same per-account SQL advisory lock and never touches real financial records in CI.
 
 - Native Android Google sign-in MUST use browser PKCE code redemption inside the initiating WebView; never accept access/refresh tokens in deep-link URLs, never call Google in embedded WebView, and never mistake a separate browser session for an app session. Do not enable the hosted public `VITE_RASD_NATIVE_GOOGLE_OAUTH_READY` flag before Supabase Google credentials and exact callback allowlist are configured and device acceptance is complete.
+
+- Native Google OAuth must persist a token-free quarantine before any PKCE session exchange; a failed local sign-out or residual cached token must leave protected financial routes blocked across WebView restarts. Provide a local-only recovery path; never clear quarantine solely on a successful signOut RPC status without rechecking getSession.
