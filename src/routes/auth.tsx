@@ -100,7 +100,13 @@ function AuthPage() {
       // scope=local never signs the user out on their other devices. The
       // quarantine stays in place if local cleanup fails or is unconfirmed.
       const result = await supabase.auth.signOut({ scope: "local" });
-      if (result.error || !clearNativeGoogleQuarantine(localStorage)) {
+      if (result.error) {
+        setSignInError("تعذر إنهاء الجلسة القديمة على هذا الجهاز؛ لا تزال بيانات رصد محمية.");
+        return;
+      }
+      const remaining = await supabase.auth.getSession();
+      if (remaining.error || remaining.data.session?.access_token ||
+          !clearNativeGoogleQuarantine(localStorage)) {
         setSignInError("تعذر تنظيف جلسة Google غير المكتملة. سيظل الوصول إلى البيانات محظورًا حتى إتمام الإصلاح.");
         return;
       }
