@@ -6,9 +6,11 @@
 import { existsSync, readFileSync, writeFileSync, mkdirSync } from "node:fs";
 import { spawnSync } from "node:child_process";
 
+const localOnly = process.env.CAP_LOCAL_ONLY === "1";
+const nativePackage = localOnly ? "app.lovable.rasd.local" : "app.lovable.rasd";
 const manifestPath = "android/app/src/main/AndroidManifest.xml";
 const stringsPath = "android/app/src/main/res/values/strings.xml";
-const scheme = "app.lovable.rasd";
+const scheme = nativePackage;
 const webDir = "dist/client";
 // TanStack Start is SSR and emits no static index.html. Capacitor requires one
 // to generate/sync the shell even though the Android production app uses server.url.
@@ -54,7 +56,7 @@ if (!existsSync(manifestPath)) {
 }
 if (!existsSync(manifestPath)) throw new Error("AndroidManifest.xml was not generated");
 let manifest = readFileSync(manifestPath, "utf8");
-if (!manifest.includes('android:scheme="' + scheme + '"')) {
+if (!localOnly && !manifest.includes('android:scheme="' + scheme + '"')) {
   const filter = [
     '            <intent-filter>',
     '                <action android:name="android.intent.action.VIEW" />',
@@ -73,11 +75,13 @@ if (existsSync(stringsPath)) {
   xml = xml.replace(/<string name="custom_url_scheme">[^<]*<\/string>/, '<string name="custom_url_scheme">' + scheme + '</string>');
   writeFileSync(stringsPath, xml);
 }
-console.log("Android OAuth deep link installed:", scheme + "://auth/callback");
+if (!localOnly) console.log("Android OAuth deep link installed:", scheme + "://auth/callback");
+else console.log("Rasd local-only Android mode: no OAuth link or remote hosted entry");
 
 // Native privacy protection for Android's recent-apps snapshot. Keep screenshots
 // available while the user is actively viewing their own financial reports.
-const activityJava = "android/app/src/main/java/app/lovable/rasd/MainActivity.java";
+const javaPackagePath = nativePackage.replaceAll(".", "/");
+const activityJava = "android/app/src/main/java/" + javaPackagePath + "/MainActivity.java";
 if (!existsSync(activityJava)) {
   throw new Error("MainActivity.java not found; verify Capacitor package layout before release");
 }
@@ -110,8 +114,8 @@ if (!activitySource.includes("FLAG_SECURE")) {
   writeFileSync(activityJava, activitySource);
 }
 
-const printerJavaPath = "android/app/src/main/java/app/lovable/rasd/RasdPrintPlugin.java";
-const printerJavaSource = `package app.lovable.rasd;
+const printerJavaPath = "android/app/src/main/java/" + javaPackagePath + "/RasdPrintPlugin.java";
+const printerJavaSource = `package ${nativePackage};
 
 import android.content.Context;
 import android.print.PrintAttributes;
