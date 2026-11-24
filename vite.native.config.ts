@@ -15,6 +15,5 @@ export default defineConfig({
     outDir: resolve(process.cwd(), "dist-native"),
     emptyOutDir: true,
     sourcemap: false,
-    minify: "esbuild",
   },
 });
