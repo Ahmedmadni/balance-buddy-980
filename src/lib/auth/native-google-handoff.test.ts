@@ -5,6 +5,7 @@ import {
 } from "./native-google-handoff";
 import { recordPendingGoogleOAuth } from "./native-google-state";
 import { NATIVE_AUTH_CALLBACK } from "./native-callback-url";
+import { hasNativeGoogleQuarantine } from "./native-google-quarantine";
 
 const now = 1763890000000;
 const callback = NATIVE_AUTH_CALLBACK + "?code=one-time-code";
@@ -170,4 +171,59 @@ describe("Rasd Android Google PKCE account verification boundary", () => {
     expect((await pending).kind).toBe("success");
     expect(isNativeGoogleSessionVerificationInProgress()).toBe(false);
   });
+  test("a failed local rollback leaves a persistent guard that survives a simulated restart", async () => {
+    const s = storage(); recordPendingGoogleOAuth(s, now);
+    let call = 0, signOuts = 0;
+    const auth: NativeGoogleAuthGateway = {
+      getSession: async () => ({ data: { session: null }, error: null }),
+      getUser: async () => ({ data: { user: ++call === 1 ? null : { id: "not-the-expected-account" } }, error: null }),
+      exchangeCodeForSession: async () => ({
+        data: { user: { id: "expected" }, session: { access_token: "private-token" } }, error: null,
+      }),
+      signOutLocal: async () => { signOuts++; return { error: new Error("storage failure") }; },
+    };
+    const result = await processNativeGoogleCallback(callback, s, auth, now);
+    expect(result.kind).toBe("error");
+    expect(signOuts).toBe(1);
+    expect(hasNativeGoogleQuarantine(s)).toBe(true);
+    // New callback must not override an unverified stored session.
+    recordPendingGoogleOAuth(s, now);
+    const second = await processNativeGoogleCallback(callback, s, auth, now + 10);
+    expect(second.kind).toBe("error");
+    expect(signOuts).toBe(1);
+  });
+
+  test("a thrown exchange triggers local rollback even without a response marker", async () => {
+    const s = storage(); recordPendingGoogleOAuth(s, now);
+    let signOuts = 0;
+    const auth: NativeGoogleAuthGateway = {
+      getSession: async () => ({ data: { session: null }, error: null }),
+      getUser: async () => ({ data: { user: null }, error: null }),
+      exchangeCodeForSession: async () => { throw new Error("network lost after server response"); },
+      signOutLocal: async () => { signOuts++; return { error: null }; },
+    };
+    expect((await processNativeGoogleCallback(callback, s, auth, now)).kind).toBe("error");
+    expect(signOuts).toBe(1);
+    expect(hasNativeGoogleQuarantine(s)).toBe(false);
+  });
+
+  test("a failed storage write prevents exchanging an OAuth code", async () => {
+    const s = storage(); recordPendingGoogleOAuth(s, now);
+    let calls = 0, signs = 0;
+    const blockedStorage = {
+      getItem: s.getItem,
+      removeItem: s.removeItem,
+      setItem: (_k: string, _v: string) => { throw new Error("quota"); },
+    };
+    const auth: NativeGoogleAuthGateway = {
+      getSession: async () => ({ data: { session: null }, error: null }),
+      getUser: async () => ({ data: { user: null }, error: null }),
+      exchangeCodeForSession: async () => { calls++; throw new Error("must not exchange"); },
+      signOutLocal: async () => { signs++; return { error: null }; },
+    };
+    expect((await processNativeGoogleCallback(callback, blockedStorage, auth, now)).kind).toBe("error");
+    expect(calls).toBe(0);
+    expect(signs).toBe(0);
+  });
+
 });
