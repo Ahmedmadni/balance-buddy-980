@@ -1,6 +1,10 @@
 import { Directory, Encoding, Filesystem } from "@capacitor/filesystem";
 import { Share } from "@capacitor/share";
 import { parseVaultFile, type RasdVaultFile } from "./crypto";
+import {
+  commitVaultFiles, inspectVaultFiles, promoteVaultCandidate,
+  type VaultFileName, type VaultFiles, type VaultInspection,
+} from "./vault-transaction";
 
 /**
  * App-private Android Data directory. No localStorage, cookies, Supabase or
@@ -22,27 +26,43 @@ async function readFile(path: string): Promise<string | null> {
     throw error;
   }
 }
+const NAMES: Record<VaultFileName, string> = {
+  primary: PRIMARY, previous: PREVIOUS, pending: DRAFT,
+};
+const adapter: VaultFiles = {
+  read: name => readFile(NAMES[name]),
+  write: async (name, data) => {
+    await Filesystem.writeFile({
+      path: NAMES[name], directory: Directory.Data, data, encoding: Encoding.UTF8,
+    });
+  },
+  remove: async name => {
+    await Filesystem.deleteFile({ path: NAMES[name], directory: Directory.Data });
+  },
+};
+
+export async function inspectDeviceVault(): Promise<VaultInspection> {
+  return inspectVaultFiles(adapter);
+}
+
 export async function loadDeviceVault(): Promise<RasdVaultFile | null> {
-  const text = await readFile(PRIMARY);
-  if (text === null) return null;
-  // Deliberately do NOT silently load the previous version on damage, which
-  // could roll back financial transactions without the user's consent.
-  return parseVaultFile(text);
+  const result = await inspectDeviceVault();
+  if (result.kind === "empty") return null;
+  if (result.kind === "ready") return result.file;
+  throw new Error("توجد عملية حفظ غير مكتملة أو ملف غير سليم. راجع الاسترداد قبل إنشاء خزنة جديدة.");
 }
+
 export async function saveDeviceVault(file: RasdVaultFile): Promise<void> {
-  const serialized = JSON.stringify(parseVaultFile(JSON.stringify(file)));
-  // Verify the pending write before touching the committed vault.
-  await Filesystem.writeFile({ path: DRAFT, directory: Directory.Data,
-    data: serialized, encoding: Encoding.UTF8 });
-  if (await readFile(DRAFT) !== serialized) throw new Error("تعذر التحقق من حفظ البيانات على الجهاز.");
-  const old = await readFile(PRIMARY);
-  if (old !== null) await Filesystem.writeFile({ path: PREVIOUS, directory: Directory.Data,
-    data: old, encoding: Encoding.UTF8 });
-  await Filesystem.writeFile({ path: PRIMARY, directory: Directory.Data,
-    data: serialized, encoding: Encoding.UTF8 });
-  if (await readFile(PRIMARY) !== serialized) throw new Error("لم يكتمل حفظ الخزنة. لا تغلق التطبيق قبل معالجة الخطأ.");
-  await Filesystem.deleteFile({ path: DRAFT, directory: Directory.Data }).catch(() => {});
+  return commitVaultFiles(adapter, file);
 }
+
+/** Authenticated and explicitly confirmed restore of selected local snapshot. */
+export async function recoverDeviceVault(
+  source: VaultFileName, decryptedCandidate: RasdVaultFile,
+): Promise<void> {
+  return promoteVaultCandidate(adapter, source, decryptedCandidate);
+}
+
 /** Save the already encrypted envelope into Android cache and let the owner
  * choose Google Drive / local file manager in Android's official share sheet.
  * No background upload, Google sign-in, or plaintext export takes place.
