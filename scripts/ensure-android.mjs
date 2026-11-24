@@ -178,3 +178,38 @@ if (!activitySource.includes("registerPlugin(RasdPrintPlugin.class)")) {
 `);
   writeFileSync(activityJava, activitySource);
 }
+
+/**
+ * Offline-only, Keystore-backed device unlock. The source is bundled from our
+ * auditable Java template; it is never registered in the cloud APK.
+ * Android's protected KeyStore permission is checked by the OS.
+ */
+if (localOnly) {
+  const deviceUnlockPath = "android/app/src/main/java/" + javaPackagePath + "/RasdDeviceUnlockPlugin.java";
+  const source = readFileSync("native/android/RasdDeviceUnlockPlugin.java", "utf8");
+  if (!source.startsWith("package " + nativePackage + ";")) {
+    throw new Error("Device unlock Java package mismatch. Build only isolated offline APK.");
+  }
+  if (!existsSync(deviceUnlockPath) || readFileSync(deviceUnlockPath, "utf8") !== source) {
+    writeFileSync(deviceUnlockPath, source);
+  }
+  activitySource = readFileSync(activityJava, "utf8");
+  if (!activitySource.includes("registerPlugin(RasdDeviceUnlockPlugin.class)")) {
+    if (!activitySource.includes("registerPlugin(RasdPrintPlugin.class);")) {
+      throw new Error("Cannot find Capacitor plugin registration in MainActivity");
+    }
+    activitySource = activitySource.replace(
+      "registerPlugin(RasdPrintPlugin.class);",
+      "registerPlugin(RasdPrintPlugin.class);\n        registerPlugin(RasdDeviceUnlockPlugin.class);"
+    );
+    writeFileSync(activityJava, activitySource);
+  }
+  manifest = readFileSync(manifestPath, "utf8");
+  if (!manifest.includes("android.permission.USE_BIOMETRIC")) {
+    if (!manifest.includes("<application")) throw new Error("Android application element missing");
+    manifest = manifest.replace("<application",
+      '<uses-permission android:name="android.permission.USE_BIOMETRIC" />\n    <application');
+    writeFileSync(manifestPath, manifest);
+  }
+  console.log("Offline Rasd device-backed quick unlock registered (Android 11+).");
+}
