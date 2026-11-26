@@ -39,7 +39,13 @@ def visible(node):
     return len(bounds) == 4 and bounds[2] > bounds[0] and bounds[3] > bounds[1]
 
 def find_text(items, text):
-    return next((n for n in items if visible(n) and (
+    candidates = [n for n in items if visible(n)]
+    exact = next((n for n in candidates if text in (
+        n.get("text", ""), n.get("content-desc", "")
+    )), None)
+    if exact is not None:
+        return exact
+    return next((n for n in candidates if (
         text in n.get("text", "") or text in n.get("content-desc", "")
     )), None)
 
