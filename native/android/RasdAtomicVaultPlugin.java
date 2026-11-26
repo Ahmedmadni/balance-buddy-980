@@ -34,7 +34,7 @@ public class RasdAtomicVaultPlugin extends Plugin {
 
     private void syncDirectory(File directory) throws Exception {
         FileDescriptor fd = Os.open(directory.getAbsolutePath(),
-            OsConstants.O_RDONLY | OsConstants.O_DIRECTORY, 0);
+            OsConstants.O_RDONLY, 0);
         try { Os.fsync(fd); } finally { Os.close(fd); }
     }
 
@@ -100,9 +100,15 @@ public class RasdAtomicVaultPlugin extends Plugin {
         synchronized (LOCK) {
             try {
                 File file = target(call);
-                try { Os.unlink(file.getAbsolutePath()); }
-                catch (android.system.ErrnoException e) {
-                    if (e.errno != OsConstants.ENOENT) throw e;
+                if (!file.delete()) {
+                    // File.delete() returns false for both absence and errors.
+                    // Only ENOENT is safe to treat as a completed deletion.
+                    try {
+                        Os.stat(file.getAbsolutePath());
+                        throw new java.io.IOException("Vault slot still exists");
+                    } catch (android.system.ErrnoException e) {
+                        if (e.errno != OsConstants.ENOENT) throw e;
+                    }
                 }
                 syncDirectory(file.getParentFile());
                 call.resolve();
