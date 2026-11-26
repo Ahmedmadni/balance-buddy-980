@@ -488,7 +488,7 @@ function OfflineRasd() {
     </main>
     {stage === "open" && <nav className="bottom-tabs" aria-label="تنقل رصد المحلي">
       {([["home","الرئيسية",Wallet],["wallets","المحافظ",Wallet],["entries","الحركات",ArrowDownLeft],["debts","الديون",HandCoins],["backup","النسخ",FileDown]] as const).map(([id,label,Icon])=>
-        <button key={id} onClick={()=>{setTab(id);setError("");setInfo("");setName("");setAmount("");setNote("")}} className={tab===id?"active":""}><Icon size={20}/><span>{label}</span></button>
+        <button key={id} aria-label={"تبويب "+label} aria-current={tab===id?"page":undefined} onClick={()=>{setTab(id);setError("");setInfo("");setName("");setAmount("");setNote("")}} className={tab===id?"active":""}><Icon size={20}/><span>{label}</span></button>
       )}
     </nav>}
     <footer>رصد — خزنة محلية مشفرة • إصدار تجريبي مستقل • لا يستخدم خادمًا لحفظ البيانات</footer>
