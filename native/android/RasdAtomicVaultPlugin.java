@@ -76,8 +76,9 @@ public class RasdAtomicVaultPlugin extends Plugin {
                 File file = target(call);
                 String data = call.getString("data");
                 if (data == null || data.isEmpty()) throw new IllegalArgumentException();
-                // Unique scratch files cannot be confused with committed snapshots.
-                temp = File.createTempFile("rasd-vault-", ".tmp", file.getParentFile());
+                // One scratch slot per target bounds leftovers after process death.
+                // It is never read as committed data. The lock prevents overlap.
+                temp = new File(file.getParentFile(), file.getName() + ".atomic-tmp");
                 try (FileOutputStream out = new FileOutputStream(temp)) {
                     out.write(data.getBytes(StandardCharsets.UTF_8));
                     out.flush();
