@@ -142,6 +142,7 @@ def main():
     wait_text(WALLET)
     assert envelope() == saved, "Reopening unexpectedly rewrote the committed snapshot"
     print("PASS: encrypted wallet persists across force-stop and password unlock with network disabled.")
+    return saved
 
 if __name__ == "__main__":
     main()
