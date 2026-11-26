@@ -154,4 +154,42 @@ describe("Rasd local vault crash recovery (file-only, no silent rollback)", () =
     await expect(promoteVaultCandidate(s.io,"pending",snap.file)).rejects.toThrow("تغيّر");
     expect(s.map.get("primary")).toContain("CIPHERTEXT1");
   });
+
+  test("empty pending file is evidence of interrupted write, not a completed commit", async () => {
+    const s = memory();
+    await commitVaultFiles(s.io, fixture(1));
+    s.map.set("pending", "");
+    const inspection = await inspectVaultFiles(s.io);
+    expect(inspection.kind).toBe("recovery_required");
+    await expect(commitVaultFiles(s.io, fixture(2))).rejects.toThrow();
+  });
+
+  test("missing primary with surviving previous snapshot blocks new commits", async () => {
+    const s = memory();
+    await commitVaultFiles(s.io, fixture(1));
+    await commitVaultFiles(s.io, fixture(2));
+    s.map.delete("primary");
+    const original = s.map.get("previous");
+    expect((await inspectVaultFiles(s.io)).kind).toBe("recovery_required");
+    await expect(commitVaultFiles(s.io, fixture(3))).rejects.toThrow();
+    expect(s.map.get("previous")).toBe(original);
+    expect(s.map.has("primary")).toBe(false);
+    expect(s.map.has("pending")).toBe(false);
+  });
+
+  test("selecting the only surviving primary never risks truncating it again", async () => {
+    const s = memory();
+    await commitVaultFiles(s.io, fixture(1));
+    const original = s.map.get("primary");
+    s.map.set("pending", "{broken");
+    s.fail(name => name === "primary" ? "after" : null);
+    const inspection = await inspectVaultFiles(s.io);
+    if (inspection.kind !== "recovery_required") throw Error("expected recovery");
+    expect(inspection.candidates.map(c => c.source)).toEqual(["primary"]);
+    await promoteVaultCandidate(s.io, "primary", inspection.candidates[0].file);
+    expect(s.map.get("primary")).toBe(original);
+    expect(s.map.has("pending")).toBe(false);
+    expect((await inspectVaultFiles(s.io)).kind).toBe("ready");
+  });
+
 });
