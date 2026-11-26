@@ -213,3 +213,17 @@ if (localOnly) {
   }
   console.log("Offline Rasd device-backed quick unlock registered (Android 11+).");
 }
+
+if (localOnly) {
+  const pluginPath = "android/app/src/main/java/" + javaPackagePath + "/RasdAtomicVaultPlugin.java";
+  const source = readFileSync("native/android/RasdAtomicVaultPlugin.java", "utf8");
+  if (!source.startsWith("package " + nativePackage + ";")) throw new Error("Atomic vault package mismatch");
+  writeFileSync(pluginPath, source);
+  activitySource = readFileSync(activityJava, "utf8");
+  if (!activitySource.includes("registerPlugin(RasdAtomicVaultPlugin.class)")) {
+    if (!activitySource.includes("registerPlugin(RasdDeviceUnlockPlugin.class);")) throw new Error("Local bridge registration missing");
+    activitySource = activitySource.replace("registerPlugin(RasdDeviceUnlockPlugin.class);",
+      "registerPlugin(RasdDeviceUnlockPlugin.class);\n        registerPlugin(RasdAtomicVaultPlugin.class);");
+    writeFileSync(activityJava, activitySource);
+  }
+}
