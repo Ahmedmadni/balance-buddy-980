@@ -62,15 +62,21 @@ export async function loadDeviceVault(): Promise<RasdVaultFile | null> {
   throw new Error("توجد عملية حفظ غير مكتملة أو ملف غير سليم. راجع الاسترداد قبل إنشاء خزنة جديدة.");
 }
 
-export async function saveDeviceVault(file: RasdVaultFile): Promise<void> {
-  return exclusive(() => commitVaultFiles(adapter, file));
+export async function saveDeviceVault(file: RasdVaultFile, authorized: () => boolean = () => true): Promise<void> {
+  return exclusive(() => {
+    if (!authorized()) throw new Error("انتهت جلسة الحفظ.");
+    return commitVaultFiles(adapter, file);
+  });
 }
 
 /** Authenticated and explicitly confirmed restore of selected local snapshot. */
 export async function recoverDeviceVault(
-  source: VaultFileName, decryptedCandidate: RasdVaultFile,
+  source: VaultFileName, decryptedCandidate: RasdVaultFile, authorized: () => boolean = () => true,
 ): Promise<void> {
-  return exclusive(() => promoteVaultCandidate(adapter, source, decryptedCandidate));
+  return exclusive(() => {
+    if (!authorized()) throw new Error("انتهت جلسة الاسترداد.");
+    return promoteVaultCandidate(adapter, source, decryptedCandidate);
+  });
 }
 
 const safety = {
