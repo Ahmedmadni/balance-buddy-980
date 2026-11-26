@@ -33,4 +33,4 @@ fi
 echo "PASS: Rasd local-only setup screen renders with network disabled."
 
 # Actual financial persistence and password unlock, not merely setup rendering.
-python3 scripts/android-offline-vault-persistence.py
+python3 scripts/android-offline-vault-persistence.py "$APK"
