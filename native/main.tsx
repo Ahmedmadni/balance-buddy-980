@@ -14,7 +14,7 @@ import {
   inspectDeviceVault, recoverDeviceVault, saveDeviceVault, shareEncryptedBackup,
   restoreDeviceBackup, hasRestoreSafetyCopy, exportRestoreSafetyCopy, retireRestoreSafetyCopy,
 } from "../src/lib/offline/device-store";
-import { previewEncryptedBackup, type BackupPreview } from "../src/lib/offline/backup-restore";
+import { previewEncryptedBackup, isRestoreConfirmation, type BackupPreview } from "../src/lib/offline/backup-restore";
 import { type VaultCandidate, type VaultFileName } from "../src/lib/offline/vault-transaction";
 import {
   probeDeviceUnlock, enableDeviceUnlock, unlockDeviceKey, disableDeviceUnlock,
@@ -514,8 +514,8 @@ function OfflineRasd() {
     {!!importPreview && <>
       <p role="status">تم التحقق من النسخة: {importPreview.summary.wallets} محافظ، {importPreview.summary.entries} حركات، {importPreview.summary.debts} ديون. إجمالي الأرصدة: {fmt(importPreview.summary.balanceMinor)}.</p>
       {!!file && <Field label="كلمة المرور الرئيسية للخزنة الحالية"><input disabled={busy} type="password" autoComplete="current-password" value={importMaster} onChange={e=>setImportMaster(e.target.value)}/></Field>}
-      <Field label="للتأكيد، اكتب «استبدال»"><input disabled={busy} value={importConfirm} onChange={e=>setImportConfirm(e.target.value)} /></Field>
-      <button className="danger full" disabled={busy||importConfirm.trim()!=="استبدال"||!!file&&!importMaster} onClick={restoreBackup}><FileUp size={18}/> استعادة النسخة المشفرة</button>
+      <Field label="للتأكيد، اكتب «استبدال» أو RESTORE"><input disabled={busy} value={importConfirm} onChange={e=>setImportConfirm(e.target.value)} /></Field>
+      <button className="danger full" disabled={busy||!isRestoreConfirmation(importConfirm)||!!file&&!importMaster} onClick={restoreBackup}><FileUp size={18}/> استعادة النسخة المشفرة</button>
     </>}
   </>;
   const totalBalance = ledger.wallets.reduce((sum,w) => sum + walletBalanceMinor(w, ledger.entries),0);
@@ -680,7 +680,7 @@ function OfflineRasd() {
           <button className="secondary full" disabled={busy} onClick={changePassword}><KeyRound size={18}/> تغيير كلمة المرور</button>
           <hr/><h3>استيراد نسخة مشفرة</h3>
           <p>الاستيراد يستبدل بيانات الخزنة المحلية الحالية بعد فك تشفير النسخة وتأكيدك. خذ نسخة احتياطية من بياناتك الحالية أولًا.</p>
-          <input className="file-picker" type="file" disabled={busy} accept=".rasd,.json,application/json" onChange={e=>void chooseBackup(e)} />
+          <input aria-label="اختيار ملف نسخة رصد" className="file-picker" type="file" disabled={busy} accept=".rasd,.json,application/json" onChange={e=>void chooseBackup(e)} />
           {importForm}
           {safetyPresent && <>
             <hr/><h3>نسخة الأمان قبل الاستعادة</h3>
@@ -698,7 +698,7 @@ function OfflineRasd() {
       {(stage==="setup"||stage==="locked") && <details className="panel secondary-panel">
         <summary>لدي نسخة رصد محلية مشفرة وأريد استعادتها</summary>
         <p>ملف <code>.rasd</code> الناتج من هذه النسخة المحلية فقط. لا يمكن استيراد نسخة Supabase القديمة تلقائيًا.</p>
-        <input className="file-picker" type="file" disabled={busy} accept=".rasd,.json,application/json" onChange={e=>void chooseBackup(e)}/>
+        <input aria-label="اختيار ملف نسخة رصد" className="file-picker" type="file" disabled={busy} accept=".rasd,.json,application/json" onChange={e=>void chooseBackup(e)}/>
         {importForm}
       </details>}
     </main>
