@@ -1,7 +1,8 @@
 import { registerPlugin, Capacitor } from "@capacitor/core";
 import { Directory, Encoding, Filesystem } from "@capacitor/filesystem";
 import { Share } from "@capacitor/share";
-import { type RasdVaultFile } from "./crypto";
+import { parseVaultFile, unlockWithPassword, type RasdVaultFile } from "./crypto";
+import { restoreVerifiedBackup, type RestoreRequest } from "./backup-restore";
 import {
   commitVaultFiles, inspectVaultFiles, promoteVaultCandidate,
   type VaultFileName, type VaultFiles, type VaultInspection,
@@ -11,10 +12,11 @@ import {
  * App-private Android Data directory. No localStorage, cookies, Supabase or
  * remotely hosted website is used for persistent financial records.
  */
+type NativeSlot = VaultFileName | "restore-safety";
 interface AtomicVaultPlugin {
-  read(options: { name: VaultFileName }): Promise<{ exists: boolean; data?: string }>;
-  write(options: { name: VaultFileName; data: string }): Promise<void>;
-  remove(options: { name: VaultFileName }): Promise<void>;
+  read(options: { name: NativeSlot }): Promise<{ exists: boolean; data?: string }>;
+  write(options: { name: NativeSlot; data: string }): Promise<void>;
+  remove(options: { name: NativeSlot }): Promise<void>;
 }
 const nativeVault = registerPlugin<AtomicVaultPlugin>("RasdAtomicVault");
 function requireAndroid() {
@@ -22,7 +24,7 @@ function requireAndroid() {
     throw new Error("التخزين الآمن متاح فقط في نسخة رصد Android المحلية.");
   }
 }
-const adapter: VaultFiles = {
+const adapter: VaultFiles & { read(name: NativeSlot): Promise<string | null>; write(name: NativeSlot, data: string): Promise<void>; remove(name: NativeSlot): Promise<void> } = {
   read: async name => {
     requireAndroid();
     const result = await nativeVault.read({ name });
@@ -71,12 +73,57 @@ export async function recoverDeviceVault(
   return exclusive(() => promoteVaultCandidate(adapter, source, decryptedCandidate));
 }
 
+const safety = {
+  read: () => adapter.read("restore-safety"),
+  write: (encrypted: string) => adapter.write("restore-safety", encrypted),
+};
+
+export function restoreDeviceBackup(request: RestoreRequest) {
+  return exclusive(() => restoreVerifiedBackup(adapter,safety,request));
+}
+
+export function hasRestoreSafetyCopy(): Promise<boolean> {
+  return exclusive(async () => (await safety.read()) !== null);
+}
+
+/** Authenticate current owner before accessing or retiring the old encrypted
+ * copy. Sharing does not certify that a destination actually saved the file. */
+async function authorizedSafetyCopy(expected: RasdVaultFile, master: string, authorized: () => boolean) {
+  const current = await inspectVaultFiles(adapter);
+  if (!authorized() || current.kind !== "ready" || JSON.stringify(current.file) !== JSON.stringify(expected))
+    throw new Error("تغيّرت الخزنة أو انتهت الجلسة.");
+  const value = await unlockWithPassword(current.file,master);
+  value.keyBytes.fill(0);
+  if (!authorized()) throw new Error("انتهت الجلسة.");
+  const raw = await safety.read();
+  if (raw === null) throw new Error("لا توجد نسخة أمان سابقة.");
+  if (!authorized()) throw new Error("انتهت الجلسة.");
+  return raw;
+}
+
+export function exportRestoreSafetyCopy(expected: RasdVaultFile, master: string, authorized: () => boolean) {
+  return exclusive(async () => {
+    const raw = await authorizedSafetyCopy(expected,master,authorized);
+    await shareEncryptedBackup(parseVaultFile(raw),"rasd-before-restore");
+  });
+}
+
+export function retireRestoreSafetyCopy(expected: RasdVaultFile, master: string, confirmation: string, authorized: () => boolean) {
+  return exclusive(async () => {
+    if (confirmation.trim() !== "حفظت النسخة") throw new Error("أكد حفظ نسخة الأمان خارج التطبيق أولًا.");
+    await authorizedSafetyCopy(expected,master,authorized);
+    if (!authorized()) throw new Error("انتهت الجلسة.");
+    await adapter.remove("restore-safety");
+    if (await safety.read() !== null) throw new Error("تعذّر تحرير نسخة الأمان.");
+  });
+}
+
 /** Save the already encrypted envelope into Android cache and let the owner
  * choose Google Drive / local file manager in Android's official share sheet.
  * No background upload, Google sign-in, or plaintext export takes place.
  */
-export async function shareEncryptedBackup(file: RasdVaultFile): Promise<void> {
-  const name = "rasd-backup-" + new Date().toISOString().slice(0,10) + ".rasd";
+export async function shareEncryptedBackup(file: RasdVaultFile, prefix: "rasd-backup" | "rasd-before-restore" = "rasd-backup"): Promise<void> {
+  const name = prefix + "-" + new Date().toISOString().slice(0,10) + "-" + crypto.randomUUID() + ".rasd";
   await Filesystem.writeFile({ path: name, directory: Directory.Cache,
     data: JSON.stringify(file), encoding: Encoding.UTF8 });
   const { uri } = await Filesystem.getUri({ path: name, directory: Directory.Cache });
