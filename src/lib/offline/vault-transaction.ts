@@ -35,7 +35,7 @@ export async function inspectVaultFiles(io: VaultFiles): Promise<VaultInspection
   const primary = parseCandidate(primaryText);
   const pending = parseCandidate(pendingText);
   const previous = parseCandidate(previousText);
-  if (primary && (!pendingText || pendingText === primaryText)) {
+  if (primary && (pendingText === null || pendingText === primaryText)) {
     return { kind: "ready", file: primary };
   }
   if (primaryText === null && pendingText === null && previousText === null)
@@ -66,6 +66,9 @@ export async function commitVaultFiles(io: VaultFiles, file: RasdVaultFile): Pro
   const pendingText = await io.read("pending");
   if (pendingText !== null && pendingText !== primaryText) {
     throw new Error("توجد عملية حفظ غير مكتملة. أعد تشغيل رصد وافحص النسخة المعلقة قبل أي تعديل.");
+  }
+  if (primaryText === null && await io.read("previous") !== null) {
+    throw new Error("ملف الخزنة الرئيسي مفقود وتوجد نسخة سابقة. افحص الاسترداد قبل أي حفظ.");
   }
   if (primaryText !== null && !parseCandidate(primaryText)) {
     throw new Error("ملف الخزنة الرئيسي غير سليم. أوقف الحفظ وافحص النسخة السابقة.");
@@ -106,9 +109,13 @@ export async function promoteVaultCandidate(
   }
   // Crucial: do NOT rewrite 'previous' during recovery. It may be the
   // ONLY surviving good copy after a truncated primary. Preserve it.
-  await io.write("primary", expected);
-  if (await io.read("primary") !== expected)
-    throw new Error("فشل اعتماد الملف المستعاد. احتفظ بنسخة الاسترداد الأصلية.");
+  // When the owner chooses primary itself, the verified original must not
+  // be rewritten: a partial write could destroy the only surviving copy.
+  if (source !== "primary") {
+    await io.write("primary", expected);
+    if (await io.read("primary") !== expected)
+      throw new Error("فشل اعتماد الملف المستعاد. احتفظ بنسخة الاسترداد الأصلية.");
+  }
   // After explicit choice, an unselected pending draft must not cause a
   // second recovery prompt. A failed deletion is safe but will re-prompt.
   try { await io.remove("pending"); } catch { /* re-inspection will prompt */ }
