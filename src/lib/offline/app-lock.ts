@@ -78,6 +78,12 @@ export async function enrollAppLock(file: RasdVaultFile, method: AppLockMethod, 
     const vaultTag = await getDeviceVaultTag(file);
     if (!stillAuthorized()) throw new Error("انتهت جلسة الإعداد؛ افتح الخزنة مجددًا.");
     await bridge.enable({ method, vaultTag, secret, keyBase64: encodeKey(opened.keyBytes) });
+    // Enrollment may complete after the app has been locked in the background.
+    // Revoke the newly created shortcut rather than keeping a stale grant.
+    if (!stillAuthorized()) {
+      await bridge.disable({ method });
+      throw new Error("انتهت جلسة الإعداد؛ أُلغي الاختصار الجديد.");
+    }
   } finally { opened.keyBytes.fill(0); }
 }
 export async function removeAppLock(file: RasdVaultFile, method: AppLockMethod,
