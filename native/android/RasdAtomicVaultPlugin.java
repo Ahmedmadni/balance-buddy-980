@@ -27,6 +27,7 @@ public class RasdAtomicVaultPlugin extends Plugin {
             case "primary": name = "rasd-private-v1.json"; break;
             case "previous": name = "rasd-private-previous-v1.json"; break;
             case "pending": name = "rasd-private-pending-v1.json"; break;
+            case "restore-safety": name = "rasd-private-restore-safety-v1.json"; break;
             default: throw new IllegalArgumentException("Unknown vault slot");
         }
         return new File(getContext().getFilesDir(), name);
