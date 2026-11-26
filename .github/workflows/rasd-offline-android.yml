@@ -75,6 +75,18 @@ jobs:
           grep -q 'setUserAuthenticationRequired(true)' "$PLUGIN"
           grep -q 'AndroidKeyStore' "$PLUGIN"
           echo 'PASS: Rasd local-only Android Keystore hardware-bound key unwrap installed'
+      - name: Verify independent credential bridge is packaged only for local Android
+        run: |
+          set -euo pipefail
+          ROOT=android/app/src/main
+          PLUGIN="$ROOT/java/app/lovable/rasd/local/RasdAppLockPlugin.java"
+          test -s "$PLUGIN"
+          grep -q 'registerPlugin(RasdAppLockPlugin.class)' "$ROOT/java/app/lovable/rasd/local/MainActivity.java"
+          grep -q 'android:allowBackup="false"' "$ROOT/AndroidManifest.xml"
+          grep -q 'isInsideSecureHardware()' "$PLUGIN"
+          grep -q 'MAX_FAILURES = 5' "$PLUGIN"
+          grep -q 'putInt("failures", failures+1).commit()' "$PLUGIN"
+          echo 'PASS: independent app lock packaged, hardware guard and persisted attempt cap present'
       - uses: actions/upload-artifact@v4
         with:
           name: rasd-offline-android-beta-apk
