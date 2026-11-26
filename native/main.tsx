@@ -12,7 +12,9 @@ import {
 } from "../src/lib/offline/ledger";
 import {
   inspectDeviceVault, recoverDeviceVault, saveDeviceVault, shareEncryptedBackup,
+  restoreDeviceBackup, hasRestoreSafetyCopy, exportRestoreSafetyCopy, retireRestoreSafetyCopy,
 } from "../src/lib/offline/device-store";
+import { previewEncryptedBackup, isRestoreConfirmation, type BackupPreview } from "../src/lib/offline/backup-restore";
 import { type VaultCandidate, type VaultFileName } from "../src/lib/offline/vault-transaction";
 import {
   probeDeviceUnlock, enableDeviceUnlock, unlockDeviceKey, disableDeviceUnlock,
@@ -90,6 +92,20 @@ function OfflineRasd() {
   const [importing, setImporting] = useState<RasdVaultFile | null>(null);
   const [importPassword, setImportPassword] = useState("");
   const [importConfirm, setImportConfirm] = useState("");
+  const [importMethod, setImportMethod] = useState<"password"|"recovery">("password");
+  const [importMaster, setImportMaster] = useState("");
+  const [importPreview, setImportPreview] = useState<BackupPreview|null>(null);
+  const importRevision = useRef(0);
+  const [safetyPresent, setSafetyPresent] = useState(false);
+  const [safetyMaster, setSafetyMaster] = useState("");
+  const [safetyConfirmation, setSafetyConfirmation] = useState("");
+  const [safetyShareOpened, setSafetyShareOpened] = useState(false);
+  const clearImport = useCallback(() => {
+    importRevision.current++;
+    setImporting(null); setImportPassword(""); setImportConfirm(""); setImportMaster("");
+    setImportPreview(null); setImportMethod("password");
+    setSafetyMaster(""); setSafetyConfirmation(""); setSafetyShareOpened(false);
+  }, []);
   const [name, setName] = useState("");
   const [amount, setAmount] = useState("");
   const [note, setNote] = useState("");
@@ -102,6 +118,7 @@ function OfflineRasd() {
   const lock = useCallback(() => {
     lockEpoch.current++;
     clearAppLockForm();
+    clearImport();
     setVerify(""); setRecoveryInput(""); setImportPassword(""); setImportConfirm(""); setCurrentMaster(""); setDeviceMaster("");
     setName(""); setAmount(""); setNote("");
     opened.current?.keyBytes.fill(0);
@@ -112,8 +129,16 @@ function OfflineRasd() {
     setLedger(emptyLedger());
     setPassword("");
     setStage(old => old === "open" ? "locked" : old);
-  }, [clearAppLockForm]);
+  }, [clearAppLockForm, clearImport]);
 
+  useEffect(() => {
+    let active = true;
+    if (stage === "open" && tab === "backup") {
+      void hasRestoreSafetyCopy().then(present=>{if(active)setSafetyPresent(present);})
+        .catch(e=>{if(active)setError(errorText(e));});
+    }
+    return ()=>{active=false;};
+  }, [stage,tab,file]);
   useEffect(() => {
     let active = true;
     if (file) void probeDeviceUnlock(file).then(status => {
@@ -415,31 +440,84 @@ function OfflineRasd() {
     });
   }
   async function chooseBackup(event: React.ChangeEvent<HTMLInputElement>) {
-    setError(""); setImporting(null);
     const input = event.target.files?.[0];
-    if (!input) return;
+    event.target.value = "";
+    if (!input || busyRef.current) return;
+    clearImport(); setError(""); setInfo("");
+    const epoch = lockEpoch.current, revision = importRevision.current;
     try {
       if (input.size > 32 * 1024 * 1024) throw new Error("ملف النسخة كبير جدًا.");
-      setImporting(parseVaultFile(await input.text()));
-      setImportConfirm("");
-      setImportPassword("");
-      setInfo("ملف مشفر صالح مبدئيًا. يلزم إدخال كلمة مرور النسخة قبل استبدال أي بيانات.");
-    } catch (e) { setError(errorText(e)); }
-    event.target.value = "";
+      const backup = parseVaultFile(await input.text());
+      if (lockEpoch.current !== epoch || importRevision.current !== revision) return;
+      setImporting(backup);
+      setInfo("ملف مشفر صالح مبدئيًا. تحقق من محتواه قبل الاستعادة.");
+    } catch (e) { if (importRevision.current === revision) setError(errorText(e)); }
+  }
+  function previewBackup() {
+    void action(async () => {
+      if (!importing) throw new Error("اختر ملف النسخة أولًا.");
+      const epoch = lockEpoch.current, revision = importRevision.current;
+      setImportPreview(null); setImportConfirm("");
+      const preview = await previewEncryptedBackup(importing,{kind:importMethod,secret:importMethod==="recovery"?importPassword.trim():importPassword});
+      if (lockEpoch.current !== epoch || importRevision.current !== revision) throw new Error("انتهت جلسة المعاينة.");
+      setImportPreview(preview);
+    });
   }
   function restoreBackup() {
     void action(async () => {
-      if (!importing) throw new Error("اختر ملف النسخة أولًا.");
-      if (fileRef.current && importConfirm.trim() !== "استبدال")
-        throw new Error("اكتب «استبدال» لتأكيد استبدال الخزنة المحلية الحالية.");
-      const recovered = await unlockWithPassword(importing, importPassword);
-      await revokeLocalShortcuts();
-      await saveDeviceVault(importing);
-      adopt(importing, recovered);
-      setImporting(null); setImportPassword(""); setImportConfirm("");
+      if (!importing || !importPreview) throw new Error("تحقق من النسخة واعرض معاينتها أولًا.");
+      const snapshot = fileRef.current, session = opened.current, epoch = lockEpoch.current, revision = importRevision.current;
+      const authorized = () => lockEpoch.current === epoch && opened.current === session && fileRef.current === snapshot && importRevision.current === revision;
+      const recovered = await restoreDeviceBackup({
+        backup:importing, preview:importPreview, credential:{kind:importMethod,secret:importMethod==="recovery"?importPassword.trim():importPassword},
+        expectedCurrent:snapshot,currentMaster:importMaster,confirmation:importConfirm,stillAuthorized:authorized,
+        revokeShortcuts:revokeLocalShortcuts,
+      });
+      const mayAdopt = authorized();
+      clearImport();
+      if (!mayAdopt) {
+        recovered.keyBytes.fill(0);
+        fileRef.current=importing; setFile(importing); lock(); setStage("locked");
+        setInfo("حُفظت النسخة المشفرة. افتح الخزنة مجددًا للتحقق من بياناتها.");
+        return;
+      }
+      adopt(importing,recovered);
       setInfo("اكتملت استعادة النسخة المشفرة محليًا. راجع المحافظ والأرصدة.");
     });
   }
+  function manageSafetyCopy(retire: boolean) {
+    void action(async()=>{
+      const snapshot=fileRef.current, session=opened.current, epoch=lockEpoch.current, revision=importRevision.current;
+      if (!snapshot || !session) throw new Error("افتح الخزنة أولًا.");
+      const authorized=()=>lockEpoch.current===epoch && opened.current===session && fileRef.current===snapshot && importRevision.current===revision;
+      if(retire) {
+        if(!safetyShareOpened) throw new Error("صدّر نسخة الأمان أولًا.");
+        await retireRestoreSafetyCopy(snapshot,safetyMaster,safetyConfirmation,authorized);
+        setSafetyPresent(false); setSafetyShareOpened(false); setSafetyConfirmation("");
+        setInfo("تم تحرير ملف الأمان المستقل بناءً على تأكيدك حفظه خارجيًا.");
+      } else {
+        await exportRestoreSafetyCopy(snapshot,safetyMaster,authorized);
+        if(authorized()) {
+          setSafetyShareOpened(true);
+          setInfo("فُتحت نافذة المشاركة. تحقق بنفسك من حفظ نسخة الأمان قبل تحريرها.");
+        }
+      }
+      setSafetyMaster("");
+    });
+  }
+  const importForm = importing && <>
+    <Field label="وسيلة التحقق من النسخة"><select disabled={busy} value={importMethod} onChange={e=>{importRevision.current++;setImportMethod(e.target.value as "password"|"recovery");setImportPassword("");setImportPreview(null);setImportConfirm("");}}>
+      <option value="password">كلمة المرور</option><option value="recovery">رمز الاسترداد</option>
+    </select></Field>
+    <Field label={importMethod==="password"?"كلمة مرور النسخة":"رمز استرداد النسخة"}><input disabled={busy} type="password" value={importPassword} onChange={e=>{importRevision.current++;setImportPassword(e.target.value);setImportPreview(null);setImportConfirm("");}}/></Field>
+    <button className="secondary full" disabled={busy||!importPassword} onClick={previewBackup}>فحص ومعاينة النسخة</button>
+    {!!importPreview && <>
+      <p role="status">تم التحقق من النسخة: {importPreview.summary.wallets} محافظ، {importPreview.summary.entries} حركات، {importPreview.summary.debts} ديون. إجمالي الأرصدة: {fmt(importPreview.summary.balanceMinor)}.</p>
+      {!!file && <Field label="كلمة المرور الرئيسية للخزنة الحالية"><input disabled={busy} type="password" autoComplete="current-password" value={importMaster} onChange={e=>setImportMaster(e.target.value)}/></Field>}
+      <Field label="للتأكيد، اكتب «استبدال» أو RESTORE"><input disabled={busy} value={importConfirm} onChange={e=>setImportConfirm(e.target.value)} /></Field>
+      <button className="danger full" disabled={busy||!isRestoreConfirmation(importConfirm)||!!file&&!importMaster} onClick={restoreBackup}><FileUp size={18}/> استعادة النسخة المشفرة</button>
+    </>}
+  </>;
   const totalBalance = ledger.wallets.reduce((sum,w) => sum + walletBalanceMinor(w, ledger.entries),0);
   const owed = ledger.debts.filter(d=>d.direction==="owed_to_me").reduce((s,d)=>s+d.amountMinor,0);
   const payable = ledger.debts.filter(d=>d.direction==="i_owe").reduce((s,d)=>s+d.amountMinor,0);
@@ -602,28 +680,31 @@ function OfflineRasd() {
           <button className="secondary full" disabled={busy} onClick={changePassword}><KeyRound size={18}/> تغيير كلمة المرور</button>
           <hr/><h3>استيراد نسخة مشفرة</h3>
           <p>الاستيراد يستبدل بيانات الخزنة المحلية الحالية بعد فك تشفير النسخة وتأكيدك. خذ نسخة احتياطية من بياناتك الحالية أولًا.</p>
-          <input className="file-picker" type="file" accept=".rasd,.json,application/json" onChange={e=>void chooseBackup(e)} />
-          {!!importing && <>
-            <Field label="كلمة مرور النسخة"><input type="password" value={importPassword} onChange={e=>setImportPassword(e.target.value)}/></Field>
-            <Field label="للتأكيد، اكتب «استبدال»"><input value={importConfirm} onChange={e=>setImportConfirm(e.target.value)} /></Field>
-            <button className="danger full" disabled={busy} onClick={restoreBackup}><FileUp size={18}/> استعادة واستبدال البيانات المحلية</button>
+          <input aria-label="اختيار ملف نسخة رصد" className="file-picker" type="file" disabled={busy} accept=".rasd,.json,application/json" onChange={e=>void chooseBackup(e)} />
+          {importForm}
+          {safetyPresent && <>
+            <hr/><h3>نسخة الأمان قبل الاستعادة</h3>
+            <p>نسخة مستقلة مشفرة من الخزنة السابقة. لا تُحذف بالحفظ العادي. تحتاج كلمة مرورها القديمة أو رمز استردادها عند استعادتها.</p>
+            <Field label="كلمة المرور الرئيسية الحالية"><input disabled={busy} type="password" value={safetyMaster} onChange={e=>setSafetyMaster(e.target.value)}/></Field>
+            <button className="secondary full" disabled={busy||!safetyMaster} onClick={()=>manageSafetyCopy(false)}><FileDown size={18}/> تصدير نسخة الأمان</button>
+            {safetyShareOpened && <>
+              <p>بعد التأكد من وجود الملف خارج التطبيق، يمكنك تحرير مكان نسخة الأمان للاستعادة التالية.</p>
+              <Field label="اكتب «حفظت النسخة» بعد التحقق من حفظها"><input disabled={busy} value={safetyConfirmation} onChange={e=>setSafetyConfirmation(e.target.value)}/></Field>
+              <button className="danger full" disabled={busy||!safetyMaster||safetyConfirmation.trim()!=="حفظت النسخة"} onClick={()=>manageSafetyCopy(true)}>تحرير نسخة الأمان المحلية</button>
+            </>}
           </>}
         </section>}
       </>}
       {(stage==="setup"||stage==="locked") && <details className="panel secondary-panel">
         <summary>لدي نسخة رصد محلية مشفرة وأريد استعادتها</summary>
         <p>ملف <code>.rasd</code> الناتج من هذه النسخة المحلية فقط. لا يمكن استيراد نسخة Supabase القديمة تلقائيًا.</p>
-        <input className="file-picker" type="file" accept=".rasd,.json,application/json" onChange={e=>void chooseBackup(e)}/>
-        {!!importing && <>
-          <Field label="كلمة مرور النسخة"><input type="password" value={importPassword} onChange={e=>setImportPassword(e.target.value)}/></Field>
-          {!!fileRef.current && <Field label="اكتب «استبدال» لتأكيد الاستعادة"><input value={importConfirm} onChange={e=>setImportConfirm(e.target.value)}/></Field>}
-          <button className="danger full" disabled={busy} onClick={restoreBackup}>استعادة النسخة المشفرة</button>
-        </>}
+        <input aria-label="اختيار ملف نسخة رصد" className="file-picker" type="file" disabled={busy} accept=".rasd,.json,application/json" onChange={e=>void chooseBackup(e)}/>
+        {importForm}
       </details>}
     </main>
     {stage === "open" && <nav className="bottom-tabs" aria-label="تنقل رصد المحلي">
       {([["home","الرئيسية",Wallet],["wallets","المحافظ",Wallet],["entries","الحركات",ArrowDownLeft],["debts","الديون",HandCoins],["backup","النسخ",FileDown]] as const).map(([id,label,Icon])=>
-        <button key={id} aria-label={"تبويب "+label} aria-current={tab===id?"page":undefined} onClick={()=>{clearAppLockForm();setCurrentMaster("");setDeviceMaster("");setPassword("");setVerify("");setTab(id);setError("");setInfo("");setName("");setAmount("");setNote("")}} className={tab===id?"active":""}><Icon size={20}/><span>{label}</span></button>
+        <button key={id} aria-label={"تبويب "+label} aria-current={tab===id?"page":undefined} onClick={()=>{if(busyRef.current)return;clearAppLockForm();clearImport();setCurrentMaster("");setDeviceMaster("");setPassword("");setVerify("");setTab(id);setError("");setInfo("");setName("");setAmount("");setNote("")}} className={tab===id?"active":""}><Icon size={20}/><span>{label}</span></button>
       )}
     </nav>}
     <footer>رصد — خزنة محلية مشفرة • إصدار تجريبي مستقل • لا يستخدم خادمًا لحفظ البيانات</footer>
