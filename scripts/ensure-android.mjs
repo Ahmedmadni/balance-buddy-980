@@ -232,7 +232,23 @@ if (localOnly) {
   const pluginPath = "android/app/src/main/java/" + javaPackagePath + "/RasdAppLockPlugin.java";
   const source = readFileSync("native/android/RasdAppLockPlugin.java", "utf8");
   if (!source.startsWith("package " + nativePackage + ";")) throw new Error("App lock package mismatch");
-  // Compile the security foundation now. Do not register/expose its bridge
-  // until fresh-password enrollment and lock lifecycle tests are implemented.
   writeFileSync(pluginPath, source);
+  activitySource = readFileSync(activityJava, "utf8");
+  if (!activitySource.includes("registerPlugin(RasdAppLockPlugin.class)")) {
+    if (!activitySource.includes("registerPlugin(RasdAtomicVaultPlugin.class);"))
+      throw new Error("App lock bridge requires the local vault bridge");
+    activitySource = activitySource.replace("registerPlugin(RasdAtomicVaultPlugin.class);",
+      "registerPlugin(RasdAtomicVaultPlugin.class);\n        registerPlugin(RasdAppLockPlugin.class);");
+    writeFileSync(activityJava, activitySource);
+  }
+  manifest = readFileSync(manifestPath, "utf8");
+  // Do not copy convenience credentials, attempt counters or encrypted vault
+  // snapshots via Android automatic backup. User-controlled exports remain.
+  manifest = manifest.replace(/<application\b[^>]*>/, tag => {
+    const attribute = /\bandroid:allowBackup\s*=\s*"[^"]*"/;
+    return attribute.test(tag) ? tag.replace(attribute, 'android:allowBackup="false"')
+      : tag.replace("<application", '<application android:allowBackup="false"');
+  });
+  if (!manifest.includes('android:allowBackup="false"')) throw new Error("Cannot disable system vault backup");
+  writeFileSync(manifestPath, manifest);
 }
