@@ -51,6 +51,7 @@ function OfflineRasd() {
   const [appLockSecret, setAppLockSecret] = useState("");
   const [appLockConfirm, setAppLockConfirm] = useState("");
   const [appLockMaster, setAppLockMaster] = useState("");
+  const [currentMaster, setCurrentMaster] = useState("");
   const [appLockStatus, setAppLockStatus] = useState<Record<AppLockMethod, AppLockProbe>>({
     pin: { enabled:false, blocked:false }, pattern: { enabled:false, blocked:false },
   });
@@ -61,7 +62,10 @@ function OfflineRasd() {
   const refreshAppLock = useCallback(async (snapshot: RasdVaultFile) => {
     try {
       const [pin,pattern] = await Promise.all([probeAppLock(snapshot,"pin"),probeAppLock(snapshot,"pattern")]);
-      if (fileRef.current === snapshot) setAppLockStatus({pin,pattern});
+      if (fileRef.current === snapshot) {
+        setAppLockStatus({pin,pattern});
+        setAppLockMethod(old => (old==="pin" ? pin.enabled || !pattern.enabled : pattern.enabled || !pin.enabled) ? old : old==="pin"?"pattern":"pin");
+      }
     } catch {
       if (fileRef.current === snapshot) setAppLockStatus({
         pin:{enabled:false,blocked:false},pattern:{enabled:false,blocked:false},
@@ -97,7 +101,8 @@ function OfflineRasd() {
   const lock = useCallback(() => {
     lockEpoch.current++;
     clearAppLockForm();
-    setVerify(""); setRecoveryInput(""); setImportPassword(""); setImportConfirm("");
+    setVerify(""); setRecoveryInput(""); setImportPassword(""); setImportConfirm(""); setCurrentMaster("");
+    setName(""); setAmount(""); setNote("");
     opened.current?.keyBytes.fill(0);
     opened.current = null;
     verifiedCandidate.current?.value.keyBytes.fill(0);
@@ -350,14 +355,25 @@ function OfflineRasd() {
   }
   function changePassword() {
     void action(async () => {
-      if (!opened.current || !fileRef.current) throw new Error("الخزنة مغلقة.");
+      const snapshot = fileRef.current, session = opened.current, epoch = lockEpoch.current;
+      if (!snapshot || !session) throw new Error("الخزنة مغلقة.");
       if (password !== verify) throw new Error("كلمتا المرور غير متطابقتين.");
-      const updated = await setNewPassword(fileRef.current, opened.current.keyBytes, password);
-      await revokeLocalShortcuts();
-      await saveDeviceVault(updated);
-      fileRef.current = updated; setFile(updated);
-      setPassword(""); setVerify("");
-      setInfo("تم تغيير كلمة المرور. رمز الاسترداد السابق ما زال صالحًا.");
+      const authenticated = await unlockWithPassword(snapshot,currentMaster);
+      try {
+        const updated = await setNewPassword(snapshot, authenticated.keyBytes, password);
+        if (lockEpoch.current !== epoch || opened.current !== session || fileRef.current !== snapshot)
+          throw new Error("انتهت جلسة تغيير كلمة المرور.");
+        await revokeLocalShortcuts();
+        if (lockEpoch.current !== epoch || opened.current !== session || fileRef.current !== snapshot)
+          throw new Error("انتهت جلسة تغيير كلمة المرور.");
+        await saveDeviceVault(updated);
+        fileRef.current = updated; setFile(updated);
+        setPassword(""); setVerify("");
+        setInfo("تم تغيير كلمة المرور وإلغاء اختصارات رصد المستقلة. رمز الاسترداد السابق ما زال صالحًا.");
+      } finally {
+        authenticated.keyBytes.fill(0);
+        setCurrentMaster("");
+      }
     });
   }
   function addWallet() {
@@ -570,6 +586,7 @@ function OfflineRasd() {
           <button className="primary full" disabled={busy||!file} onClick={()=>void action(async()=>{if(!fileRef.current)throw Error("الخزنة مغلقة");await shareEncryptedBackup(fileRef.current);setInfo("تم فتح نافذة المشاركة. تأكد بنفسك من حفظ الملف في المكان المختار.");})}><FileDown size={18}/> تصدير نسخة مشفرة</button>
           <hr/>
           <h3>تغيير كلمة المرور الرئيسية</h3>
+          <Field label="كلمة المرور الحالية"><input type="password" autoComplete="current-password" value={currentMaster} onChange={e=>setCurrentMaster(e.target.value)}/></Field>
           <Field label="الجديدة (12 حرفًا على الأقل)"><input type="password" value={password} onChange={e=>setPassword(e.target.value)}/></Field>
           <Field label="تأكيد الجديدة"><input type="password" value={verify} onChange={e=>setVerify(e.target.value)}/></Field>
           <button className="secondary full" disabled={busy} onClick={changePassword}><KeyRound size={18}/> تغيير كلمة المرور</button>
@@ -596,7 +613,7 @@ function OfflineRasd() {
     </main>
     {stage === "open" && <nav className="bottom-tabs" aria-label="تنقل رصد المحلي">
       {([["home","الرئيسية",Wallet],["wallets","المحافظ",Wallet],["entries","الحركات",ArrowDownLeft],["debts","الديون",HandCoins],["backup","النسخ",FileDown]] as const).map(([id,label,Icon])=>
-        <button key={id} aria-label={"تبويب "+label} aria-current={tab===id?"page":undefined} onClick={()=>{clearAppLockForm();setTab(id);setError("");setInfo("");setName("");setAmount("");setNote("")}} className={tab===id?"active":""}><Icon size={20}/><span>{label}</span></button>
+        <button key={id} aria-label={"تبويب "+label} aria-current={tab===id?"page":undefined} onClick={()=>{clearAppLockForm();setCurrentMaster("");setPassword("");setVerify("");setTab(id);setError("");setInfo("");setName("");setAmount("");setNote("")}} className={tab===id?"active":""}><Icon size={20}/><span>{label}</span></button>
       )}
     </nav>}
     <footer>رصد — خزنة محلية مشفرة • إصدار تجريبي مستقل • لا يستخدم خادمًا لحفظ البيانات</footer>
