@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import { createVault, sealVault, unlockWithPassword } from "./crypto";
 import { previewEncryptedBackup, restoreVerifiedBackup, type RestoreRequest } from "./backup-restore";
-import type { VaultFiles, VaultFileName } from "./vault-transaction";
+import { commitVaultFiles, type VaultFiles, type VaultFileName } from "./vault-transaction";
 
 const master = "Original-master-CI-2026!";
 const backupPassword = "Backup-master-CI-2026!";
@@ -62,6 +62,10 @@ describe("Authenticated backup restore",()=>{
     expect(f.files.get("primary")).toBe(JSON.stringify(f.target));
     expect(await f.safety.read()).toBe(JSON.stringify(f.current.file));
     expect(f.revoked()).toBe(1);
+    const later = await sealVault(f.target,opened.keyBytes,{...opened.ledger,wallets:[]});
+    await commitVaultFiles(f.io,later);
+    expect(f.files.get("previous")).toBe(JSON.stringify(f.target));
+    expect(await f.safety.read()).toBe(JSON.stringify(f.current.file));
     const safety=await unlockWithPassword(JSON.parse((await f.safety.read())!),master);
     expect(safety.ledger.wallets.length).toBe(0);
     opened.keyBytes.fill(0);safety.keyBytes.fill(0);
