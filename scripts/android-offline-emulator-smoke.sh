@@ -31,3 +31,6 @@ if grep -Eiq 'Edit with Lovable|lovable-badge|متابعة باستخدام جو
   exit 1
 fi
 echo "PASS: Rasd local-only setup screen renders with network disabled."
+
+# Actual financial persistence and password unlock, not merely setup rendering.
+python3 scripts/android-offline-vault-persistence.py
