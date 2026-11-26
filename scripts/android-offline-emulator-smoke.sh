@@ -13,7 +13,7 @@ ready=""
 for i in $(seq 1 35); do
   adb shell uiautomator dump /sdcard/offline-ui.xml >/dev/null 2>&1 || true
   adb pull /sdcard/offline-ui.xml "$EVIDENCE/offline-ui.xml" >/dev/null 2>&1 || true
-  if grep -Eq 'إنشاء خزنتك المحلية|كلمة المرور الرئيسية|النسخة المحلية' "$EVIDENCE/offline-ui.xml" 2>/dev/null; then
+  if grep -Eq 'إنشاء خزنتك المحلية' "$EVIDENCE/offline-ui.xml" 2>/dev/null; then
     ready=1
     break
   fi
