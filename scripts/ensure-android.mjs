@@ -227,3 +227,12 @@ if (localOnly) {
     writeFileSync(activityJava, activitySource);
   }
 }
+
+if (localOnly) {
+  const pluginPath = "android/app/src/main/java/" + javaPackagePath + "/RasdAppLockPlugin.java";
+  const source = readFileSync("native/android/RasdAppLockPlugin.java", "utf8");
+  if (!source.startsWith("package " + nativePackage + ";")) throw new Error("App lock package mismatch");
+  // Compile the security foundation now. Do not register/expose its bridge
+  // until fresh-password enrollment and lock lifecycle tests are implemented.
+  writeFileSync(pluginPath, source);
+}
