@@ -68,6 +68,21 @@ def tap(node):
 def tap_text(text):
     tap(wait_for(lambda ns: find_text(ns, text), text))
 
+def wallet_tab():
+    # WebView accessibility dumps omit the fixed bottom navigation on API 35
+    # even when it is visible (confirmed by CI screenshot). Use its equal-width
+    # RTL layout, relative to the actual WebView bounds, not screen pixels.
+    ns = nodes()
+    node = find_text(ns, "تبويب المحافظ")
+    if node is not None:
+        tap(node)
+        return
+    views = [n for n in ns if visible(n) and n.get("class") == "android.webkit.WebView"]
+    assert views, "No app WebView for navigation"
+    x1,y1,x2,y2 = [int(v) for v in re.findall(r"\d+", views[0].get("bounds", ""))]
+    shell("input", "tap", str(x1 + round((x2-x1)*0.7)), str(y2-round((y2-y1)*0.04)))
+    time.sleep(0.5)
+
 def enter(index, value):
     def field(ns):
         edits = [n for n in ns if visible(n) and n.get("class") == "android.widget.EditText"]
@@ -108,7 +123,7 @@ def main():
     tap_text("فتح رصد")
     wait_text("إجمالي أرصدة المحافظ")
     initial = envelope()
-    tap_text("تبويب المحافظ")
+    wallet_tab()
     wait_for(lambda ns: len([n for n in ns if visible(n) and n.get("class") == "android.widget.EditText"]) >= 2, "wallet editor")
     enter(0, WALLET)
     enter(1, "1234.56")
@@ -123,7 +138,7 @@ def main():
     tap_text("فتح الخزنة")
     wait_text("إجمالي أرصدة المحافظ")
     wait_text("1,234.56")
-    tap_text("تبويب المحافظ")
+    wallet_tab()
     wait_text(WALLET)
     assert envelope() == saved, "Reopening unexpectedly rewrote the committed snapshot"
     print("PASS: encrypted wallet persists across force-stop and password unlock with network disabled.")
