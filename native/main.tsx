@@ -52,6 +52,7 @@ function OfflineRasd() {
   const [appLockConfirm, setAppLockConfirm] = useState("");
   const [appLockMaster, setAppLockMaster] = useState("");
   const [currentMaster, setCurrentMaster] = useState("");
+  const [deviceMaster, setDeviceMaster] = useState("");
   const [appLockStatus, setAppLockStatus] = useState<Record<AppLockMethod, AppLockProbe>>({
     pin: { enabled:false, blocked:false }, pattern: { enabled:false, blocked:false },
   });
@@ -101,7 +102,7 @@ function OfflineRasd() {
   const lock = useCallback(() => {
     lockEpoch.current++;
     clearAppLockForm();
-    setVerify(""); setRecoveryInput(""); setImportPassword(""); setImportConfirm(""); setCurrentMaster("");
+    setVerify(""); setRecoveryInput(""); setImportPassword(""); setImportConfirm(""); setCurrentMaster(""); setDeviceMaster("");
     setName(""); setAmount(""); setNote("");
     opened.current?.keyBytes.fill(0);
     opened.current = null;
@@ -262,20 +263,29 @@ function OfflineRasd() {
       setStage("show-recovery");
     });
   }
+  function adoptIfCurrent(snapshot: RasdVaultFile, value: OpenedVault, epoch: number) {
+    if (lockEpoch.current !== epoch || fileRef.current !== snapshot) {
+      value.keyBytes.fill(0);
+      throw new Error("انتهت محاولة الفتح؛ أعد المحاولة.");
+    }
+    adopt(snapshot,value);
+  }
   function unlock() {
     void action(async () => {
-      if (!fileRef.current) throw new Error("الخزنة غير موجودة.");
-      const value = await unlockWithPassword(fileRef.current, password);
-      adopt(fileRef.current, value);
+      const snapshot = fileRef.current, epoch = lockEpoch.current;
+      if (!snapshot) throw new Error("الخزنة غير موجودة.");
+      const value = await unlockWithPassword(snapshot, password);
+      adoptIfCurrent(snapshot,value,epoch);
     });
   }
   function unlockWithDevice() {
     void action(async () => {
-      if (!fileRef.current) throw new Error("الخزنة غير موجودة.");
-      const rawKey = await unlockDeviceKey(fileRef.current);
+      const snapshot = fileRef.current, epoch = lockEpoch.current;
+      if (!snapshot) throw new Error("الخزنة غير موجودة.");
+      const rawKey = await unlockDeviceKey(snapshot);
       try {
-        const value = await unlockWithDeviceKey(fileRef.current, rawKey);
-        adopt(fileRef.current, value);
+        const value = await unlockWithDeviceKey(snapshot, rawKey);
+        adoptIfCurrent(snapshot,value,epoch);
         setInfo("تم فتح رصد عبر قفل Android الآمن.");
       } finally {
         rawKey.fill(0);
@@ -305,11 +315,7 @@ function OfflineRasd() {
       try {
         raw = await unlockAppLock(snapshot,appLockMethod,appLockSecret);
         const value = await unlockWithDeviceKey(snapshot,raw);
-        if (lockEpoch.current !== epoch || fileRef.current !== snapshot) {
-          value.keyBytes.fill(0);
-          throw new Error("انتهت محاولة الفتح؛ أعد المحاولة.");
-        }
-        adopt(snapshot,value);
+        adoptIfCurrent(snapshot,value,epoch);
       } finally {
         raw?.fill(0); clearAppLockForm();
         await refreshAppLock(snapshot);
@@ -318,26 +324,29 @@ function OfflineRasd() {
   }
   async function revokeLocalShortcuts() {
     if (supportsAppLockPlatform()) await invalidateAppLocks();
-    // Keep the existing OS-bound shortcut unchanged until the dedicated
-    // device-unlock review; a different vault cannot use its old key.
+    await disableDeviceUnlock();
   }
-  function setUpDeviceUnlock() {
+  function configureDeviceUnlock(remove: boolean) {
     void action(async () => {
-      if (!opened.current || !fileRef.current)
-        throw new Error("افتح الخزنة بكلمة المرور الرئيسية أولًا.");
-      await enableDeviceUnlock(fileRef.current, opened.current.keyBytes);
-      const status = await probeDeviceUnlock(fileRef.current);
-      setDeviceAccess(status);
-      if (!status.matchesVault) throw new Error("لم يؤكد Android ربط المفتاح بالخزنة الحالية.");
-      setInfo("فُعّل فتح رصد بقفل الجهاز. كلمة المرور الرئيسية ورمز الاسترداد ما زالا صالحين.");
-    });
-  }
-  function turnOffDeviceUnlock() {
-    void action(async () => {
-      if (!opened.current || !fileRef.current) throw new Error("الخزنة مغلقة.");
-      await disableDeviceUnlock();
-      setDeviceAccess(await probeDeviceUnlock(fileRef.current));
-      setInfo("أُلغي فتح قفل الجهاز. الخزنة ما زالت محمية بكلمة المرور الرئيسية.");
+      const snapshot = fileRef.current, session = opened.current, epoch = lockEpoch.current;
+      if (!snapshot || !session) throw new Error("الخزنة مغلقة.");
+      const authorized = () => lockEpoch.current === epoch && opened.current === session && fileRef.current === snapshot;
+      const authenticated = await unlockWithPassword(snapshot,deviceMaster);
+      try {
+        if (!authorized()) throw new Error("انتهت جلسة إعداد قفل Android.");
+        if (remove) await disableDeviceUnlock();
+        else await enableDeviceUnlock(snapshot, authenticated.keyBytes);
+        if (!authorized()) {
+          if (!remove) await disableDeviceUnlock();
+          throw new Error("انتهت جلسة إعداد قفل Android.");
+        }
+        const status = await probeDeviceUnlock(snapshot);
+        setDeviceAccess(status);
+        if (!remove && !status.matchesVault) throw new Error("لم يؤكد Android ربط المفتاح بالخزنة الحالية.");
+        setInfo(remove ? "تم إلغاء فتح قفل الجهاز." : "تم تفعيل فتح رصد بقفل Android.");
+      } finally {
+        authenticated.keyBytes.fill(0); setDeviceMaster("");
+      }
     });
   }
   function recover() {
@@ -369,7 +378,7 @@ function OfflineRasd() {
         await saveDeviceVault(updated);
         fileRef.current = updated; setFile(updated);
         setPassword(""); setVerify("");
-        setInfo("تم تغيير كلمة المرور وإلغاء اختصارات رصد المستقلة. رمز الاسترداد السابق ما زال صالحًا.");
+        setInfo("تم تغيير كلمة المرور وإلغاء اختصارات الدخول. رمز الاسترداد السابق ما زال صالحًا.");
       } finally {
         authenticated.keyBytes.fill(0);
         setCurrentMaster("");
@@ -575,9 +584,10 @@ function OfflineRasd() {
           <h3>قفل Android والبصمة / الوجه</h3>
           {deviceAccess.supported ? <>
             <p>يمكنك فتح خزنة رصد باستخدام بصمة قوية أو قفل شاشة Android (رمز أو نمط أو كلمة مرور). Android Keystore وحده يحتفظ بمفتاح الفتح المشفر؛ لا نخزّن بصمتك أو رمز قفل هاتفك.</p>
+            <Field label="كلمة المرور الرئيسية لإعداد قفل الجهاز"><input type="password" autoComplete="current-password" value={deviceMaster} onChange={e=>setDeviceMaster(e.target.value)}/></Field>
             {deviceAccess.matchesVault ?
-              <button className="secondary full" disabled={busy} onClick={turnOffDeviceUnlock}>إلغاء فتح قفل الجهاز</button> :
-              <button className="secondary full" disabled={busy} onClick={setUpDeviceUnlock}>
+              <button className="secondary full" disabled={busy||!deviceMaster} onClick={()=>configureDeviceUnlock(true)}>إلغاء فتح قفل الجهاز</button> :
+              <button className="secondary full" disabled={busy||!deviceMaster} onClick={()=>configureDeviceUnlock(false)}>
                 <ShieldCheck size={18}/> تفعيل فتح قفل الجهاز
               </button>}
           </> : <p className="muted">لفتح رصد بالبصمة أو قفل الجهاز، تحتاج Android 11 أو أحدث وقفل شاشة آمنًا مفعّلًا. سيظل الدخول بكلمة المرور الرئيسية متاحًا.</p>}
@@ -613,7 +623,7 @@ function OfflineRasd() {
     </main>
     {stage === "open" && <nav className="bottom-tabs" aria-label="تنقل رصد المحلي">
       {([["home","الرئيسية",Wallet],["wallets","المحافظ",Wallet],["entries","الحركات",ArrowDownLeft],["debts","الديون",HandCoins],["backup","النسخ",FileDown]] as const).map(([id,label,Icon])=>
-        <button key={id} aria-label={"تبويب "+label} aria-current={tab===id?"page":undefined} onClick={()=>{clearAppLockForm();setCurrentMaster("");setPassword("");setVerify("");setTab(id);setError("");setInfo("");setName("");setAmount("");setNote("")}} className={tab===id?"active":""}><Icon size={20}/><span>{label}</span></button>
+        <button key={id} aria-label={"تبويب "+label} aria-current={tab===id?"page":undefined} onClick={()=>{clearAppLockForm();setCurrentMaster("");setDeviceMaster("");setPassword("");setVerify("");setTab(id);setError("");setInfo("");setName("");setAmount("");setNote("")}} className={tab===id?"active":""}><Icon size={20}/><span>{label}</span></button>
       )}
     </nav>}
     <footer>رصد — خزنة محلية مشفرة • إصدار تجريبي مستقل • لا يستخدم خادمًا لحفظ البيانات</footer>
