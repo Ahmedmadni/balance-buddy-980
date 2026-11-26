@@ -3,6 +3,7 @@
 Only synthetic CI data are used; never run against a personal device.
 """
 import json
+from pathlib import Path
 import re
 import subprocess
 import time
@@ -32,6 +33,16 @@ def wait_for(predicate, description, timeout=45):
         except (ET.ParseError, subprocess.SubprocessError):
             pass
         time.sleep(1)
+    # Synthetic CI data only; keep failure evidence for diagnosis.
+    try:
+        evidence = Path("android-offline-evidence")
+        evidence.mkdir(exist_ok=True)
+        shell("uiautomator", "dump", "/sdcard/rasd-persistence.xml")
+        (evidence / "persistence-failure.xml").write_text(shell("cat", "/sdcard/rasd-persistence.xml"), encoding="utf-8")
+        with (evidence / "persistence-failure.png").open("wb") as image:
+            subprocess.run(["adb", "exec-out", "screencap", "-p"], stdout=image, check=True, timeout=15)
+    except (OSError, subprocess.SubprocessError):
+        pass
     raise AssertionError("Timed out waiting for " + description)
 
 def visible(node):
@@ -97,8 +108,8 @@ def main():
     tap_text("فتح رصد")
     wait_text("إجمالي أرصدة المحافظ")
     initial = envelope()
-    tap_text("المحافظ")
-    wait_text("اسم المحفظة")
+    tap_text("تبويب المحافظ")
+    wait_for(lambda ns: len([n for n in ns if visible(n) and n.get("class") == "android.widget.EditText"]) >= 2, "wallet editor")
     enter(0, WALLET)
     enter(1, "1234.56")
     tap_text("إضافة محفظة")
@@ -112,7 +123,7 @@ def main():
     tap_text("فتح الخزنة")
     wait_text("إجمالي أرصدة المحافظ")
     wait_text("1,234.56")
-    tap_text("المحافظ")
+    tap_text("تبويب المحافظ")
     wait_text(WALLET)
     assert envelope() == saved, "Reopening unexpectedly rewrote the committed snapshot"
     print("PASS: encrypted wallet persists across force-stop and password unlock with network disabled.")
