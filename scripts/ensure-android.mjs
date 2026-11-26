@@ -250,5 +250,25 @@ if (localOnly) {
       : tag.replace("<application", '<application android:allowBackup="false"');
   });
   if (!manifest.includes('android:allowBackup="false"')) throw new Error("Cannot disable system vault backup");
+  // Explicit exclusions for both cloud backup and device-to-device transfer.
+  // On some Android 12+ devices allowBackup=false alone is not sufficient
+  // to exclude OEM device transfer. Exclude all app-owned data domains.
+  const domains = ["root","file","database","sharedpref","external",
+    "device_root","device_file","device_database","device_sharedpref"];
+  const excludes = domains.map(domain => '    <exclude domain="' + domain + '" path="." />').join("\n");
+  const xmlDir = "android/app/src/main/res/xml";
+  mkdirSync(xmlDir, { recursive: true });
+  writeFileSync(xmlDir + "/rasd_no_backup.xml", '<?xml version="1.0" encoding="utf-8"?>\n<full-backup-content>\n' + excludes + '\n</full-backup-content>\n');
+  writeFileSync(xmlDir + "/rasd_no_transfer.xml", '<?xml version="1.0" encoding="utf-8"?>\n<data-extraction-rules>\n  <cloud-backup>\n' + excludes + '\n  </cloud-backup>\n  <device-transfer>\n' + excludes + '\n  </device-transfer>\n</data-extraction-rules>\n');
+  manifest = manifest.replace(/<application\b[^>]*>/, tag => {
+    for (const [name, value] of [["fullBackupContent","@xml/rasd_no_backup"],["dataExtractionRules","@xml/rasd_no_transfer"]]) {
+      const attr = new RegExp('\\bandroid:' + name + '\\s*=\\s*"[^"]*"');
+      const replacement = 'android:' + name + '="' + value + '"';
+      tag = attr.test(tag) ? tag.replace(attr,replacement) : tag.replace("<application","<application " + replacement);
+    }
+    return tag;
+  });
+  if (!manifest.includes('android:dataExtractionRules="@xml/rasd_no_transfer"') ||
+      !manifest.includes('android:fullBackupContent="@xml/rasd_no_backup"')) throw new Error("Cannot apply explicit backup exclusions");
   writeFileSync(manifestPath, manifest);
 }
