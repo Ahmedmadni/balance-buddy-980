@@ -45,6 +45,7 @@ function OfflineRasd() {
     supported: false, enabled: false, matchesVault: false,
   });
   const opened = useRef<OpenedVault | null>(null);
+  const pendingCreation = useRef<Awaited<ReturnType<typeof createVault>> | null>(null);
   const fileRef = useRef<RasdVaultFile | null>(null);
   const busyRef = useRef(false);
   const lockEpoch = useRef(0);
@@ -126,9 +127,12 @@ function OfflineRasd() {
     verifiedCandidate.current?.value.keyBytes.fill(0);
     verifiedCandidate.current = null;
     setVerifiedSummary(null);
+    pendingCreation.current?.keyBytes.fill(0);
+    pendingCreation.current = null;
+    setRecoveryCode(""); setRecoveryConfirmed(false); setRecoveryDecision("");
     setLedger(emptyLedger());
     setPassword("");
-    setStage(old => old === "open" ? "locked" : old);
+    setStage(old => old === "open" ? "locked" : old === "show-recovery" ? "setup" : old);
   }, [clearAppLockForm, clearImport]);
 
   useEffect(() => {
@@ -178,8 +182,9 @@ function OfflineRasd() {
     let inactiveAt: number | null = null;
     void App.addListener("appStateChange", ({ isActive }) => {
       if (!isActive) {
-        inactiveAt = Date.now();
-        backgroundTimeout = setTimeout(lock, 60000);
+        if (inactiveAt === null) inactiveAt = Date.now();
+        if (backgroundTimeout) clearTimeout(backgroundTimeout);
+        backgroundTimeout = setTimeout(lock, Math.max(0, 60000 - (Date.now() - inactiveAt)));
       } else {
         // Android suspends JavaScript timers in the background. Enforce the
         // elapsed timeout *on resume* before sensitive data can be reused.
@@ -292,16 +297,34 @@ function OfflineRasd() {
   function create() {
     void action(async () => {
       if (password !== verify) throw new Error("كلمتا المرور غير متطابقتين.");
+      const epoch = lockEpoch.current;
       const created = await createVault(password);
-      await saveDeviceVault(created.file);
-      fileRef.current = created.file;
-      setFile(created.file);
-      opened.current = { keyBytes: created.keyBytes, ledger: created.ledger };
-      setLedger(created.ledger);
+      if (lockEpoch.current !== epoch || fileRef.current) {
+        created.keyBytes.fill(0);
+        throw new Error("انتهت جلسة إنشاء الخزنة.");
+      }
+      pendingCreation.current = created;
       setRecoveryCode(created.recoveryCode);
       setPassword(""); setVerify("");
       setRecoveryConfirmed(false);
       setStage("show-recovery");
+    });
+  }
+  function confirmCreation() {
+    void action(async () => {
+      const created = pendingCreation.current, epoch = lockEpoch.current;
+      if (!created || !recoveryConfirmed) throw new Error("احفظ رمز الاسترداد أولًا.");
+      const authorized = () => lockEpoch.current === epoch && pendingCreation.current === created && !fileRef.current;
+      await saveDeviceVault(created.file, authorized);
+      const mayAdopt = authorized();
+      pendingCreation.current = null;
+      setRecoveryCode(""); setRecoveryConfirmed(false);
+      if (!mayAdopt) {
+        created.keyBytes.fill(0);
+        fileRef.current = created.file; setFile(created.file);
+        lock(); setStage("locked"); return;
+      }
+      adopt(created.file, {keyBytes: created.keyBytes, ledger: created.ledger});
     });
   }
   function adoptIfCurrent(snapshot: RasdVaultFile, value: OpenedVault, epoch: number) {
@@ -605,10 +628,10 @@ function OfflineRasd() {
           <button className="primary full" disabled={busy} onClick={create}><ShieldCheck size={18}/> إنشاء خزنة مشفرة</button>
         </>}
         {stage === "show-recovery" && <>
-          <p>اكتب هذا الرمز واحتفظ به خارج الهاتف. يظهر مرة واحدة فقط. إذا نسيت كلمة المرور وفقدت الرمز، لا توجد جهة تستطيع فك تشفير بياناتك.</p>
+          <p>اكتب هذا الرمز واحتفظ به خارج الهاتف. لن تُحفظ الخزنة قبل تأكيد حفظ الرمز. إذا انتهت الجلسة قبل التأكيد، ابدأ الإنشاء مجددًا. إذا نسيت كلمة المرور وفقدت الرمز، لا توجد جهة تستطيع فك تشفير بياناتك.</p>
           <code className="recovery-code" dir="ltr">{recoveryCode}</code>
           <label className="check"><input type="checkbox" checked={recoveryConfirmed} onChange={e=>setRecoveryConfirmed(e.target.checked)}/> حفظت الرمز في مكان آمن بعيدًا عن الهاتف</label>
-          <button className="primary full" disabled={!recoveryConfirmed} onClick={()=>{setRecoveryCode("");setStage("open");setTab("home")}}>فتح رصد</button>
+          <button className="primary full" disabled={busy || !recoveryConfirmed} onClick={confirmCreation}>فتح رصد</button>
         </>}
         {stage === "locked" && <>
           <Field label="كلمة المرور"><input type="password" autoComplete="current-password" value={password} onChange={e=>setPassword(e.target.value)} onKeyDown={e=>{if(e.key==="Enter")unlock()}}/></Field>
