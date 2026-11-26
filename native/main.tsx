@@ -224,6 +224,7 @@ function OfflineRasd() {
 
   function checkRecoveryCandidate() {
     void action(async () => {
+      const epoch=lockEpoch.current;
       const picked = recoveryCandidates.find(c => c.source === recoverySource);
       if (!picked) throw new Error("اختر ملفًا موجودًا للاسترداد.");
       if (verifiedCandidate.current) verifiedCandidate.current.value.keyBytes.fill(0);
@@ -232,6 +233,7 @@ function OfflineRasd() {
       const unlocked = recoveryInput.trim().startsWith("RSD-")
         ? await unlockWithRecoveryCode(picked.file, recoveryInput.trim())
         : await unlockWithPassword(picked.file, password);
+      if (lockEpoch.current !== epoch) { unlocked.keyBytes.fill(0); throw new Error("انتهت جلسة فحص الاسترداد."); }
       verifiedCandidate.current = { source: picked.source, file: picked.file, value: unlocked };
       setVerifiedSummary({
         wallets: unlocked.ledger.wallets.length,
@@ -250,25 +252,39 @@ function OfflineRasd() {
       const verified = verifiedCandidate.current;
       if (!verified || recoveryDecision.trim() !== "اعتماد")
         throw new Error("افحص النسخة واكتب «اعتماد» لتأكيد استعادتها.");
-      // Check file identity again immediately before writing any data.
+      const epoch=lockEpoch.current;
+      const authorized=()=>lockEpoch.current===epoch && verifiedCandidate.current===verified;
+      // Check identity and session before entering the serialized durable write.
       await revokeLocalShortcuts();
-      await recoverDeviceVault(verified.source, verified.file);
+      await recoverDeviceVault(verified.source, verified.file, authorized);
+      const mayAdopt=authorized();
       verifiedCandidate.current = null;
       setRecoveryCandidates([]);
       setVerifiedSummary(null);
       setRecoveryDecision("");
+      if (!mayAdopt) {
+        verified.value.keyBytes.fill(0);
+        fileRef.current=verified.file; setFile(verified.file); lock(); setStage("locked");
+        return;
+      }
       adopt(verified.file, verified.value);
       setInfo("تم اعتماد نسخة محلية بعد التحقق. قد تكون بعض العمليات الأحدث غير موجودة؛ راجع السجلات قبل الاستخدام.");
     });
   }
 
   async function commit(next: LocalLedger) {
-    if (!opened.current || !fileRef.current) throw new Error("افتح الخزنة أولًا.");
-    const result = await sealVault(fileRef.current, opened.current.keyBytes, next);
-    await saveDeviceVault(result);
+    const session=opened.current, snapshot=fileRef.current, epoch=lockEpoch.current;
+    if (!session || !snapshot) throw new Error("افتح الخزنة أولًا.");
+    const authorized=()=>lockEpoch.current===epoch && opened.current===session && fileRef.current===snapshot;
+    const result = await sealVault(snapshot, session.keyBytes, next);
+    await saveDeviceVault(result,authorized);
+    const mayAdopt=authorized();
     fileRef.current = result;
     setFile(result);
-    opened.current.ledger = next;
+    // A transaction already in durable storage cannot be cancelled. Never
+    // redisplay the financial ledger after a concurrent lock.
+    if (!mayAdopt) { lock(); setStage("locked"); return; }
+    session.ledger = next;
     setLedger(next);
     setName(""); setAmount(""); setNote("");
     setInfo("تم الحفظ محليًا على الهاتف بعد تشفير البيانات.");
@@ -376,15 +392,26 @@ function OfflineRasd() {
   }
   function recover() {
     void action(async () => {
-      if (!fileRef.current) throw new Error("الخزنة غير موجودة.");
-      const value = await unlockWithRecoveryCode(fileRef.current, recoveryInput.trim());
+      const snapshot=fileRef.current, epoch=lockEpoch.current;
+      if (!snapshot) throw new Error("الخزنة غير موجودة.");
       if (password.length < 12 || password !== verify)
         throw new Error("أدخل كلمة مرور جديدة من 12 حرفًا على الأقل وأكدها.");
-      const updated = await setNewPassword(fileRef.current, value.keyBytes, password);
-      await revokeLocalShortcuts();
-      await saveDeviceVault(updated);
-      adopt(updated, value);
-      setInfo("تم فتح الخزنة برمز الاسترداد وتغيير كلمة المرور بنجاح.");
+      const authorized=()=>lockEpoch.current===epoch && fileRef.current===snapshot;
+      const value = await unlockWithRecoveryCode(snapshot, recoveryInput.trim());
+      let adopted=false;
+      try {
+        if (!authorized()) throw new Error("انتهت جلسة الاسترداد.");
+        const updated = await setNewPassword(snapshot, value.keyBytes, password);
+        if (!authorized()) throw new Error("انتهت جلسة الاسترداد.");
+        await revokeLocalShortcuts();
+        await saveDeviceVault(updated,authorized);
+        if (!authorized()) {
+          fileRef.current=updated;setFile(updated);lock();setStage("locked");
+          return;
+        }
+        adopt(updated,value); adopted=true;
+        setInfo("تم فتح الخزنة برمز الاسترداد وتغيير كلمة المرور بنجاح.");
+      } finally { if(!adopted)value.keyBytes.fill(0); }
     });
   }
   function changePassword() {
@@ -400,8 +427,11 @@ function OfflineRasd() {
         await revokeLocalShortcuts();
         if (lockEpoch.current !== epoch || opened.current !== session || fileRef.current !== snapshot)
           throw new Error("انتهت جلسة تغيير كلمة المرور.");
-        await saveDeviceVault(updated);
+        const authorized=()=>lockEpoch.current===epoch && opened.current===session && fileRef.current===snapshot;
+        await saveDeviceVault(updated,authorized);
+        const mayAdopt=authorized();
         fileRef.current = updated; setFile(updated);
+        if(!mayAdopt){lock();setStage("locked");return;}
         setPassword(""); setVerify("");
         setInfo("تم تغيير كلمة المرور وإلغاء اختصارات الدخول. رمز الاسترداد السابق ما زال صالحًا.");
       } finally {
