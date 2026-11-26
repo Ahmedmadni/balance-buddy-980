@@ -18,6 +18,11 @@ import {
   probeDeviceUnlock, enableDeviceUnlock, unlockDeviceKey, disableDeviceUnlock,
   type DeviceUnlockProbe,
 } from "../src/lib/offline/device-unlock";
+import { AppPatternGrid } from "./AppPatternGrid";
+import {
+  enrollAppLock, removeAppLock, unlockAppLock, probeAppLock, invalidateAppLocks,
+  supportsAppLockPlatform, validAppCredential, type AppLockMethod, type AppLockProbe,
+} from "../src/lib/offline/app-lock";
 import logoSrc from "../assets/logo.svg";
 import "./styles.css";
 
@@ -40,6 +45,29 @@ function OfflineRasd() {
   const opened = useRef<OpenedVault | null>(null);
   const fileRef = useRef<RasdVaultFile | null>(null);
   const busyRef = useRef(false);
+  const lockEpoch = useRef(0);
+  const [appLockEpoch, setAppLockEpoch] = useState(0);
+  const [appLockMethod, setAppLockMethod] = useState<AppLockMethod>("pin");
+  const [appLockSecret, setAppLockSecret] = useState("");
+  const [appLockConfirm, setAppLockConfirm] = useState("");
+  const [appLockMaster, setAppLockMaster] = useState("");
+  const [appLockStatus, setAppLockStatus] = useState<Record<AppLockMethod, AppLockProbe>>({
+    pin: { enabled:false, blocked:false }, pattern: { enabled:false, blocked:false },
+  });
+  const clearAppLockForm = useCallback(() => {
+    setAppLockSecret(""); setAppLockConfirm(""); setAppLockMaster("");
+    setAppLockEpoch(old => old+1);
+  }, []);
+  const refreshAppLock = useCallback(async (snapshot: RasdVaultFile) => {
+    try {
+      const [pin,pattern] = await Promise.all([probeAppLock(snapshot,"pin"),probeAppLock(snapshot,"pattern")]);
+      if (fileRef.current === snapshot) setAppLockStatus({pin,pattern});
+    } catch {
+      if (fileRef.current === snapshot) setAppLockStatus({
+        pin:{enabled:false,blocked:false},pattern:{enabled:false,blocked:false},
+      });
+    }
+  }, []);
   const [ledger, setLedger] = useState<LocalLedger>(emptyLedger());
   const [error, setError] = useState("");
   const [info, setInfo] = useState("");
@@ -67,6 +95,9 @@ function OfflineRasd() {
   const [dueDate, setDueDate] = useState("");
 
   const lock = useCallback(() => {
+    lockEpoch.current++;
+    clearAppLockForm();
+    setVerify(""); setRecoveryInput(""); setImportPassword(""); setImportConfirm("");
     opened.current?.keyBytes.fill(0);
     opened.current = null;
     verifiedCandidate.current?.value.keyBytes.fill(0);
@@ -75,15 +106,16 @@ function OfflineRasd() {
     setLedger(emptyLedger());
     setPassword("");
     setStage(old => old === "open" ? "locked" : old);
-  }, []);
+  }, [clearAppLockForm]);
 
   useEffect(() => {
     let active = true;
     if (file) void probeDeviceUnlock(file).then(status => {
       if (active) setDeviceAccess(status);
     });
+    if (file) void refreshAppLock(file);
     return () => { active = false; };
-  }, [file]);
+  }, [file, refreshAppLock]);
 
   useEffect(() => {
     let active = true;
@@ -137,6 +169,7 @@ function OfflineRasd() {
     finally { setBusy(false); busyRef.current = false; }
   }
   function adopt(v: RasdVaultFile, value: OpenedVault) {
+    clearAppLockForm();
     opened.current?.keyBytes.fill(0);
     opened.current = value;
     fileRef.current = v;
@@ -187,6 +220,7 @@ function OfflineRasd() {
       if (!verified || recoveryDecision.trim() !== "اعتماد")
         throw new Error("افحص النسخة واكتب «اعتماد» لتأكيد استعادتها.");
       // Check file identity again immediately before writing any data.
+      await revokeLocalShortcuts();
       await recoverDeviceVault(verified.source, verified.file);
       verifiedCandidate.current = null;
       setRecoveryCandidates([]);
@@ -243,6 +277,45 @@ function OfflineRasd() {
       }
     });
   }
+  function configureAppLock(remove: boolean) {
+    void action(async () => {
+      const snapshot = fileRef.current, session = opened.current, epoch = lockEpoch.current;
+      if (!snapshot || !session) throw new Error("افتح الخزنة أولًا.");
+      const stillAuthorized = () => lockEpoch.current === epoch && opened.current === session && fileRef.current === snapshot;
+      try {
+        if (remove) await removeAppLock(snapshot,appLockMethod,appLockMaster,stillAuthorized);
+        else await enrollAppLock(snapshot,appLockMethod,appLockSecret,appLockConfirm,appLockMaster,stillAuthorized);
+        if (stillAuthorized()) setInfo(remove ? "تم إلغاء وسيلة الدخول." : "تم إعداد وسيلة الدخول المستقلة.");
+      } finally {
+        clearAppLockForm();
+        await refreshAppLock(snapshot);
+      }
+    });
+  }
+  function unlockWithAppLock() {
+    void action(async () => {
+      const snapshot = fileRef.current, epoch = lockEpoch.current;
+      if (!snapshot) throw new Error("الخزنة غير موجودة.");
+      let raw: Uint8Array | undefined;
+      try {
+        raw = await unlockAppLock(snapshot,appLockMethod,appLockSecret);
+        const value = await unlockWithDeviceKey(snapshot,raw);
+        if (lockEpoch.current !== epoch || fileRef.current !== snapshot) {
+          value.keyBytes.fill(0);
+          throw new Error("انتهت محاولة الفتح؛ أعد المحاولة.");
+        }
+        adopt(snapshot,value);
+      } finally {
+        raw?.fill(0); clearAppLockForm();
+        await refreshAppLock(snapshot);
+      }
+    });
+  }
+  async function revokeLocalShortcuts() {
+    if (supportsAppLockPlatform()) await invalidateAppLocks();
+    // Keep the existing OS-bound shortcut unchanged until the dedicated
+    // device-unlock review; a different vault cannot use its old key.
+  }
   function setUpDeviceUnlock() {
     void action(async () => {
       if (!opened.current || !fileRef.current)
@@ -269,6 +342,7 @@ function OfflineRasd() {
       if (password.length < 12 || password !== verify)
         throw new Error("أدخل كلمة مرور جديدة من 12 حرفًا على الأقل وأكدها.");
       const updated = await setNewPassword(fileRef.current, value.keyBytes, password);
+      await revokeLocalShortcuts();
       await saveDeviceVault(updated);
       adopt(updated, value);
       setInfo("تم فتح الخزنة برمز الاسترداد وتغيير كلمة المرور بنجاح.");
@@ -279,6 +353,7 @@ function OfflineRasd() {
       if (!opened.current || !fileRef.current) throw new Error("الخزنة مغلقة.");
       if (password !== verify) throw new Error("كلمتا المرور غير متطابقتين.");
       const updated = await setNewPassword(fileRef.current, opened.current.keyBytes, password);
+      await revokeLocalShortcuts();
       await saveDeviceVault(updated);
       fileRef.current = updated; setFile(updated);
       setPassword(""); setVerify("");
@@ -333,6 +408,7 @@ function OfflineRasd() {
       if (fileRef.current && importConfirm.trim() !== "استبدال")
         throw new Error("اكتب «استبدال» لتأكيد استبدال الخزنة المحلية الحالية.");
       const recovered = await unlockWithPassword(importing, importPassword);
+      await revokeLocalShortcuts();
       await saveDeviceVault(importing);
       adopt(importing, recovered);
       setImporting(null); setImportPassword(""); setImportConfirm("");
@@ -408,6 +484,19 @@ function OfflineRasd() {
             <button className="secondary full" disabled={busy} onClick={unlockWithDevice}>
               <ShieldCheck size={18}/> فتح ببصمة أو رمز/نمط قفل الهاتف
             </button>}
+          {(appLockStatus.pin.enabled || appLockStatus.pattern.enabled) && <section className="app-lock-controls">
+            <h3>فتح رصد برمز أو نمط مستقل</h3>
+            <Field label="طريقة الفتح"><select disabled={busy} value={appLockMethod} onChange={e=>{clearAppLockForm();setAppLockMethod(e.target.value as AppLockMethod)}}>
+              <option value="pin" disabled={!appLockStatus.pin.enabled}>رمز PIN</option>
+              <option value="pattern" disabled={!appLockStatus.pattern.enabled}>النمط</option>
+            </select></Field>
+            {appLockStatus[appLockMethod].blocked ? <p>أُوقفت هذه الوسيلة بعد محاولات خاطئة. افتح بكلمة المرور الرئيسية وأعد إعدادها.</p> :
+              appLockStatus[appLockMethod].enabled && <>
+                {appLockMethod==="pin" ? <Field label="رمز رصد"><input type="password" inputMode="numeric" maxLength={12} autoComplete="off" value={appLockSecret} onChange={e=>setAppLockSecret(e.target.value)}/></Field> :
+                  <AppPatternGrid key={appLockEpoch} value={appLockSecret} onChange={setAppLockSecret} disabled={busy} label="ارسم نمط رصد"/>}
+                <button className="secondary full" disabled={busy||!appLockSecret} onClick={unlockWithAppLock}>فتح بالرمز أو النمط</button>
+              </>}
+          </section>}
           <details><summary>نسيت كلمة المرور؟ استخدم رمز الاسترداد</summary>
             <p>الاسم وتاريخ الميلاد وأسئلة الأقارب ليست بديلًا آمنًا للمفتاح السري.</p>
             <Field label="رمز الاسترداد"><input dir="ltr" autoCapitalize="none" value={recoveryInput} onChange={e=>setRecoveryInput(e.target.value.trim())}/></Field>
@@ -448,6 +537,25 @@ function OfflineRasd() {
           {ledger.debts.slice().reverse().map(d=><div className="item" key={d.id}><span>{d.person}<small>{d.direction==="owed_to_me"?"مستحق لي":"مستحق عليّ"}{d.dueDate?" • "+d.dueDate:""}</small></span><b>{fmt(d.amountMinor)}</b></div>)}
         </section>}
         {tab === "backup" && <section className="panel"><h2><FileDown size={22}/> النسخ الاحتياطي والاستعادة</h2>
+          {supportsAppLockPlatform() && <section className="app-lock-controls">
+            <h3>رمز ونمط رصد المستقلان</h3>
+            <p>اختصار اختياري على هذا الجهاز فقط؛ لا يغني عن كلمة المرور أو رمز الاسترداد. يحتاج حماية Keystore عتادية.</p>
+            <Field label="وسيلة الدخول"><select disabled={busy} value={appLockMethod} onChange={e=>{clearAppLockForm();setAppLockMethod(e.target.value as AppLockMethod)}}>
+              <option value="pin">رمز PIN (6–12 رقمًا)</option><option value="pattern">نمط (6 نقاط على الأقل)</option>
+            </select></Field>
+            <p>{appLockStatus[appLockMethod].blocked?"متوقف — أعد الإعداد بكلمة المرور":appLockStatus[appLockMethod].enabled?"مفعّل":"غير مفعّل"}</p>
+            <Field label="كلمة المرور الرئيسية الحالية"><input type="password" autoComplete="current-password" value={appLockMaster} onChange={e=>setAppLockMaster(e.target.value)}/></Field>
+            {appLockMethod==="pin" ? <>
+              <Field label="الرمز الجديد"><input type="password" inputMode="numeric" autoComplete="off" maxLength={12} value={appLockSecret} onChange={e=>setAppLockSecret(e.target.value)}/></Field>
+              <Field label="تأكيد الرمز"><input type="password" inputMode="numeric" autoComplete="off" maxLength={12} value={appLockConfirm} onChange={e=>setAppLockConfirm(e.target.value)}/></Field>
+            </> : <div key={appLockEpoch}>
+              <AppPatternGrid value={appLockSecret} onChange={setAppLockSecret} disabled={busy} label="ارسم النمط الجديد"/>
+              <AppPatternGrid value={appLockConfirm} onChange={setAppLockConfirm} disabled={busy} label="أعد رسم النمط للتأكيد"/>
+            </div>}
+            <button className="secondary full" disabled={busy||!appLockMaster||appLockSecret!==appLockConfirm||!validAppCredential(appLockMethod,appLockSecret)} onClick={()=>configureAppLock(false)}>حفظ أو تغيير وسيلة الدخول</button>
+            {appLockStatus[appLockMethod].enabled && <button className="danger full" disabled={busy||!appLockMaster} onClick={()=>configureAppLock(true)}>إلغاء وسيلة الدخول</button>}
+            <hr/>
+          </section>}
           <h3>قفل Android والبصمة / الوجه</h3>
           {deviceAccess.supported ? <>
             <p>يمكنك فتح خزنة رصد باستخدام بصمة قوية أو قفل شاشة Android (رمز أو نمط أو كلمة مرور). Android Keystore وحده يحتفظ بمفتاح الفتح المشفر؛ لا نخزّن بصمتك أو رمز قفل هاتفك.</p>
@@ -488,7 +596,7 @@ function OfflineRasd() {
     </main>
     {stage === "open" && <nav className="bottom-tabs" aria-label="تنقل رصد المحلي">
       {([["home","الرئيسية",Wallet],["wallets","المحافظ",Wallet],["entries","الحركات",ArrowDownLeft],["debts","الديون",HandCoins],["backup","النسخ",FileDown]] as const).map(([id,label,Icon])=>
-        <button key={id} onClick={()=>{setTab(id);setError("");setInfo("");setName("");setAmount("");setNote("")}} className={tab===id?"active":""}><Icon size={20}/><span>{label}</span></button>
+        <button key={id} aria-label={"تبويب "+label} aria-current={tab===id?"page":undefined} onClick={()=>{clearAppLockForm();setTab(id);setError("");setInfo("");setName("");setAmount("");setNote("")}} className={tab===id?"active":""}><Icon size={20}/><span>{label}</span></button>
       )}
     </nav>}
     <footer>رصد — خزنة محلية مشفرة • إصدار تجريبي مستقل • لا يستخدم خادمًا لحفظ البيانات</footer>
