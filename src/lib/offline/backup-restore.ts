@@ -41,6 +41,10 @@ export async function previewEncryptedBackup(file: RasdVaultFile, credential: Ba
   } finally { opened.keyBytes.fill(0); }
 }
 
+export function isRestoreConfirmation(value: string): boolean {
+  return ["استبدال","RESTORE"].includes(value.trim());
+}
+
 export interface RestoreRequest {
   backup: RasdVaultFile;
   preview: BackupPreview;
@@ -64,8 +68,8 @@ export async function restoreVerifiedBackup(io: VaultFiles, safety: RestoreSafet
     if (!request.stillAuthorized()) throw new Error("انتهت جلسة الاستعادة؛ أعد الفحص.");
   };
   requireAuthorization();
-  if (request.confirmation.trim() !== "استبدال")
-    throw new Error("اكتب «استبدال» لتأكيد الاستعادة بعد المعاينة.");
+  if (!isRestoreConfirmation(request.confirmation))
+    throw new Error("اكتب «استبدال» أو RESTORE لتأكيد الاستعادة بعد المعاينة.");
   if (await fingerprint(backup) !== request.preview.fingerprint)
     throw new Error("تغيّرت النسخة بعد المعاينة. افحصها مجددًا.");
   const inspection = await inspectVaultFiles(io);
