@@ -87,6 +87,29 @@ jobs:
           grep -q 'MAX_FAILURES = 5' "$PLUGIN"
           grep -q 'putInt("failures", failures+1).commit()' "$PLUGIN"
           echo 'PASS: independent app lock packaged, hardware guard and persisted attempt cap present'
+      - name: Validate explicit cloud and device-transfer backup exclusions
+        run: |
+          python3 - <<'PY'
+          import xml.etree.ElementTree as ET
+          from pathlib import Path
+          root=Path("android/app/src/main")
+          app=ET.parse(root/"AndroidManifest.xml").getroot().find("application")
+          ns="{http://schemas.android.com/apk/res/android}"
+          assert app is not None
+          assert app.get(ns+"allowBackup")=="false"
+          assert app.get(ns+"fullBackupContent")=="@xml/rasd_no_backup"
+          assert app.get(ns+"dataExtractionRules")=="@xml/rasd_no_transfer"
+          expected={"root","file","database","sharedpref","external","device_root","device_file","device_database","device_sharedpref"}
+          def check(node):
+              assert node is not None
+              assert {e.get("domain") for e in node.findall("exclude") if e.get("path")=="."}==expected
+              assert not node.findall("include")
+          check(ET.parse(root/"res/xml/rasd_no_backup.xml").getroot())
+          extraction=ET.parse(root/"res/xml/rasd_no_transfer.xml").getroot()
+          check(extraction.find("cloud-backup"))
+          check(extraction.find("device-transfer"))
+          print("PASS: explicit app-data exclusions for cloud backup and device transfer")
+          PY
       - uses: actions/upload-artifact@v4
         with:
           name: rasd-offline-android-beta-apk
