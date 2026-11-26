@@ -110,6 +110,15 @@ jobs:
           check(extraction.find("device-transfer"))
           print("PASS: explicit app-data exclusions for cloud backup and device transfer")
           PY
+      - name: Verify local secure window remains active from onCreate
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          s=Path("android/app/src/main/java/app/lovable/rasd/local/MainActivity.java").read_text()
+          create=s.split("public void onCreate(",1)[1].split("super.onCreate(",1)[0]
+          assert "getWindow().addFlags(WindowManager.LayoutParams.FLAG_SECURE);" in create
+          assert "clearFlags(WindowManager.LayoutParams.FLAG_SECURE)" not in s
+          PY
       - uses: actions/upload-artifact@v4
         with:
           name: rasd-offline-android-beta-apk

@@ -114,6 +114,32 @@ if (!activitySource.includes("FLAG_SECURE")) {
   writeFileSync(activityJava, activitySource);
 }
 
+// Local financial data and recovery codes must never enter screenshots or
+// Recents snapshots, including the transition before onPause. Keep the
+// existing screenshot policy unchanged for the legacy hosted application.
+if (localOnly) {
+  activitySource = readFileSync(activityJava, "utf8");
+  activitySource = activitySource.replace(
+    "getWindow().clearFlags(WindowManager.LayoutParams.FLAG_SECURE);",
+    "getWindow().addFlags(WindowManager.LayoutParams.FLAG_SECURE);"
+  );
+  if (!activitySource.includes("import android.os.Bundle;")) {
+    activitySource = activitySource.replace("import com.getcapacitor.BridgeActivity;",
+      "import com.getcapacitor.BridgeActivity;\nimport android.os.Bundle;");
+  }
+  if (!activitySource.includes("// Rasd local secure window")) {
+    const create = /public void onCreate\(Bundle savedInstanceState\)\s*\{/;
+    const secure = "\n        // Rasd local secure window\n        getWindow().addFlags(WindowManager.LayoutParams.FLAG_SECURE);";
+    if (create.test(activitySource)) {
+      activitySource = activitySource.replace(create, match => match + secure);
+    } else {
+      // The printer registration below generates onCreate on a fresh shell.
+      // Install the flag there after registration is generated.
+    }
+  }
+  writeFileSync(activityJava, activitySource);
+}
+
 const printerJavaPath = "android/app/src/main/java/" + javaPackagePath + "/RasdPrintPlugin.java";
 const printerJavaSource = `package ${nativePackage};
 
@@ -176,6 +202,19 @@ if (!activitySource.includes("registerPlugin(RasdPrintPlugin.class)")) {
         super.onCreate(savedInstanceState);
     }
 `);
+  writeFileSync(activityJava, activitySource);
+}
+
+if (localOnly) {
+  activitySource = readFileSync(activityJava, "utf8");
+  if (!activitySource.includes("// Rasd local secure window")) {
+    const create = /public void onCreate\(Bundle savedInstanceState\)\s*\{/;
+    if (!create.test(activitySource)) throw new Error("Missing onCreate for secure window");
+    activitySource = activitySource.replace(create, match => match +
+      "\n        // Rasd local secure window\n        getWindow().addFlags(WindowManager.LayoutParams.FLAG_SECURE);");
+  }
+  if (activitySource.includes("clearFlags(WindowManager.LayoutParams.FLAG_SECURE)"))
+    throw new Error("Local secure window must remain enabled");
   writeFileSync(activityJava, activitySource);
 }
 
