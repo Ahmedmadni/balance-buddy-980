@@ -1,6 +1,7 @@
+import { registerPlugin, Capacitor } from "@capacitor/core";
 import { Directory, Encoding, Filesystem } from "@capacitor/filesystem";
 import { Share } from "@capacitor/share";
-import { parseVaultFile, type RasdVaultFile } from "./crypto";
+import { type RasdVaultFile } from "./crypto";
 import {
   commitVaultFiles, inspectVaultFiles, promoteVaultCandidate,
   type VaultFileName, type VaultFiles, type VaultInspection,
@@ -10,39 +11,46 @@ import {
  * App-private Android Data directory. No localStorage, cookies, Supabase or
  * remotely hosted website is used for persistent financial records.
  */
-const PRIMARY = "rasd-private-v1.json";
-const PREVIOUS = "rasd-private-previous-v1.json";
-const DRAFT = "rasd-private-pending-v1.json";
-
-async function readFile(path: string): Promise<string | null> {
-  try {
-    const result = await Filesystem.readFile({ path, directory: Directory.Data, encoding: Encoding.UTF8 });
-    if (typeof result.data !== "string") throw new Error("Unexpected binary app storage");
-    return result.data;
-  } catch (error) {
-    const message = String(error).toLowerCase();
-    if (/does not exist|file does not exist|not found|os-plug-file-0008|enoent/.test(message))
-      return null;
-    throw error;
+interface AtomicVaultPlugin {
+  read(options: { name: VaultFileName }): Promise<{ exists: boolean; data?: string }>;
+  write(options: { name: VaultFileName; data: string }): Promise<void>;
+  remove(options: { name: VaultFileName }): Promise<void>;
+}
+const nativeVault = registerPlugin<AtomicVaultPlugin>("RasdAtomicVault");
+function requireAndroid() {
+  if (Capacitor.getPlatform() !== "android" || !Capacitor.isPluginAvailable("RasdAtomicVault")) {
+    throw new Error("التخزين الآمن متاح فقط في نسخة رصد Android المحلية.");
   }
 }
-const NAMES: Record<VaultFileName, string> = {
-  primary: PRIMARY, previous: PREVIOUS, pending: DRAFT,
-};
 const adapter: VaultFiles = {
-  read: name => readFile(NAMES[name]),
+  read: async name => {
+    requireAndroid();
+    const result = await nativeVault.read({ name });
+    if (result.exists === false) return null;
+    if (result.exists !== true || typeof result.data !== "string")
+      throw new Error("تعذرت قراءة الخزنة المحلية.");
+    return result.data;
+  },
   write: async (name, data) => {
-    await Filesystem.writeFile({
-      path: NAMES[name], directory: Directory.Data, data, encoding: Encoding.UTF8,
-    });
+    requireAndroid();
+    await nativeVault.write({ name, data });
   },
   remove: async name => {
-    await Filesystem.deleteFile({ path: NAMES[name], directory: Directory.Data });
+    requireAndroid();
+    await nativeVault.remove({ name });
   },
 };
 
+// Serialize complete multi-slot transactions, not merely individual calls.
+let tail: Promise<void> = Promise.resolve();
+function exclusive<T>(operation: () => Promise<T>): Promise<T> {
+  const result = tail.then(operation);
+  tail = result.then(() => undefined, () => undefined);
+  return result;
+}
+
 export async function inspectDeviceVault(): Promise<VaultInspection> {
-  return inspectVaultFiles(adapter);
+  return exclusive(() => inspectVaultFiles(adapter));
 }
 
 export async function loadDeviceVault(): Promise<RasdVaultFile | null> {
@@ -53,14 +61,14 @@ export async function loadDeviceVault(): Promise<RasdVaultFile | null> {
 }
 
 export async function saveDeviceVault(file: RasdVaultFile): Promise<void> {
-  return commitVaultFiles(adapter, file);
+  return exclusive(() => commitVaultFiles(adapter, file));
 }
 
 /** Authenticated and explicitly confirmed restore of selected local snapshot. */
 export async function recoverDeviceVault(
   source: VaultFileName, decryptedCandidate: RasdVaultFile,
 ): Promise<void> {
-  return promoteVaultCandidate(adapter, source, decryptedCandidate);
+  return exclusive(() => promoteVaultCandidate(adapter, source, decryptedCandidate));
 }
 
 /** Save the already encrypted envelope into Android cache and let the owner
